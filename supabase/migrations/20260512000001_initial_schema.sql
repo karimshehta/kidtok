@@ -185,7 +185,8 @@ create table public.watch_sessions (
   ended_at timestamptz,
   watched_seconds int default 0,
   -- daily totals (denormalized for fast queries)
-  watch_date date generated always as (date(started_at)) stored
+  -- explicit UTC cast makes the expression IMMUTABLE (required for generated columns)
+  watch_date date generated always as (((started_at at time zone 'UTC'))::date) stored
 );
 
 create index watch_sessions_child_date_idx on public.watch_sessions(child_id, watch_date);
