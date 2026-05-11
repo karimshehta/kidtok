@@ -1,0 +1,83 @@
+import { ReactNode } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
+import { Home, Users, User, Bell, Globe } from 'lucide-react'
+import { useAuth } from '@/stores/auth'
+import { cn } from '@/lib/utils'
+
+interface Props {
+  children: ReactNode
+}
+
+export default function AppLayout({ children }: Props) {
+  const { t, i18n } = useTranslation()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const user = useAuth((s) => s.user)
+
+  const toggleLang = () => {
+    i18n.changeLanguage(i18n.language === 'ar' ? 'en' : 'ar')
+  }
+
+  const navItems = [
+    { to: '/home', label: t('content'), icon: Home },
+    { to: '/children', label: t('children'), icon: Users },
+    { to: '/profile', label: 'الملف', icon: User },
+  ]
+
+  return (
+    <div className="min-h-screen bg-neutral-200/50 pb-24">
+      {/* Top bar */}
+      <header className="bg-white border-b border-neutral-300 sticky top-0 z-40">
+        <div className="container mx-auto px-4 py-3 flex items-center justify-between">
+          <button onClick={() => navigate('/home')} className="flex items-center gap-2">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white font-bold">
+              K
+            </div>
+            <span className="text-xl font-bold text-primary-dark">{t('appName')}</span>
+          </button>
+
+          <div className="flex items-center gap-3">
+            <button onClick={toggleLang} className="p-2 hover:bg-neutral-200 rounded-full" aria-label="lang">
+              <Globe className="w-5 h-5 text-neutral-700" />
+            </button>
+            <button className="p-2 hover:bg-neutral-200 rounded-full relative" aria-label="notifications">
+              <Bell className="w-5 h-5 text-neutral-700" />
+            </button>
+            {user?.user_metadata.name && (
+              <div className="hidden sm:block text-sm text-neutral-700">
+                مرحبًا، <span className="font-semibold text-neutral-900">{user.user_metadata.name}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </header>
+
+      <main>{children}</main>
+
+      {/* Bottom nav */}
+      <nav className="fixed bottom-0 inset-x-0 bg-white border-t border-neutral-300 z-40">
+        <div className="container mx-auto px-4">
+          <div className="grid grid-cols-3 py-2">
+            {navItems.map((item) => {
+              const active = location.pathname === item.to
+              return (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  className={cn(
+                    'flex flex-col items-center gap-1 py-2 transition-colors',
+                    active ? 'text-primary' : 'text-neutral-700'
+                  )}
+                >
+                  <item.icon className="w-6 h-6" />
+                  <span className="text-xs font-medium">{item.label}</span>
+                </Link>
+              )
+            })}
+          </div>
+        </div>
+      </nav>
+    </div>
+  )
+}
