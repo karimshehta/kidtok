@@ -7,6 +7,8 @@ import { Eye, EyeOff } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { translateAuthError } from '@/lib/auth-errors'
 import AuthShell from '@/components/AuthShell'
+import GoogleSignInButton from '@/components/GoogleSignInButton'
+import Divider from '@/components/Divider'
 
 type FormData = { email: string; password: string }
 
@@ -58,6 +60,9 @@ export default function Login() {
         </>
       }
     >
+      <GoogleSignInButton />
+      <Divider />
+
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div>
           <label className="block text-sm font-medium mb-1">البريد الإلكتروني</label>
