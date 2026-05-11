@@ -3,23 +3,26 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useForm } from 'react-hook-form'
 import toast from 'react-hot-toast'
-import { Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff, Mail } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { translateAuthError } from '@/lib/auth-errors'
+import AuthShell from '@/components/AuthShell'
 
 type FormData = { name: string; email: string; phone: string; password: string }
 
 export default function Signup() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const navigate = useNavigate()
   const [showPass, setShowPass] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [sentEmail, setSentEmail] = useState<string | null>(null)
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>()
 
   const onSubmit = async (data: FormData) => {
     setLoading(true)
     try {
-      const { error } = await supabase.auth.signUp({
+      const { data: result, error } = await supabase.auth.signUp({
         email: data.email,
         password: data.password,
         options: {
@@ -27,96 +30,129 @@ export default function Signup() {
             name: data.name,
             phone: data.phone,
           },
+          emailRedirectTo: `${window.location.origin}/login?confirmed=true`,
         },
       })
       if (error) throw error
-      toast.success('تم إنشاء الحساب! تحقق من بريدك للتفعيل')
-      navigate('/login')
+
+      // If session exists, email confirmation is disabled → user is logged in
+      if (result.session) {
+        toast.success('مرحبًا بك في KidTok')
+        navigate('/home')
+      } else {
+        // Email confirmation enabled - show "check email" screen
+        setSentEmail(data.email)
+      }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'خطأ غير متوقع'
-      toast.error(msg)
+      toast.error(translateAuthError(err, i18n.language as 'ar' | 'en'))
     } finally {
       setLoading(false)
     }
   }
 
-  return (
-    <div className="min-h-screen bg-gradient-to-b from-primary-light via-white to-white flex items-center justify-center p-4 py-8">
-      <div className="w-full max-w-md">
-        <Link to="/" className="flex items-center justify-center gap-2 mb-6">
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white font-bold text-xl">
-            K
+  if (sentEmail) {
+    return (
+      <AuthShell title="تحقق من بريدك" subtitle="">
+        <div className="text-center py-4">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center">
+            <Mail className="w-8 h-8 text-primary" />
           </div>
-          <span className="text-3xl font-bold text-primary-dark">{t('appName')}</span>
-        </Link>
-
-        <div className="card">
-          <h1 className="text-2xl font-bold mb-2">{t('signup')}</h1>
-          <p className="text-neutral-700 mb-6 text-sm">ابدأ رحلة آمنة لطفلك مع KidTok</p>
-
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">{t('name')}</label>
-              <input {...register('name', { required: 'مطلوب' })} className="input-field" placeholder="اسمك الكامل" />
-              {errors.name && <p className="text-danger text-xs mt-1">{errors.name.message}</p>}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-1">البريد الإلكتروني</label>
-              <input
-                type="email"
-                {...register('email', { required: 'مطلوب' })}
-                className="input-field"
-                placeholder="email@example.com"
-                dir="ltr"
-              />
-              {errors.email && <p className="text-danger text-xs mt-1">{errors.email.message}</p>}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-1">{t('phone')}</label>
-              <input
-                {...register('phone', { required: 'مطلوب' })}
-                className="input-field"
-                placeholder="01XXXXXXXXX"
-                dir="ltr"
-              />
-              {errors.phone && <p className="text-danger text-xs mt-1">{errors.phone.message}</p>}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-1">{t('password')}</label>
-              <div className="relative">
-                <input
-                  type={showPass ? 'text' : 'password'}
-                  {...register('password', { required: 'مطلوب', minLength: { value: 6, message: '6 أحرف على الأقل' } })}
-                  className="input-field pr-12"
-                  placeholder="••••••••"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPass(!showPass)}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-700"
-                >
-                  {showPass ? <EyeOff size={20} /> : <Eye size={20} />}
-                </button>
-              </div>
-              {errors.password && <p className="text-danger text-xs mt-1">{errors.password.message}</p>}
-            </div>
-
-            <button type="submit" disabled={loading} className="btn-primary w-full">
-              {loading ? t('loading') : t('signup')}
-            </button>
-          </form>
-
-          <p className="text-center text-sm text-neutral-700 mt-6">
-            لديك حساب بالفعل؟{' '}
-            <Link to="/login" className="text-primary font-semibold hover:underline">
-              {t('login')}
-            </Link>
+          <p className="text-neutral-900 mb-2 font-medium">
+            أرسلنا رابط تأكيد إلى:
           </p>
+          <p className="text-primary font-semibold mb-4" dir="ltr">{sentEmail}</p>
+          <p className="text-sm text-neutral-700 mb-6">
+            افتح الرابط لتفعيل الحساب والبدء في استخدام KidTok
+          </p>
+          <Link to="/login" className="btn-outline w-full block text-center">
+            العودة لتسجيل الدخول
+          </Link>
         </div>
-      </div>
-    </div>
+      </AuthShell>
+    )
+  }
+
+  return (
+    <AuthShell
+      title={t('signup')}
+      subtitle="ابدأ رحلة آمنة لطفلك مع KidTok"
+      footer={
+        <>
+          لديك حساب بالفعل؟{' '}
+          <Link to="/login" className="text-primary font-semibold hover:underline">
+            {t('login')}
+          </Link>
+        </>
+      }
+    >
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium mb-1">{t('name')}</label>
+          <input
+            {...register('name', { required: 'مطلوب' })}
+            className="input-field"
+            placeholder="اسمك الكامل"
+            autoComplete="name"
+          />
+          {errors.name && <p className="text-danger text-xs mt-1">{errors.name.message}</p>}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">البريد الإلكتروني</label>
+          <input
+            type="email"
+            {...register('email', {
+              required: 'مطلوب',
+              pattern: { value: /^\S+@\S+\.\S+$/, message: 'صيغة البريد غير صحيحة' },
+            })}
+            className="input-field"
+            placeholder="email@example.com"
+            dir="ltr"
+            autoComplete="email"
+          />
+          {errors.email && <p className="text-danger text-xs mt-1">{errors.email.message}</p>}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">{t('phone')}</label>
+          <input
+            {...register('phone', { required: 'مطلوب' })}
+            className="input-field"
+            placeholder="01XXXXXXXXX"
+            dir="ltr"
+            autoComplete="tel"
+          />
+          {errors.phone && <p className="text-danger text-xs mt-1">{errors.phone.message}</p>}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">{t('password')}</label>
+          <div className="relative">
+            <input
+              type={showPass ? 'text' : 'password'}
+              {...register('password', {
+                required: 'مطلوب',
+                minLength: { value: 6, message: '6 أحرف على الأقل' },
+              })}
+              className="input-field pe-12"
+              placeholder="••••••••"
+              autoComplete="new-password"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPass(!showPass)}
+              className="absolute end-3 top-1/2 -translate-y-1/2 text-neutral-700"
+            >
+              {showPass ? <EyeOff size={20} /> : <Eye size={20} />}
+            </button>
+          </div>
+          {errors.password && <p className="text-danger text-xs mt-1">{errors.password.message}</p>}
+        </div>
+
+        <button type="submit" disabled={loading} className="btn-primary w-full">
+          {loading ? t('loading') : t('signup')}
+        </button>
+      </form>
+    </AuthShell>
   )
 }
