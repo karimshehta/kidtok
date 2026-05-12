@@ -15,6 +15,8 @@ import PlaylistDetail from '@/pages/PlaylistDetail'
 import ChildMode from '@/pages/ChildMode'
 import Profile from '@/pages/Profile'
 import Subscription from '@/pages/Subscription'
+import SubscriptionSuccess from '@/pages/subscription/Success'
+import SubscriptionFailed from '@/pages/subscription/Failed'
 import Statistics from '@/pages/Statistics'
 import CreatorUpload from '@/pages/creator/Upload'
 import CreatorMyVideos from '@/pages/creator/MyVideos'
@@ -61,6 +63,8 @@ export default function App() {
         <Route path="/playlists/:playlistId" element={<PlaylistDetail />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/subscription" element={<Subscription />} />
+        <Route path="/subscription/success" element={<SubscriptionSuccess />} />
+        <Route path="/subscription/failed" element={<SubscriptionFailed />} />
         <Route path="/statistics/:childId" element={<Statistics />} />
         <Route path="/kid/:childId" element={<ChildMode />} />
         <Route path="/creator/upload" element={<CreatorUpload />} />

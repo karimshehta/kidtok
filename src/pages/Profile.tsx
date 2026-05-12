@@ -3,12 +3,14 @@ import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useForm } from 'react-hook-form'
 import toast from 'react-hot-toast'
-import { Eye, EyeOff, LogOut, KeyRound, User as UserIcon, Mail, Phone, Video, Upload, ShieldCheck } from 'lucide-react'
+import { Eye, EyeOff, LogOut, KeyRound, User as UserIcon, Mail, Phone, Video, Upload, ShieldCheck, Crown } from 'lucide-react'
 import AppLayout from '@/components/AppLayout'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/stores/auth'
 import { translateAuthError } from '@/lib/auth-errors'
 import { useUserRole } from '@/hooks/useCreator'
+import { useMySubscription } from '@/hooks/useSubscription'
+import { cn } from '@/lib/utils'
 
 type PassForm = { password: string; confirmPassword: string }
 
@@ -17,6 +19,7 @@ export default function Profile() {
   const user = useAuth((s) => s.user)
   const signOut = useAuth((s) => s.signOut)
   const { data: role } = useUserRole()
+  const { data: mySub } = useMySubscription()
 
   const [showSection, setShowSection] = useState<'none' | 'password'>('none')
   const [showPass, setShowPass] = useState(false)
@@ -54,6 +57,45 @@ export default function Profile() {
           <Info icon={Mail} label={t('profile.emailLabel')} value={user?.email || '-'} dir="ltr" />
           <Info icon={Phone} label={t('profile.phoneLabel')} value={user?.user_metadata.phone || '-'} dir="ltr" />
         </div>
+
+        <Link
+          to="/subscription"
+          className="card mb-4 relative overflow-hidden block group"
+          style={{
+            background: mySub
+              ? 'linear-gradient(135deg, #03BBE5, #F96286)'
+              : 'linear-gradient(135deg, #fff, #fafafa)',
+          }}
+        >
+          <div className="flex items-center gap-3">
+            <div className={cn(
+              'w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0',
+              mySub ? 'bg-white/20 backdrop-blur' : 'bg-gradient-to-br from-primary to-secondary'
+            )}>
+              <Crown className={cn('w-6 h-6', mySub ? 'text-amber-200' : 'text-white')} />
+            </div>
+            <div className="flex-1 min-w-0">
+              {mySub ? (
+                <>
+                  <div className="font-bold text-white">
+                    {i18n.language === 'ar' ? mySub.plan_name_ar : mySub.plan_name_en}
+                  </div>
+                  <div className="text-xs text-white/85">
+                    {t('subscription.expiresIn', { days: mySub.days_remaining })}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="font-bold text-neutral-900">{t('subscription.upgradeTitle')}</div>
+                  <div className="text-xs text-neutral-700">{t('subscription.upgradeSubtitle')}</div>
+                </>
+              )}
+            </div>
+            <div className={cn('text-xs px-3 py-1 rounded-full font-semibold', mySub ? 'bg-white text-primary' : 'bg-primary text-white')}>
+              {mySub ? t('common.edit') : t('subscription.subscribe')}
+            </div>
+          </div>
+        </Link>
 
         {isCreator && (
           <div className="card mb-4 space-y-2">

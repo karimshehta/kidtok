@@ -66,3 +66,11 @@ verify_jwt = true
 # no JWT involved. Signature is verified inside the function.
 [functions.creator-cloudflare-webhook]
 verify_jwt = false
+
+# Subscription functions
+[functions.subscription-create]
+verify_jwt = true
+
+# Paymob calls us back without JWT — HMAC is verified inside.
+[functions.subscription-paymob-callback]
+verify_jwt = false
