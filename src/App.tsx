@@ -8,6 +8,7 @@ import ForgotPassword from '@/pages/auth/ForgotPassword'
 import ResetPassword from '@/pages/auth/ResetPassword'
 import AuthCallback from '@/pages/auth/AuthCallback'
 import Home from '@/pages/Home'
+import Feed from '@/pages/Feed'
 import Children from '@/pages/Children'
 import ChildDetail from '@/pages/ChildDetail'
 import PlaylistDetail from '@/pages/PlaylistDetail'
@@ -17,7 +18,13 @@ import Subscription from '@/pages/Subscription'
 import Statistics from '@/pages/Statistics'
 import CreatorUpload from '@/pages/creator/Upload'
 import CreatorMyVideos from '@/pages/creator/MyVideos'
+import AdminDashboard from '@/pages/admin/Dashboard'
+import AdminContent from '@/pages/admin/Content'
 import AdminModeration from '@/pages/admin/Moderation'
+import AdminUsers from '@/pages/admin/Users'
+import AdminPlans from '@/pages/admin/Plans'
+import AdminReference from '@/pages/admin/Reference'
+import AdminReports from '@/pages/admin/Reports'
 import NotFound from '@/pages/NotFound'
 import ProtectedRoute from '@/components/ProtectedRoute'
 
@@ -48,6 +55,7 @@ export default function App() {
 
       <Route element={<ProtectedRoute />}>
         <Route path="/home" element={<Home />} />
+        <Route path="/feed" element={<Feed />} />
         <Route path="/children" element={<Children />} />
         <Route path="/children/:childId" element={<ChildDetail />} />
         <Route path="/playlists/:playlistId" element={<PlaylistDetail />} />
@@ -57,7 +65,13 @@ export default function App() {
         <Route path="/kid/:childId" element={<ChildMode />} />
         <Route path="/creator/upload" element={<CreatorUpload />} />
         <Route path="/creator/videos" element={<CreatorMyVideos />} />
+        <Route path="/admin" element={<AdminDashboard />} />
+        <Route path="/admin/content" element={<AdminContent />} />
         <Route path="/admin/moderation" element={<AdminModeration />} />
+        <Route path="/admin/users" element={<AdminUsers />} />
+        <Route path="/admin/plans" element={<AdminPlans />} />
+        <Route path="/admin/reference" element={<AdminReference />} />
+        <Route path="/admin/reports" element={<AdminReports />} />
       </Route>
 
       <Route path="/404" element={<NotFound />} />

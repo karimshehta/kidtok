@@ -1,7 +1,7 @@
 import { ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { Home, Users, User, Bell, Globe, Upload } from 'lucide-react'
+import { Users, User, Bell, Globe, Upload, Sparkles } from 'lucide-react'
 import { useAuth } from '@/stores/auth'
 import { useUserRole } from '@/hooks/useCreator'
 import { cn } from '@/lib/utils'
@@ -20,9 +20,9 @@ export default function AppLayout({ children }: Props) {
   const toggleLang = () => i18n.changeLanguage(i18n.language === 'ar' ? 'en' : 'ar')
 
   const navItems = [
-    { to: '/home', label: t('nav.content'), icon: Home, match: (p: string) => p === '/home' },
+    { to: '/feed', label: t('nav.feed'), icon: Sparkles, match: (p: string) => p === '/feed' || p === '/home' },
     { to: '/children', label: t('nav.children'), icon: Users, match: (p: string) => p.startsWith('/children') },
-    { to: '/profile', label: t('nav.profile'), icon: User, match: (p: string) => p === '/profile' },
+    { to: '/profile', label: t('nav.profile'), icon: User, match: (p: string) => p === '/profile' || p.startsWith('/admin') || p.startsWith('/creator') },
   ]
 
   const userName = user?.user_metadata.name || user?.user_metadata.full_name
@@ -32,7 +32,7 @@ export default function AppLayout({ children }: Props) {
     <div className="min-h-screen bg-neutral-200/50 pb-24">
       <header className="bg-white border-b border-neutral-300 sticky top-0 z-40">
         <div className="container mx-auto px-4 py-3 flex items-center justify-between">
-          <button onClick={() => navigate('/home')} className="flex items-center gap-2">
+          <button onClick={() => navigate('/feed')} className="flex items-center gap-2">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white font-bold">K</div>
             <span className="text-xl font-bold text-primary-dark">{t('common.appName')}</span>
           </button>

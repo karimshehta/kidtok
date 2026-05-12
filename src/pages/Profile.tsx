@@ -86,15 +86,15 @@ export default function Profile() {
 
         {isAdmin && (
           <Link
-            to="/admin/moderation"
+            to="/admin"
             className="card mb-4 flex items-center gap-3 hover:bg-neutral-200/50 transition-colors"
           >
             <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
               <ShieldCheck className="w-5 h-5 text-amber-700" />
             </div>
             <div className="flex-1">
-              <div className="font-semibold">{t('admin.nav.moderation')}</div>
-              <div className="text-xs text-neutral-700">{t('admin.moderation.subtitle')}</div>
+              <div className="font-semibold">{t('admin.title')}</div>
+              <div className="text-xs text-neutral-700">{t('admin.dashboard.welcome')}</div>
             </div>
           </Link>
         )}

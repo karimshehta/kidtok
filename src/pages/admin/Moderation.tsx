@@ -9,33 +9,20 @@ import {
   Clock,
   ShieldCheck,
   Play,
+  Loader2,
 } from 'lucide-react'
-import AppLayout from '@/components/AppLayout'
+import AdminLayout from '@/components/AdminLayout'
 import VideoPlayer from '@/components/VideoPlayer'
-import { usePendingModeration, useModerateVideo, useUserRole, type CreatorVideo } from '@/hooks/useCreator'
+import { usePendingModeration, useModerateVideo, type CreatorVideo } from '@/hooks/useCreator'
 
 export default function AdminModeration() {
   const { t } = useTranslation()
-  const { data: role, isLoading: roleLoading } = useUserRole()
   const { data: videos = [], isLoading } = usePendingModeration()
   const moderateMut = useModerateVideo()
 
   const [playing, setPlaying] = useState<CreatorVideo | null>(null)
   const [rejectingId, setRejectingId] = useState<string | null>(null)
   const [rejectReason, setRejectReason] = useState('')
-
-  // Block non-admins from seeing this page
-  if (!roleLoading && role !== 'admin') {
-    return (
-      <AppLayout>
-        <div className="container mx-auto px-4 py-12 max-w-md text-center">
-          <ShieldCheck className="w-16 h-16 mx-auto text-neutral-700 mb-4" />
-          <h1 className="text-xl font-bold mb-2">403</h1>
-          <p className="text-sm text-neutral-700">Admin access only</p>
-        </div>
-      </AppLayout>
-    )
-  }
 
   const handleApprove = async (id: string) => {
     try {
@@ -72,19 +59,19 @@ export default function AdminModeration() {
   }
 
   return (
-    <AppLayout>
-      <div className="container mx-auto px-4 py-6 max-w-4xl">
-        <div className="mb-6">
+    <AdminLayout>
+      <div className="max-w-5xl">
+        <header className="mb-6">
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <ShieldCheck className="w-7 h-7 text-primary" />
             {t('admin.moderation.title')}
           </h1>
           <p className="text-sm text-neutral-700 mt-1">{t('admin.moderation.subtitle')}</p>
-        </div>
+        </header>
 
         {isLoading ? (
           <div className="flex justify-center py-12">
-            <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+            <Loader2 className="w-10 h-10 animate-spin text-primary" />
           </div>
         ) : videos.length === 0 ? (
           <div className="card text-center py-12">
@@ -95,7 +82,6 @@ export default function AdminModeration() {
           <div className="space-y-4">
             {videos.map((v) => (
               <div key={v.id} className="card flex flex-col sm:flex-row gap-4 p-4">
-                {/* Thumbnail */}
                 <button
                   type="button"
                   onClick={() => v.cloudflare_uid && setPlaying(v)}
@@ -118,7 +104,6 @@ export default function AdminModeration() {
                   )}
                 </button>
 
-                {/* Metadata */}
                 <div className="flex-1 min-w-0">
                   <h3 className="font-semibold mb-1">{v.title}</h3>
                   {v.description && (
@@ -209,6 +194,6 @@ export default function AdminModeration() {
         cloudflareUid={playing?.cloudflare_uid || null}
         title={playing?.title}
       />
-    </AppLayout>
+    </AdminLayout>
   )
 }

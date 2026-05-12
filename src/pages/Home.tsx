@@ -1,5 +1,5 @@
 import { Navigate } from 'react-router-dom'
 
 export default function Home() {
-  return <Navigate to="/children" replace />
+  return <Navigate to="/feed" replace />
 }
