@@ -1,31 +1,27 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/stores/auth'
 
 export default function AuthCallback() {
   const navigate = useNavigate()
+  const user = useAuth((s) => s.user)
+  const loading = useAuth((s) => s.loading)
 
   useEffect(() => {
-    // Supabase auto-detects the session from URL hash (detectSessionInUrl: true)
-    // We just wait for it then route accordingly
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'PASSWORD_RECOVERY') {
-        navigate('/reset-password', { replace: true })
-      } else if (event === 'SIGNED_IN' && session) {
-        navigate('/home', { replace: true })
-      }
-    })
+    // Wait until the auth store finishes its initial session check.
+    // By then, Supabase has parsed the URL hash and populated the store.
+    if (loading) return
 
-    // Fallback - if no event in 3 seconds, redirect to login
-    const timer = setTimeout(() => {
-      navigate('/login', { replace: true })
-    }, 3000)
-
-    return () => {
-      subscription.unsubscribe()
-      clearTimeout(timer)
+    if (user) {
+      navigate('/home', { replace: true })
+    } else {
+      // Tiny grace period in case the OAuth flow is still settling
+      const timer = setTimeout(() => {
+        navigate('/login', { replace: true })
+      }, 1500)
+      return () => clearTimeout(timer)
     }
-  }, [navigate])
+  }, [user, loading, navigate])
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-primary-light to-white">
