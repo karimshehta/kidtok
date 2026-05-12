@@ -15,6 +15,9 @@ import ChildMode from '@/pages/ChildMode'
 import Profile from '@/pages/Profile'
 import Subscription from '@/pages/Subscription'
 import Statistics from '@/pages/Statistics'
+import CreatorUpload from '@/pages/creator/Upload'
+import CreatorMyVideos from '@/pages/creator/MyVideos'
+import AdminModeration from '@/pages/admin/Moderation'
 import NotFound from '@/pages/NotFound'
 import ProtectedRoute from '@/components/ProtectedRoute'
 
@@ -52,6 +55,9 @@ export default function App() {
         <Route path="/subscription" element={<Subscription />} />
         <Route path="/statistics/:childId" element={<Statistics />} />
         <Route path="/kid/:childId" element={<ChildMode />} />
+        <Route path="/creator/upload" element={<CreatorUpload />} />
+        <Route path="/creator/videos" element={<CreatorMyVideos />} />
+        <Route path="/admin/moderation" element={<AdminModeration />} />
       </Route>
 
       <Route path="/404" element={<NotFound />} />

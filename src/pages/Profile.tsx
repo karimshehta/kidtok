@@ -1,12 +1,14 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useForm } from 'react-hook-form'
 import toast from 'react-hot-toast'
-import { Eye, EyeOff, LogOut, KeyRound, User as UserIcon, Mail, Phone } from 'lucide-react'
+import { Eye, EyeOff, LogOut, KeyRound, User as UserIcon, Mail, Phone, Video, Upload, ShieldCheck } from 'lucide-react'
 import AppLayout from '@/components/AppLayout'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/stores/auth'
 import { translateAuthError } from '@/lib/auth-errors'
+import { useUserRole } from '@/hooks/useCreator'
 
 type PassForm = { password: string; confirmPassword: string }
 
@@ -14,6 +16,7 @@ export default function Profile() {
   const { t, i18n } = useTranslation()
   const user = useAuth((s) => s.user)
   const signOut = useAuth((s) => s.signOut)
+  const { data: role } = useUserRole()
 
   const [showSection, setShowSection] = useState<'none' | 'password'>('none')
   const [showPass, setShowPass] = useState(false)
@@ -38,6 +41,8 @@ export default function Profile() {
   }
 
   const userName = user?.user_metadata.name || user?.user_metadata.full_name || '-'
+  const isCreator = role === 'creator' || role === 'admin'
+  const isAdmin = role === 'admin'
 
   return (
     <AppLayout>
@@ -49,6 +54,50 @@ export default function Profile() {
           <Info icon={Mail} label={t('profile.emailLabel')} value={user?.email || '-'} dir="ltr" />
           <Info icon={Phone} label={t('profile.phoneLabel')} value={user?.user_metadata.phone || '-'} dir="ltr" />
         </div>
+
+        {isCreator && (
+          <div className="card mb-4 space-y-2">
+            <Link
+              to="/creator/upload"
+              className="flex items-center gap-3 p-2 -mx-2 rounded-xl hover:bg-neutral-200 transition-colors"
+            >
+              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                <Upload className="w-5 h-5 text-primary" />
+              </div>
+              <div className="flex-1">
+                <div className="font-semibold">{t('creator.nav.upload')}</div>
+                <div className="text-xs text-neutral-700">{t('creator.upload.subtitle')}</div>
+              </div>
+            </Link>
+            <Link
+              to="/creator/videos"
+              className="flex items-center gap-3 p-2 -mx-2 rounded-xl hover:bg-neutral-200 transition-colors"
+            >
+              <div className="w-10 h-10 rounded-full bg-secondary/10 flex items-center justify-center">
+                <Video className="w-5 h-5 text-secondary" />
+              </div>
+              <div className="flex-1">
+                <div className="font-semibold">{t('creator.nav.myVideos')}</div>
+                <div className="text-xs text-neutral-700">{t('creator.myVideos.title')}</div>
+              </div>
+            </Link>
+          </div>
+        )}
+
+        {isAdmin && (
+          <Link
+            to="/admin/moderation"
+            className="card mb-4 flex items-center gap-3 hover:bg-neutral-200/50 transition-colors"
+          >
+            <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
+              <ShieldCheck className="w-5 h-5 text-amber-700" />
+            </div>
+            <div className="flex-1">
+              <div className="font-semibold">{t('admin.nav.moderation')}</div>
+              <div className="text-xs text-neutral-700">{t('admin.moderation.subtitle')}</div>
+            </div>
+          </Link>
+        )}
 
         <div className="card mb-4">
           <button

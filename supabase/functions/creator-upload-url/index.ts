@@ -69,8 +69,13 @@ Deno.serve(async (req) => {
     return errorResponse('Description too long (max 5000 chars)', 400, 'DESCRIPTION_TOO_LONG')
   }
 
-  // Cap at 30 minutes on the platform side; tune later based on subscription tier
-  const maxDuration = Math.min(Math.max(body.max_duration_seconds ?? 600, 30), 1800)
+  // Hard cap: 30 seconds per video (Stories/Reels-style content).
+  // The default if the client doesn't send max_duration_seconds is also 30.
+  const MAX_DURATION_SEC = 30
+  const maxDuration = Math.min(
+    Math.max(body.max_duration_seconds ?? MAX_DURATION_SEC, 5),
+    MAX_DURATION_SEC
+  )
 
   // 4. Request a direct upload URL from Cloudflare
   let upload

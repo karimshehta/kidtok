@@ -1,8 +1,9 @@
 import { ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { Home, Users, User, Bell, Globe } from 'lucide-react'
+import { Home, Users, User, Bell, Globe, Upload } from 'lucide-react'
 import { useAuth } from '@/stores/auth'
+import { useUserRole } from '@/hooks/useCreator'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -14,16 +15,18 @@ export default function AppLayout({ children }: Props) {
   const location = useLocation()
   const navigate = useNavigate()
   const user = useAuth((s) => s.user)
+  const { data: role } = useUserRole()
 
   const toggleLang = () => i18n.changeLanguage(i18n.language === 'ar' ? 'en' : 'ar')
 
   const navItems = [
-    { to: '/home', label: t('nav.content'), icon: Home },
-    { to: '/children', label: t('nav.children'), icon: Users },
-    { to: '/profile', label: t('nav.profile'), icon: User },
+    { to: '/home', label: t('nav.content'), icon: Home, match: (p: string) => p === '/home' },
+    { to: '/children', label: t('nav.children'), icon: Users, match: (p: string) => p.startsWith('/children') },
+    { to: '/profile', label: t('nav.profile'), icon: User, match: (p: string) => p === '/profile' },
   ]
 
   const userName = user?.user_metadata.name || user?.user_metadata.full_name
+  const isCreator = role === 'creator' || role === 'admin'
 
   return (
     <div className="min-h-screen bg-neutral-200/50 pb-24">
@@ -34,7 +37,17 @@ export default function AppLayout({ children }: Props) {
             <span className="text-xl font-bold text-primary-dark">{t('common.appName')}</span>
           </button>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1 sm:gap-3">
+            {isCreator && (
+              <Link
+                to="/creator/upload"
+                className="p-2 hover:bg-primary/10 rounded-full text-primary transition-colors"
+                aria-label="upload"
+                title={t('creator.nav.upload')}
+              >
+                <Upload className="w-5 h-5" />
+              </Link>
+            )}
             <button onClick={toggleLang} className="p-2 hover:bg-neutral-200 rounded-full" aria-label="lang">
               <Globe className="w-5 h-5 text-neutral-700" />
             </button>
@@ -42,7 +55,7 @@ export default function AppLayout({ children }: Props) {
               <Bell className="w-5 h-5 text-neutral-700" />
             </button>
             {userName && (
-              <div className="hidden sm:block text-sm text-neutral-700">
+              <div className="hidden sm:block text-sm text-neutral-700 ms-1">
                 {t('profile.welcomeUser', { name: userName })}
               </div>
             )}
@@ -56,7 +69,7 @@ export default function AppLayout({ children }: Props) {
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-3 py-2">
             {navItems.map((item) => {
-              const active = location.pathname === item.to || (item.to === '/children' && location.pathname.startsWith('/children'))
+              const active = item.match(location.pathname)
               return (
                 <Link
                   key={item.to}
