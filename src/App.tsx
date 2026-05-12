@@ -9,6 +9,8 @@ import ResetPassword from '@/pages/auth/ResetPassword'
 import AuthCallback from '@/pages/auth/AuthCallback'
 import Home from '@/pages/Home'
 import Children from '@/pages/Children'
+import ChildDetail from '@/pages/ChildDetail'
+import PlaylistDetail from '@/pages/PlaylistDetail'
 import ChildMode from '@/pages/ChildMode'
 import Profile from '@/pages/Profile'
 import Subscription from '@/pages/Subscription'
@@ -34,7 +36,6 @@ export default function App() {
 
   return (
     <Routes>
-      {/* Public */}
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
@@ -42,17 +43,17 @@ export default function App() {
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/auth/callback" element={<AuthCallback />} />
 
-      {/* Protected */}
       <Route element={<ProtectedRoute />}>
         <Route path="/home" element={<Home />} />
         <Route path="/children" element={<Children />} />
+        <Route path="/children/:childId" element={<ChildDetail />} />
+        <Route path="/playlists/:playlistId" element={<PlaylistDetail />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/subscription" element={<Subscription />} />
         <Route path="/statistics/:childId" element={<Statistics />} />
         <Route path="/kid/:childId" element={<ChildMode />} />
       </Route>
 
-      {/* Fallback */}
       <Route path="/404" element={<NotFound />} />
       <Route path="*" element={<Navigate to="/404" replace />} />
     </Routes>

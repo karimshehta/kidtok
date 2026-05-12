@@ -19,18 +19,14 @@ export default function Login() {
   const [params] = useSearchParams()
   const [showPass, setShowPass] = useState(false)
   const [loading, setLoading] = useState(false)
-
-  const { register, handleSubmit, formState: { errors } } = useForm<FormData>()
   const setSession = useAuth((s) => s.setSession)
 
+  const { register, handleSubmit, formState: { errors } } = useForm<FormData>()
+
   useEffect(() => {
-    if (params.get('confirmed') === 'true') {
-      toast.success('تم تأكيد بريدك بنجاح، يمكنك تسجيل الدخول الآن')
-    }
-    if (params.get('reset') === 'success') {
-      toast.success('تم تغيير كلمة المرور بنجاح')
-    }
-  }, [params])
+    if (params.get('confirmed') === 'true') toast.success(t('auth.emailConfirmed'))
+    if (params.get('reset') === 'success') toast.success(t('auth.resetSuccess'))
+  }, [params, t])
 
   const onSubmit = async (data: FormData) => {
     setLoading(true)
@@ -40,9 +36,8 @@ export default function Login() {
         password: data.password,
       })
       if (error) throw error
-      // Sync the store BEFORE navigating so ProtectedRoute sees the user
       setSession(result.session)
-      toast.success('مرحبًا بعودتك')
+      toast.success(t('auth.welcomeBack'))
       navigate('/home', { replace: true })
     } catch (err) {
       toast.error(translateAuthError(err, i18n.language as 'ar' | 'en'))
@@ -53,28 +48,26 @@ export default function Login() {
 
   return (
     <AuthShell
-      title={t('login')}
-      subtitle="مرحبًا بعودتك! سجل الدخول للمتابعة"
+      title={t('auth.login')}
+      subtitle={t('auth.loginSubtitle')}
       footer={
         <>
-          ليس لديك حساب؟{' '}
-          <Link to="/signup" className="text-primary font-semibold hover:underline">
-            {t('signup')}
-          </Link>
+          {t('auth.noAccount')}{' '}
+          <Link to="/signup" className="text-primary font-semibold hover:underline">{t('auth.signup')}</Link>
         </>
       }
     >
-      <GoogleSignInButton />
+      <GoogleSignInButton mode="login" />
       <Divider />
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium mb-1">البريد الإلكتروني</label>
+          <label className="block text-sm font-medium mb-1">{t('auth.fields.email')}</label>
           <input
             type="email"
-            {...register('email', { required: 'مطلوب' })}
+            {...register('email', { required: t('auth.validation.required') })}
             className="input-field"
-            placeholder="email@example.com"
+            placeholder={t('auth.fields.emailPlaceholder')}
             dir="ltr"
             autoComplete="email"
           />
@@ -82,16 +75,16 @@ export default function Login() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">{t('password')}</label>
+          <label className="block text-sm font-medium mb-1">{t('auth.fields.password')}</label>
           <div className="relative">
             <input
               type={showPass ? 'text' : 'password'}
               {...register('password', {
-                required: 'مطلوب',
-                minLength: { value: 6, message: '6 أحرف على الأقل' },
+                required: t('auth.validation.required'),
+                minLength: { value: 6, message: t('auth.validation.minLength', { count: 6 }) },
               })}
               className="input-field pe-12"
-              placeholder="••••••••"
+              placeholder={t('auth.fields.passwordPlaceholder')}
               autoComplete="current-password"
             />
             <button
@@ -107,12 +100,12 @@ export default function Login() {
 
         <div className="text-start">
           <Link to="/forgot-password" className="text-primary text-sm hover:underline">
-            {t('forgotPassword')}
+            {t('auth.forgotPasswordLink')}
           </Link>
         </div>
 
         <button type="submit" disabled={loading} className="btn-primary w-full">
-          {loading ? t('loading') : t('login')}
+          {loading ? t('common.loading') : t('auth.login')}
         </button>
       </form>
     </AuthShell>

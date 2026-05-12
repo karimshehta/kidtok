@@ -26,10 +26,8 @@ export default function AuthShell({ title, subtitle, children, footer }: Props) 
 
       <div className="w-full max-w-md">
         <Link to="/" className="flex items-center justify-center gap-2 mb-6">
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white font-bold text-xl">
-            K
-          </div>
-          <span className="text-3xl font-bold text-primary-dark">{t('appName')}</span>
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white font-bold text-xl">K</div>
+          <span className="text-3xl font-bold text-primary-dark">{t('common.appName')}</span>
         </Link>
 
         <div className="card">

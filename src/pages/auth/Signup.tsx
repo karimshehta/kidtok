@@ -19,9 +19,9 @@ export default function Signup() {
   const [showPass, setShowPass] = useState(false)
   const [loading, setLoading] = useState(false)
   const [sentEmail, setSentEmail] = useState<string | null>(null)
+  const setSession = useAuth((s) => s.setSession)
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>()
-  const setSession = useAuth((s) => s.setSession)
 
   const onSubmit = async (data: FormData) => {
     setLoading(true)
@@ -30,22 +30,17 @@ export default function Signup() {
         email: data.email,
         password: data.password,
         options: {
-          data: {
-            name: data.name,
-            phone: data.phone,
-          },
+          data: { name: data.name, phone: data.phone },
           emailRedirectTo: `${window.location.origin}/login?confirmed=true`,
         },
       })
       if (error) throw error
 
-      // If session exists, email confirmation is disabled → user is logged in
       if (result.session) {
         setSession(result.session)
-        toast.success('مرحبًا بك في KidTok')
+        toast.success(t('auth.welcomeNew'))
         navigate('/home', { replace: true })
       } else {
-        // Email confirmation enabled - show "check email" screen
         setSentEmail(data.email)
       }
     } catch (err) {
@@ -57,21 +52,15 @@ export default function Signup() {
 
   if (sentEmail) {
     return (
-      <AuthShell title="تحقق من بريدك" subtitle="">
+      <AuthShell title={t('auth.confirmEmailTitle')} subtitle="">
         <div className="text-center py-4">
           <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center">
             <Mail className="w-8 h-8 text-primary" />
           </div>
-          <p className="text-neutral-900 mb-2 font-medium">
-            أرسلنا رابط تأكيد إلى:
-          </p>
+          <p className="text-neutral-900 mb-2 font-medium">{t('auth.confirmEmailBody')}</p>
           <p className="text-primary font-semibold mb-4" dir="ltr">{sentEmail}</p>
-          <p className="text-sm text-neutral-700 mb-6">
-            افتح الرابط لتفعيل الحساب والبدء في استخدام KidTok
-          </p>
-          <Link to="/login" className="btn-outline w-full block text-center">
-            العودة لتسجيل الدخول
-          </Link>
+          <p className="text-sm text-neutral-700 mb-6">{t('auth.confirmEmailHint')}</p>
+          <Link to="/login" className="btn-outline w-full block text-center">{t('auth.backToLogin')}</Link>
         </div>
       </AuthShell>
     )
@@ -79,42 +68,40 @@ export default function Signup() {
 
   return (
     <AuthShell
-      title={t('signup')}
-      subtitle="ابدأ رحلة آمنة لطفلك مع KidTok"
+      title={t('auth.signup')}
+      subtitle={t('auth.signupSubtitle')}
       footer={
         <>
-          لديك حساب بالفعل؟{' '}
-          <Link to="/login" className="text-primary font-semibold hover:underline">
-            {t('login')}
-          </Link>
+          {t('auth.haveAccount')}{' '}
+          <Link to="/login" className="text-primary font-semibold hover:underline">{t('auth.login')}</Link>
         </>
       }
     >
-      <GoogleSignInButton label="التسجيل بحساب Google" />
+      <GoogleSignInButton mode="signup" />
       <Divider />
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium mb-1">{t('name')}</label>
+          <label className="block text-sm font-medium mb-1">{t('auth.fields.name')}</label>
           <input
-            {...register('name', { required: 'مطلوب' })}
+            {...register('name', { required: t('auth.validation.required') })}
             className="input-field"
-            placeholder="اسمك الكامل"
+            placeholder={t('auth.fields.namePlaceholder')}
             autoComplete="name"
           />
           {errors.name && <p className="text-danger text-xs mt-1">{errors.name.message}</p>}
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">البريد الإلكتروني</label>
+          <label className="block text-sm font-medium mb-1">{t('auth.fields.email')}</label>
           <input
             type="email"
             {...register('email', {
-              required: 'مطلوب',
-              pattern: { value: /^\S+@\S+\.\S+$/, message: 'صيغة البريد غير صحيحة' },
+              required: t('auth.validation.required'),
+              pattern: { value: /^\S+@\S+\.\S+$/, message: t('auth.validation.emailFormat') },
             })}
             className="input-field"
-            placeholder="email@example.com"
+            placeholder={t('auth.fields.emailPlaceholder')}
             dir="ltr"
             autoComplete="email"
           />
@@ -122,11 +109,11 @@ export default function Signup() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">{t('phone')}</label>
+          <label className="block text-sm font-medium mb-1">{t('auth.fields.phone')}</label>
           <input
-            {...register('phone', { required: 'مطلوب' })}
+            {...register('phone', { required: t('auth.validation.required') })}
             className="input-field"
-            placeholder="01XXXXXXXXX"
+            placeholder={t('auth.fields.phonePlaceholder')}
             dir="ltr"
             autoComplete="tel"
           />
@@ -134,16 +121,16 @@ export default function Signup() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">{t('password')}</label>
+          <label className="block text-sm font-medium mb-1">{t('auth.fields.password')}</label>
           <div className="relative">
             <input
               type={showPass ? 'text' : 'password'}
               {...register('password', {
-                required: 'مطلوب',
-                minLength: { value: 6, message: '6 أحرف على الأقل' },
+                required: t('auth.validation.required'),
+                minLength: { value: 6, message: t('auth.validation.minLength', { count: 6 }) },
               })}
               className="input-field pe-12"
-              placeholder="••••••••"
+              placeholder={t('auth.fields.passwordPlaceholder')}
               autoComplete="new-password"
             />
             <button
@@ -158,7 +145,7 @@ export default function Signup() {
         </div>
 
         <button type="submit" disabled={loading} className="btn-primary w-full">
-          {loading ? t('loading') : t('signup')}
+          {loading ? t('common.loading') : t('auth.signup')}
         </button>
       </form>
     </AuthShell>
