@@ -53,3 +53,16 @@ enable_confirmations = false
 enabled = true
 policy = "oneshot"
 inspector_port = 8083
+
+# ============================================================
+# Edge Functions configuration
+# ============================================================
+
+# Creator video upload URL request: requires authenticated user (default).
+[functions.creator-upload-url]
+verify_jwt = true
+
+# Cloudflare webhook: called by Cloudflare (server-to-server with HMAC),
+# no JWT involved. Signature is verified inside the function.
+[functions.creator-cloudflare-webhook]
+verify_jwt = false
