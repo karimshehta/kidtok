@@ -181,6 +181,8 @@ const ar = {
     alreadyAdded: 'الفيديو موجود في القائمة بالفعل',
     suggested: 'فيديوهات مقترحة',
     emptyVideos: 'لا توجد فيديوهات في هذه القائمة',
+    embedBlocked: 'صاحب الفيديو منع التشغيل خارج يوتيوب. اضغط لفتحه هناك.',
+    openInYouTube: 'فتح في يوتيوب',
   },
   notFound: {
     title: 'الصفحة غير موجودة',
@@ -374,6 +376,8 @@ const en: typeof ar = {
     alreadyAdded: 'Video already in this playlist',
     suggested: 'Suggested videos',
     emptyVideos: 'No videos in this playlist',
+    embedBlocked: 'The video owner blocked playback outside YouTube. Tap to open it there.',
+    openInYouTube: 'Open in YouTube',
   },
   notFound: {
     title: 'Page not found',

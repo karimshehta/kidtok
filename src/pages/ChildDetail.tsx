@@ -65,7 +65,7 @@ export default function ChildDetail() {
 
         {/* Child header */}
         <div className="card mb-6 flex items-center gap-4">
-          <ChildAvatar name={child.name} imageUrl={child.image_url} size="xl" />
+          <ChildAvatar name={child.name} imageUrl={child.image_url} gender={child.gender} size="xl" />
           <div className="flex-1 min-w-0">
             <h1 className="text-2xl font-bold">{child.name}</h1>
             {child.age && (

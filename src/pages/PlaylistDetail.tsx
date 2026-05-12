@@ -6,8 +6,10 @@ import toast from 'react-hot-toast'
 import { ArrowRight, Plus, Trash2, Play, ExternalLink, Search } from 'lucide-react'
 import AppLayout from '@/components/AppLayout'
 import Modal from '@/components/Modal'
+import VideoPlayer from '@/components/VideoPlayer'
 import { usePlaylist, usePlaylistVideos, useAddVideoToPlaylist, useRemoveVideoFromPlaylist } from '@/hooks/usePlaylists'
 import { extractYouTubeId, getYouTubeThumbnail, getYouTubeWatchUrl, fetchYouTubeOEmbed } from '@/lib/youtube'
+import type { PlaylistVideo } from '@/types/db'
 
 export default function PlaylistDetail() {
   const { playlistId } = useParams()
@@ -18,8 +20,10 @@ export default function PlaylistDetail() {
   const removeMut = useRemoveVideoFromPlaylist()
 
   const [addOpen, setAddOpen] = useState(false)
+  const [playingPV, setPlayingPV] = useState<PlaylistVideo | null>(null)
 
-  const handleRemove = async (pvId: string) => {
+  const handleRemove = async (e: React.MouseEvent, pvId: string) => {
+    e.stopPropagation()
     if (!confirm(t('videos.removeConfirm'))) return
     try {
       await removeMut.mutateAsync({ playlist_video_id: pvId, playlist_id: playlistId! })
@@ -60,8 +64,8 @@ export default function PlaylistDetail() {
           {t('common.back')}
         </Link>
 
-        <div className="flex items-start justify-between mb-6">
-          <div>
+        <div className="flex items-start justify-between gap-3 mb-6">
+          <div className="min-w-0">
             <h1 className="text-2xl font-bold">{playlist.name}</h1>
             {playlist.description && (
               <p className="text-neutral-700 text-sm mt-1">{playlist.description}</p>
@@ -82,7 +86,7 @@ export default function PlaylistDetail() {
           </div>
         ) : videos.length === 0 ? (
           <div className="card text-center py-10">
-            <div className="text-5xl mb-3">📹</div>
+            <img src="/assets/playlistplaceholder.svg" alt="" className="w-32 h-32 mx-auto mb-3 opacity-80" />
             <p className="text-neutral-700 text-sm mb-4">{t('videos.emptyVideos')}</p>
             <button onClick={() => setAddOpen(true)} className="btn-primary inline-flex items-center gap-2">
               <Plus className="w-5 h-5" />
@@ -95,7 +99,12 @@ export default function PlaylistDetail() {
               if (!pv.video) return null
               const ytId = pv.video.youtube_id
               return (
-                <div key={pv.id} className="card flex gap-3 group p-3">
+                <button
+                  type="button"
+                  key={pv.id}
+                  onClick={() => setPlayingPV(pv)}
+                  className="card flex gap-3 group p-3 w-full text-start hover:shadow-md transition-shadow"
+                >
                   <div className="relative w-32 sm:w-40 aspect-video rounded-lg overflow-hidden flex-shrink-0 bg-neutral-300">
                     <img
                       src={pv.video.thumbnail_url || getYouTubeThumbnail(ytId)}
@@ -106,7 +115,9 @@ export default function PlaylistDetail() {
                       }}
                     />
                     <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                      <Play className="w-8 h-8 text-white" fill="white" />
+                      <div className="w-12 h-12 rounded-full bg-white/90 flex items-center justify-center">
+                        <Play className="w-6 h-6 text-primary ms-1" fill="currentColor" />
+                      </div>
                     </div>
                   </div>
                   <div className="flex-1 min-w-0 flex flex-col">
@@ -116,18 +127,20 @@ export default function PlaylistDetail() {
                     {pv.video.channel_name && (
                       <p className="text-xs text-neutral-700 mb-2">{pv.video.channel_name}</p>
                     )}
-                    <div className="mt-auto flex gap-2">
+                    <div className="mt-auto flex gap-3 items-center">
                       <a
                         href={getYouTubeWatchUrl(ytId)}
                         target="_blank"
                         rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
                         className="text-xs text-primary hover:underline inline-flex items-center gap-1"
                       >
                         <ExternalLink className="w-3 h-3" />
                         YouTube
                       </a>
                       <button
-                        onClick={() => handleRemove(pv.id)}
+                        type="button"
+                        onClick={(e) => handleRemove(e, pv.id)}
                         className="text-xs text-danger hover:underline inline-flex items-center gap-1 ms-auto"
                       >
                         <Trash2 className="w-3 h-3" />
@@ -135,7 +148,7 @@ export default function PlaylistDetail() {
                       </button>
                     </div>
                   </div>
-                </div>
+                </button>
               )
             })}
           </div>
@@ -148,6 +161,14 @@ export default function PlaylistDetail() {
           onDone={() => setAddOpen(false)}
         />
       </Modal>
+
+      <VideoPlayer
+        open={!!playingPV}
+        onClose={() => setPlayingPV(null)}
+        youtubeId={playingPV?.video?.youtube_id || null}
+        title={playingPV?.video?.title}
+        channel={playingPV?.video?.channel_name}
+      />
     </AppLayout>
   )
 }

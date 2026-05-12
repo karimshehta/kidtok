@@ -64,7 +64,7 @@ export default function Children() {
             {children.map((child) => (
               <div key={child.id} className="card relative">
                 <div className="flex items-center gap-4">
-                  <ChildAvatar name={child.name} imageUrl={child.image_url} size="lg" />
+                  <ChildAvatar name={child.name} imageUrl={child.image_url} gender={child.gender} size="lg" />
                   <div className="flex-1 min-w-0">
                     <h3 className="font-bold text-lg truncate">{child.name}</h3>
                     {child.age && (
