@@ -6,6 +6,7 @@ import toast from 'react-hot-toast'
 import { Eye, EyeOff } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { translateAuthError } from '@/lib/auth-errors'
+import { useAuth } from '@/stores/auth'
 import AuthShell from '@/components/AuthShell'
 import GoogleSignInButton from '@/components/GoogleSignInButton'
 import Divider from '@/components/Divider'
@@ -20,6 +21,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false)
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>()
+  const setSession = useAuth((s) => s.setSession)
 
   useEffect(() => {
     if (params.get('confirmed') === 'true') {
@@ -33,13 +35,15 @@ export default function Login() {
   const onSubmit = async (data: FormData) => {
     setLoading(true)
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data: result, error } = await supabase.auth.signInWithPassword({
         email: data.email,
         password: data.password,
       })
       if (error) throw error
+      // Sync the store BEFORE navigating so ProtectedRoute sees the user
+      setSession(result.session)
       toast.success('مرحبًا بعودتك')
-      navigate('/home')
+      navigate('/home', { replace: true })
     } catch (err) {
       toast.error(translateAuthError(err, i18n.language as 'ar' | 'en'))
     } finally {

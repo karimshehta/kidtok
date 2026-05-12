@@ -6,6 +6,7 @@ import toast from 'react-hot-toast'
 import { Eye, EyeOff, Mail } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { translateAuthError } from '@/lib/auth-errors'
+import { useAuth } from '@/stores/auth'
 import AuthShell from '@/components/AuthShell'
 import GoogleSignInButton from '@/components/GoogleSignInButton'
 import Divider from '@/components/Divider'
@@ -20,6 +21,7 @@ export default function Signup() {
   const [sentEmail, setSentEmail] = useState<string | null>(null)
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>()
+  const setSession = useAuth((s) => s.setSession)
 
   const onSubmit = async (data: FormData) => {
     setLoading(true)
@@ -39,8 +41,9 @@ export default function Signup() {
 
       // If session exists, email confirmation is disabled → user is logged in
       if (result.session) {
+        setSession(result.session)
         toast.success('مرحبًا بك في KidTok')
-        navigate('/home')
+        navigate('/home', { replace: true })
       } else {
         // Email confirmation enabled - show "check email" screen
         setSentEmail(data.email)
