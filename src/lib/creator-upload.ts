@@ -77,11 +77,30 @@ export async function uploadCreatorVideo(
       max_duration_seconds: MAX_VIDEO_DURATION_SEC,
     },
   })
+
   if (error) {
-    // Try to surface a server-supplied message if present
-    const msg = (error as any)?.context?.error?.message || (error as Error).message
-    throw new Error(msg || 'EDGE_FUNCTION_FAILED')
+    // Supabase wraps edge function errors in FunctionsHttpError.
+    // The actual message is in the response body — we need to parse it async.
+    let msg = (error as Error).message || 'EDGE_FUNCTION_FAILED'
+
+    const ctx = (error as any)?.context
+    if (ctx) {
+      try {
+        // FunctionsHttpError.context is a Response object
+        const body = typeof ctx.json === 'function' ? await ctx.json() : ctx
+        if (body?.error?.message) msg = body.error.message
+        else if (body?.error?.code) msg = body.error.code
+        else if (body?.message) msg = body.message
+        else if (typeof body === 'string') msg = body
+      } catch {
+        // fallback to generic message from error object
+      }
+    }
+
+    console.error('[creator-upload] Edge function error:', { raw: error, msg })
+    throw new Error(msg)
   }
+
   if (!data?.upload_url || !data?.creator_video_id) {
     throw new Error('BAD_EDGE_RESPONSE')
   }
@@ -114,28 +133,39 @@ export async function uploadCreatorVideo(
   return { creator_video_id: data.creator_video_id, cloudflare_uid: data.cloudflare_uid }
 }
 
-/** Human-readable translation key for an upload error code. */
+/** Human-readable error message for an upload error. Returns the raw message for unmapped codes. */
+export function uploadErrorMessage(err: unknown, t: (key: string) => string): string {
+  const msg = err instanceof Error ? err.message : String(err)
+  const code = msg.split(':')[0].trim()
+
+  const keyMap: Record<string, string> = {
+    INVALID_TYPE:           'creator.upload.errors.invalidType',
+    FILE_TOO_LARGE:         'creator.upload.errors.fileTooLarge',
+    TOO_LONG:               'creator.upload.errors.tooLong',
+    INVALID_DURATION:       'creator.upload.errors.unreadable',
+    METADATA_READ_FAILED:   'creator.upload.errors.unreadable',
+    CLOUDFLARE_UPLOAD_FAILED: 'creator.upload.errors.networkFailed',
+    CLOUDFLARE_NETWORK_ERROR: 'creator.upload.errors.networkFailed',
+    CLOUDFLARE_UPLOAD_ABORTED: 'creator.upload.errors.aborted',
+    NOT_A_CREATOR:          'creator.upload.errors.notACreator',
+  }
+
+  // If there's a known translation key, use it
+  if (keyMap[code]) return t(keyMap[code])
+
+  // Otherwise surface the raw server message directly — much more useful for debugging
+  return msg || t('common.errorGeneric')
+}
+
+/** @deprecated use uploadErrorMessage */
 export function uploadErrorKey(err: unknown): string {
   const msg = err instanceof Error ? err.message : String(err)
-  const code = msg.split(':')[0]
+  const code = msg.split(':')[0].trim()
   switch (code) {
-    case 'INVALID_TYPE':
-      return 'creator.upload.errors.invalidType'
-    case 'FILE_TOO_LARGE':
-      return 'creator.upload.errors.fileTooLarge'
-    case 'TOO_LONG':
-      return 'creator.upload.errors.tooLong'
-    case 'INVALID_DURATION':
-    case 'METADATA_READ_FAILED':
-      return 'creator.upload.errors.unreadable'
-    case 'CLOUDFLARE_UPLOAD_FAILED':
-    case 'CLOUDFLARE_NETWORK_ERROR':
-      return 'creator.upload.errors.networkFailed'
-    case 'CLOUDFLARE_UPLOAD_ABORTED':
-      return 'creator.upload.errors.aborted'
-    case 'NOT_A_CREATOR':
-      return 'creator.upload.errors.notACreator'
-    default:
-      return 'common.errorGeneric'
+    case 'INVALID_TYPE':   return 'creator.upload.errors.invalidType'
+    case 'FILE_TOO_LARGE': return 'creator.upload.errors.fileTooLarge'
+    case 'TOO_LONG':       return 'creator.upload.errors.tooLong'
+    case 'NOT_A_CREATOR':  return 'creator.upload.errors.notACreator'
+    default:               return 'common.errorGeneric'
   }
 }

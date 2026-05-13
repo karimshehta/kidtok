@@ -9,13 +9,15 @@ import {
   CheckCircle2,
   Loader2,
   Sparkles,
+  AlertCircle,
+  ExternalLink,
 } from 'lucide-react'
 import AppLayout from '@/components/AppLayout'
 import { useAges, useInterests } from '@/hooks/useReference'
 import {
   uploadCreatorVideo,
   validateVideoFile,
-  uploadErrorKey,
+  uploadErrorMessage,
   MAX_VIDEO_DURATION_SEC,
   MAX_VIDEO_SIZE_MB,
 } from '@/lib/creator-upload'
@@ -117,7 +119,7 @@ export default function CreatorUpload() {
         URL.revokeObjectURL(url)
       }
     } catch (err) {
-      toast.error(t(uploadErrorKey(err)))
+      toast.error(uploadErrorMessage(err, t))
     }
   }
 
@@ -140,7 +142,7 @@ export default function CreatorUpload() {
       setTimeout(() => setState({ phase: 'done', creatorVideoId: res.creator_video_id }), 800)
     } catch (err) {
       setState({ phase: 'idle' })
-      toast.error(t(uploadErrorKey(err)))
+      toast.error(uploadErrorMessage(err, t))
     }
   })
 
@@ -187,7 +189,23 @@ export default function CreatorUpload() {
     <AppLayout>
       <div className="container mx-auto px-4 py-6 max-w-xl">
         <h1 className="text-2xl font-bold mb-1">{t('creator.upload.title')}</h1>
-        <p className="text-sm text-neutral-700 mb-6">{t('creator.upload.subtitle')}</p>
+        <p className="text-sm text-neutral-700 mb-4">{t('creator.upload.subtitle')}</p>
+
+        {/* Setup reminder — visible only in dev or when env vars might be missing */}
+        {import.meta.env.DEV && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 text-xs text-amber-800 flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+            <div>
+              <strong>Dev mode:</strong> Upload requires Cloudflare secrets in Supabase Edge Functions:
+              CLOUDFLARE_ACCOUNT_ID · CLOUDFLARE_STREAM_API_TOKEN · CLOUDFLARE_STREAM_CUSTOMER_CODE.
+              {' '}<a href="https://github.com/karimshehta/kidtok/blob/main/docs/cloudflare-setup.md"
+                target="_blank" rel="noopener noreferrer"
+                className="underline inline-flex items-center gap-0.5">
+                Setup guide <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+          </div>
+        )}
 
         <form onSubmit={onSubmit} className="space-y-4">
           {/* File picker / preview */}

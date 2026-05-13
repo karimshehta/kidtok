@@ -89,9 +89,20 @@ Deno.serve(async (req) => {
       },
     })
   } catch (err) {
-    console.error('Cloudflare error:', err)
+    const errMsg = (err as Error).message || 'unknown error'
+    console.error('[creator-upload-url] Cloudflare error:', errMsg)
+
+    // Detect missing-secrets specifically
+    if (errMsg.includes('Missing Cloudflare env vars')) {
+      return errorResponse(
+        'Cloudflare Stream is not configured. Add CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_STREAM_API_TOKEN, and CLOUDFLARE_STREAM_CUSTOMER_CODE to Supabase Edge Function Secrets.',
+        502,
+        'CLOUDFLARE_NOT_CONFIGURED'
+      )
+    }
+
     return errorResponse(
-      'Failed to prepare upload with Cloudflare. Try again in a moment.',
+      `Cloudflare error: ${errMsg}`,
       502,
       'CLOUDFLARE_ERROR'
     )
