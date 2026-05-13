@@ -237,6 +237,19 @@ const ar = {
     openInYouTube: 'فتح في يوتيوب',
   },
   creator: {
+    trim: {
+      title: 'اختر مقطع 30 ثانية',
+      subtitle: 'الفيديو أطول من 30 ثانية. اسحب لتحديد المقطع',
+      dragHint: 'اسحب الإطار الأصفر لتحديد أفضل 30 ثانية',
+      confirm: 'قص {{sec}}ث وضغطها',
+      loadingThumbs: 'جارٍ تحميل الإطارات...',
+      processing: 'جارٍ الضغط... {{pct}}%',
+      processingStage: {
+        loading: 'جارٍ تحميل المحرك...',
+        trimming: 'جارٍ القص...',
+        compressing: 'جارٍ الضغط...',
+      },
+    },
     becomeTitle: 'فعّل وضع المنشئ',
     becomeBody: 'ابدأ تنشر فيديوهات قصيرة (حتى 30 ثانية) للأطفال على KidTok.',
     becomeButton: 'كن منشئاً الآن',
@@ -664,6 +677,19 @@ const en: typeof ar = {
     openInYouTube: 'Open in YouTube',
   },
   creator: {
+    trim: {
+      title: 'Pick a 30-second clip',
+      subtitle: 'Your video is longer than 30 seconds. Drag to select the best clip.',
+      dragHint: 'Drag the yellow frame to pick the best 30 seconds',
+      confirm: 'Trim & compress {{sec}}s',
+      loadingThumbs: 'Loading frames...',
+      processing: 'Compressing... {{pct}}%',
+      processingStage: {
+        loading: 'Loading engine...',
+        trimming: 'Trimming...',
+        compressing: 'Compressing...',
+      },
+    },
     becomeTitle: 'Become a creator',
     becomeBody: 'Start sharing short videos (up to 30 seconds) for kids on KidTok.',
     becomeButton: 'Activate creator mode',

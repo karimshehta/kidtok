@@ -17,6 +17,8 @@
     "migration:new": "supabase migration new"
   },
   "dependencies": {
+    "@ffmpeg/core-st": "^0.11.1",
+    "@ffmpeg/ffmpeg": "^0.11.6",
     "@supabase/supabase-js": "^2.45.4",
     "@tanstack/react-query": "^5.59.0",
     "clsx": "^2.1.1",
