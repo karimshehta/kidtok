@@ -1,25 +1,43 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Play, Volume2, VolumeX, Sparkles, Plus, Loader2 } from 'lucide-react'
 import AppLayout from '@/components/AppLayout'
+import { FeedAdCard } from '@/components/AdSlot'
 import { useFeedVideos } from '@/hooks/useFeed'
+import { useAds, useAdSenseScript } from '@/hooks/useAds'
 import { getYouTubeThumbnail } from '@/lib/youtube'
 import type { Video } from '@/types/db'
 import { cn } from '@/lib/utils'
 
+type FeedItem =
+  | { type: 'video'; video: Video; displayIdx: number }
+  | { type: 'ad'; displayIdx: number }
+
 export default function Feed() {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const { data: videos = [], isLoading } = useFeedVideos()
+  const { showAds, publisherId, feedUnitId, adFrequency } = useAds()
   const [activeIdx, setActiveIdx] = useState(0)
   const [muted, setMuted] = useState(true)
   const containerRef = useRef<HTMLDivElement>(null)
 
-  // Track which video is currently visible (snap-scroll)
+  // Inject AdSense script once when enabled
+  useAdSenseScript(publisherId, showAds)
+
+  // Build interleaved feed: every adFrequency videos, insert an ad card
+  const feedItems: FeedItem[] = []
+  videos.forEach((video, i) => {
+    feedItems.push({ type: 'video', video, displayIdx: feedItems.length })
+    if (showAds && feedUnitId && adFrequency > 0 && (i + 1) % adFrequency === 0) {
+      feedItems.push({ type: 'ad', displayIdx: feedItems.length })
+    }
+  })
+
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
-
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
@@ -31,10 +49,9 @@ export default function Feed() {
       },
       { root: container, threshold: [0, 0.6, 1] }
     )
-
     container.querySelectorAll('[data-feed-item]').forEach((el) => observer.observe(el))
     return () => observer.disconnect()
-  }, [videos.length])
+  }, [feedItems.length])
 
   if (isLoading) {
     return (
@@ -46,7 +63,7 @@ export default function Feed() {
     )
   }
 
-  if (videos.length === 0) {
+  if (feedItems.length === 0) {
     return (
       <AppLayout>
         <div className="container mx-auto px-4 py-12 max-w-md text-center">
@@ -62,12 +79,12 @@ export default function Feed() {
 
   return (
     <div className="h-[100dvh] bg-black overflow-hidden">
-      {/* Top bar (transparent, overlaid on video) */}
+      {/* Top bar */}
       <div className="absolute top-0 inset-x-0 z-30 flex items-center justify-between px-4 py-3 bg-gradient-to-b from-black/60 to-transparent">
-        <Link to="/profile" className="flex items-center gap-2">
+        <button onClick={() => navigate('/feed')} className="flex items-center gap-2">
           <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white font-bold">K</div>
           <span className="text-lg font-bold text-white">{t('common.appName')}</span>
-        </Link>
+        </button>
         <button
           onClick={() => setMuted((m) => !m)}
           className="w-10 h-10 rounded-full bg-white/15 hover:bg-white/25 backdrop-blur flex items-center justify-center text-white"
@@ -83,27 +100,51 @@ export default function Feed() {
         className="h-full overflow-y-scroll snap-y snap-mandatory"
         style={{ scrollbarWidth: 'none' }}
       >
-        {videos.map((video, idx) => (
-          <FeedItem
-            key={video.id}
-            video={video}
-            idx={idx}
-            isActive={idx === activeIdx}
-            muted={muted}
-          />
-        ))}
+        {feedItems.map((item) =>
+          item.type === 'ad' ? (
+            <FeedAdCard
+              key={`ad-${item.displayIdx}`}
+              idx={item.displayIdx}
+              unitId={feedUnitId}
+              publisherId={publisherId}
+              onSubscribeClick={() => navigate('/subscription')}
+            />
+          ) : (
+            <FeedVideoItem
+              key={item.video.id}
+              video={item.video}
+              idx={item.displayIdx}
+              isActive={item.displayIdx === activeIdx}
+              muted={muted}
+            />
+          )
+        )}
       </div>
 
-      {/* Floating bottom nav overlay (so we don't lose nav while in feed) */}
+      {/* Pagination dots */}
+      {feedItems.length > 1 && (
+        <div className="fixed end-4 top-1/2 -translate-y-1/2 z-20 flex flex-col gap-2">
+          {feedItems.map((_, idx) => (
+            <div
+              key={idx}
+              className={cn(
+                'w-1.5 rounded-full transition-all',
+                idx === activeIdx ? 'h-8 bg-white' : 'h-1.5 bg-white/40'
+              )}
+            />
+          ))}
+        </div>
+      )}
+
       <FeedBottomNav />
     </div>
   )
 }
 
 // ============================================================
-// Single feed item — full viewport snap point
+// Single video snap item
 // ============================================================
-function FeedItem({
+function FeedVideoItem({
   video,
   idx,
   isActive,
@@ -121,19 +162,12 @@ function FeedItem({
   const isCreator = video.source === 'creator'
 
   const ageName = (video as any).age
-    ? lang === 'ar'
-      ? (video as any).age.name_ar
-      : (video as any).age.name_en
+    ? lang === 'ar' ? (video as any).age.name_ar : (video as any).age.name_en
     : null
   const interestName = (video as any).interest
-    ? lang === 'ar'
-      ? (video as any).interest.name_ar
-      : (video as any).interest.name_en
+    ? lang === 'ar' ? (video as any).interest.name_ar : (video as any).interest.name_en
     : null
 
-  // The video frame: YouTube → autoplay iframe when active.
-  // Cloudflare → cloudflarestream iframe when active.
-  // When NOT active, show a thumbnail (saves bandwidth + lets only the active video play).
   const youtubeEmbed = isYouTube
     ? `https://www.youtube-nocookie.com/embed/${video.youtube_id}?autoplay=1&mute=${muted ? 1 : 0}&controls=0&modestbranding=1&playsinline=1&rel=0&loop=1&playlist=${video.youtube_id}`
     : null
@@ -150,7 +184,6 @@ function FeedItem({
       data-idx={idx}
       className="relative h-[100dvh] w-full snap-start snap-always flex items-center justify-center"
     >
-      {/* Video / thumbnail layer */}
       <div className="absolute inset-0">
         {isActive && (youtubeEmbed || cloudflareEmbed) ? (
           <iframe
@@ -183,10 +216,8 @@ function FeedItem({
         )}
       </div>
 
-      {/* Overlay: title + creator + actions, gated to bottom area to leave room for nav */}
       <div className="absolute inset-x-0 bottom-0 pb-24 pt-16 px-4 z-20 bg-gradient-to-t from-black/80 via-black/30 to-transparent pointer-events-none">
         <div className="flex items-end gap-3">
-          {/* Left: video metadata */}
           <div className="flex-1 min-w-0 text-white">
             {video.channel_name && (
               <div className="flex items-center gap-2 mb-2">
@@ -204,21 +235,24 @@ function FeedItem({
             {video.title && <h3 className="text-base font-medium line-clamp-2 mb-2">{video.title}</h3>}
             <div className="flex flex-wrap gap-1.5">
               {ageName && (
-                <span className="text-[10px] bg-white/15 backdrop-blur px-2 py-0.5 rounded-full">
-                  {ageName}
-                </span>
+                <span className="text-[10px] bg-white/15 backdrop-blur px-2 py-0.5 rounded-full">{ageName}</span>
               )}
               {interestName && (
-                <span className="text-[10px] bg-white/15 backdrop-blur px-2 py-0.5 rounded-full">
-                  {interestName}
-                </span>
+                <span className="text-[10px] bg-white/15 backdrop-blur px-2 py-0.5 rounded-full">{interestName}</span>
               )}
             </div>
           </div>
-
-          {/* Right: action buttons */}
           <div className="flex flex-col items-center gap-3 pointer-events-auto">
-            <AddToPlaylistButton video={video} />
+            <button
+              type="button"
+              className={cn(
+                'w-12 h-12 rounded-full bg-white/15 hover:bg-white/25 backdrop-blur',
+                'flex items-center justify-center text-white shadow-lg transition-colors'
+              )}
+              title={t('feed.addToPlaylist')}
+            >
+              <Plus className="w-6 h-6" />
+            </button>
           </div>
         </div>
       </div>
@@ -227,70 +261,32 @@ function FeedItem({
 }
 
 // ============================================================
-// Add-to-playlist button (placeholder for now — open a picker later)
+// Bottom nav
 // ============================================================
-function AddToPlaylistButton({ video: _video }: { video: Video }) {
-  const { t } = useTranslation()
-  return (
-    <button
-      type="button"
-      className={cn(
-        'w-12 h-12 rounded-full bg-white/15 hover:bg-white/25 backdrop-blur',
-        'flex items-center justify-center text-white shadow-lg transition-colors'
-      )}
-      title={t('feed.addToPlaylist')}
-    >
-      <Plus className="w-6 h-6" />
-    </button>
-  )
-}
+import { Link } from 'react-router-dom'
 
-// ============================================================
-// Compact floating bottom nav for Feed
-// (AppLayout's nav is hidden in favor of this because the feed is full-bleed)
-// ============================================================
 function FeedBottomNav() {
   const { t } = useTranslation()
   return (
     <nav className="fixed bottom-0 inset-x-0 z-30 bg-gradient-to-t from-black/80 to-transparent pt-8 pb-2 px-4 pointer-events-none">
       <div className="container mx-auto max-w-md flex items-center justify-around pointer-events-auto">
-        <Link
-          to="/feed"
-          className="flex flex-col items-center gap-1 px-4 py-2 text-white"
-        >
+        <Link to="/feed" className="flex flex-col items-center gap-1 px-4 py-2 text-white">
           <Sparkles className="w-6 h-6" />
           <span className="text-[10px] font-medium">{t('nav.feed')}</span>
         </Link>
-        <Link
-          to="/children"
-          className="flex flex-col items-center gap-1 px-4 py-2 text-white/70"
-        >
-          <UsersIcon />
+        <Link to="/children" className="flex flex-col items-center gap-1 px-4 py-2 text-white/70">
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-2.13a4 4 0 100-8 4 4 0 000 8zm6 2a3 3 0 100-6 3 3 0 000 6z" />
+          </svg>
           <span className="text-[10px] font-medium">{t('nav.children')}</span>
         </Link>
-        <Link
-          to="/profile"
-          className="flex flex-col items-center gap-1 px-4 py-2 text-white/70"
-        >
-          <UserIcon />
+        <Link to="/profile" className="flex flex-col items-center gap-1 px-4 py-2 text-white/70">
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+          </svg>
           <span className="text-[10px] font-medium">{t('nav.profile')}</span>
         </Link>
       </div>
     </nav>
-  )
-}
-
-function UsersIcon() {
-  return (
-    <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-2.13a4 4 0 100-8 4 4 0 000 8zm6 2a3 3 0 100-6 3 3 0 000 6z" />
-    </svg>
-  )
-}
-function UserIcon() {
-  return (
-    <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-    </svg>
   )
 }

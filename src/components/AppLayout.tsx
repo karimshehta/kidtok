@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next'
 import { Users, User, Bell, Globe, Upload, Sparkles } from 'lucide-react'
 import { useAuth } from '@/stores/auth'
 import { useUserRole } from '@/hooks/useCreator'
+import { useAds, useAdSenseScript } from '@/hooks/useAds'
+import { BannerAd } from '@/components/AdSlot'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -16,6 +18,8 @@ export default function AppLayout({ children }: Props) {
   const navigate = useNavigate()
   const user = useAuth((s) => s.user)
   const { data: role } = useUserRole()
+  const { showAds, publisherId, bannerUnitId } = useAds()
+  useAdSenseScript(publisherId, showAds)
 
   const toggleLang = () => i18n.changeLanguage(i18n.language === 'ar' ? 'en' : 'ar')
 
@@ -63,7 +67,12 @@ export default function AppLayout({ children }: Props) {
         </div>
       </header>
 
-      <main>{children}</main>
+      <main>
+        {showAds && bannerUnitId && (
+          <BannerAd unitId={bannerUnitId} publisherId={publisherId} />
+        )}
+        {children}
+      </main>
 
       <nav className="fixed bottom-0 inset-x-0 bg-white border-t border-neutral-300 z-40">
         <div className="container mx-auto px-4">

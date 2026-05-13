@@ -14,6 +14,7 @@ import {
   X,
   Globe,
   LogOut,
+  Megaphone,
 } from 'lucide-react'
 import { useUserRole } from '@/hooks/useCreator'
 import { useAuth } from '@/stores/auth'
@@ -55,6 +56,7 @@ export default function AdminLayout({ children }: Props) {
     { to: '/admin/moderation', label: t('admin.nav.moderation'), icon: ShieldCheck },
     { to: '/admin/users', label: t('admin.nav.users'), icon: UsersIcon },
     { to: '/admin/plans', label: t('admin.nav.plans'), icon: CreditCard },
+    { to: '/admin/ads', label: t('admin.nav.ads'), icon: Megaphone },
     { to: '/admin/reference', label: t('admin.nav.reference'), icon: Tags },
     { to: '/admin/reports', label: t('admin.nav.reports'), icon: Flag },
   ]
