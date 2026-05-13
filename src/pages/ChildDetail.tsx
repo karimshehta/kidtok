@@ -1,19 +1,22 @@
 import { useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useForm } from 'react-hook-form'
 import toast from 'react-hot-toast'
-import { ArrowRight, Plus, Trash2, ListMusic } from 'lucide-react'
+import { ArrowRight, Plus, Trash2, ListMusic, Play, Clock } from 'lucide-react'
 import AppLayout from '@/components/AppLayout'
 import ChildAvatar from '@/components/ChildAvatar'
 import Modal from '@/components/Modal'
 import { useChild } from '@/hooks/useChildren'
 import { usePlaylists, useCreatePlaylist, useDeletePlaylist } from '@/hooks/usePlaylists'
+import { supabase } from '@/lib/supabase'
+import { cn } from '@/lib/utils'
 
 export default function ChildDetail() {
   const { childId } = useParams()
   const { t, i18n } = useTranslation()
   const lang = i18n.language as 'ar' | 'en'
+  const navigate = useNavigate()
 
   const { data: child, isLoading: childLoading } = useChild(childId)
   const { data: playlists = [], isLoading: plLoading } = usePlaylists(childId)
@@ -21,6 +24,8 @@ export default function ChildDetail() {
   const deleteMut = useDeletePlaylist()
 
   const [addOpen, setAddOpen] = useState(false)
+  const [timeLimitOpen, setTimeLimitOpen] = useState(false)
+  const [savingLimit, setSavingLimit] = useState(false)
 
   const handleDelete = async (id: string) => {
     if (!confirm(t('playlists.deleteConfirm'))) return
@@ -80,6 +85,22 @@ export default function ChildDetail() {
                 ))}
               </div>
             )}
+          </div>
+          <div className="flex flex-col gap-2">
+            <button
+              onClick={() => navigate(`/kid/${child.id}`)}
+              className="btn-primary text-sm inline-flex items-center gap-1 !py-2"
+            >
+              <Play className="w-4 h-4 ms-0.5" fill="white" />
+              {t('children.childMode')}
+            </button>
+            <button
+              onClick={() => setTimeLimitOpen(true)}
+              className="btn-outline text-sm inline-flex items-center gap-1 !py-2"
+            >
+              <Clock className="w-4 h-4" />
+              {t('childMode.timeLimitTitle')}
+            </button>
           </div>
         </div>
 
@@ -146,6 +167,31 @@ export default function ChildDetail() {
           onCancel={() => setAddOpen(false)}
         />
       </Modal>
+
+      {/* Time limit modal */}
+      <Modal open={timeLimitOpen} onClose={() => setTimeLimitOpen(false)} title={t('childMode.timeLimitTitle')}>
+        <TimeLimitForm
+          childId={child.id}
+          saving={savingLimit}
+          onSave={async (minutes) => {
+            setSavingLimit(true)
+            try {
+              const { error } = await supabase.rpc('set_child_time_limit', {
+                p_child_id: child.id,
+                p_daily_minutes: minutes,
+              })
+              if (error) throw error
+              toast.success(t('childMode.timeLimitSaved'))
+              setTimeLimitOpen(false)
+            } catch (err) {
+              toast.error((err as Error).message)
+            } finally {
+              setSavingLimit(false)
+            }
+          }}
+          onCancel={() => setTimeLimitOpen(false)}
+        />
+      </Modal>
     </AppLayout>
   )
 }
@@ -194,5 +240,67 @@ function CreatePlaylistForm({ loading, onSubmit, onCancel }: FormProps) {
         </button>
       </div>
     </form>
+  )
+}
+
+// ============================================================
+// Time Limit Form
+// ============================================================
+function TimeLimitForm({
+  childId: _childId,
+  saving,
+  onSave,
+  onCancel,
+}: {
+  childId: string
+  saving: boolean
+  onSave: (minutes: number) => Promise<void>
+  onCancel: () => void
+}) {
+  const { t } = useTranslation()
+  const presets = [30, 45, 60, 90, 120]
+  const [minutes, setMinutes] = useState(60)
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-2">
+        {presets.map((p) => (
+          <button
+            key={p}
+            type="button"
+            onClick={() => setMinutes(p)}
+            className={cn(
+              'px-4 py-2 rounded-xl text-sm font-semibold border transition-colors',
+              minutes === p
+                ? 'bg-primary text-white border-primary'
+                : 'bg-white border-neutral-300 text-neutral-900 hover:border-primary'
+            )}
+          >
+            {p} {t('childMode.timeLimitSave').includes('دقيقة') ? 'دقيقة' : 'min'}
+          </button>
+        ))}
+      </div>
+      <div>
+        <label className="block text-sm font-medium mb-1">أو أدخل قيمة مخصصة (دقيقة)</label>
+        <input
+          type="number"
+          min={5}
+          max={360}
+          value={minutes}
+          onChange={(e) => setMinutes(Number(e.target.value) || 60)}
+          className="input-field"
+        />
+      </div>
+      <div className="flex gap-2 pt-2">
+        <button onClick={onCancel} className="btn-outline flex-1">{t('common.cancel')}</button>
+        <button
+          onClick={() => onSave(minutes)}
+          disabled={saving}
+          className="btn-primary flex-1"
+        >
+          {saving ? t('common.saving') : t('childMode.timeLimitSave')}
+        </button>
+      </div>
+    </div>
   )
 }

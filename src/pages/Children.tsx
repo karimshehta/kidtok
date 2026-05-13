@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import toast from 'react-hot-toast'
-import { Plus, ListMusic, BarChart3, Edit2, Trash2, MoreVertical } from 'lucide-react'
+import { Plus, ListMusic, BarChart3, Edit2, Trash2, MoreVertical, Play } from 'lucide-react'
 import AppLayout from '@/components/AppLayout'
 import ChildAvatar from '@/components/ChildAvatar'
 import Modal from '@/components/Modal'
@@ -14,6 +14,7 @@ export default function Children() {
   const { t, i18n } = useTranslation()
   const lang = i18n.language as 'ar' | 'en'
   const { data: children = [], isLoading } = useChildren()
+  const navigate = useNavigate()
 
   const [addOpen, setAddOpen] = useState(false)
   const [editing, setEditing] = useState<Child | null>(null)
@@ -116,7 +117,14 @@ export default function Children() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 mt-4">
+                <div className="grid grid-cols-3 gap-2 mt-4">
+                  <button
+                    onClick={() => navigate(`/kid/${child.id}`)}
+                    className="bg-gradient-to-br from-primary to-secondary text-white text-sm font-bold py-2 rounded-xl inline-flex items-center justify-center gap-1 col-span-1"
+                  >
+                    <Play className="w-4 h-4 ms-0.5" fill="white" />
+                    {t('children.childMode')}
+                  </button>
                   <Link
                     to={`/children/${child.id}`}
                     className="btn-outline text-sm inline-flex items-center justify-center gap-1 !py-2"
