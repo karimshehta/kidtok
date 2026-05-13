@@ -114,6 +114,48 @@ export function useDeletePlaylist() {
   })
 }
 
+/** Add an existing catalog video to a playlist by its video_id (for Feed + PlaylistFeed). */
+export function useAddVideoIdToPlaylist() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ playlist_id, video_id }: { playlist_id: string; video_id: string }) => {
+      // Check not already in playlist
+      const { data: existing } = await supabase
+        .from('playlist_videos')
+        .select('id')
+        .eq('playlist_id', playlist_id)
+        .eq('video_id', video_id)
+        .single()
+      if (existing) throw new Error('already')
+
+      // Get next sort_order
+      const { data: last } = await supabase
+        .from('playlist_videos')
+        .select('sort_order')
+        .eq('playlist_id', playlist_id)
+        .order('sort_order', { ascending: false })
+        .limit(1)
+        .single()
+
+      const { data, error } = await supabase
+        .from('playlist_videos')
+        .insert({
+          playlist_id,
+          video_id,
+          sort_order: ((last?.sort_order ?? 0) as number) + 1,
+        })
+        .select()
+        .single()
+      if (error) throw error
+      return data
+    },
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ['playlist-videos', vars.playlist_id] })
+      qc.invalidateQueries({ queryKey: ['playlists'] })
+    },
+  })
+}
+
 interface AddVideoInput {
   playlist_id: string
   url: string

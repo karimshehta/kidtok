@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Play, Volume2, VolumeX, Sparkles, Plus, Loader2 } from 'lucide-react'
 import AppLayout from '@/components/AppLayout'
 import { FeedAdCard } from '@/components/AdSlot'
+import AddToPlaylistModal from '@/components/AddToPlaylistModal'
 import { useFeedVideos } from '@/hooks/useFeed'
 import { useAds, useAdSenseScript } from '@/hooks/useAds'
 import { getYouTubeThumbnail } from '@/lib/youtube'
@@ -21,6 +22,7 @@ export default function Feed() {
   const { showAds, publisherId, feedUnitId, adFrequency } = useAds()
   const [activeIdx, setActiveIdx] = useState(0)
   const [muted, setMuted] = useState(true)
+  const [addingVideo, setAddingVideo] = useState<Video | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
   // Inject AdSense script once when enabled
@@ -116,6 +118,7 @@ export default function Feed() {
               idx={item.displayIdx}
               isActive={item.displayIdx === activeIdx}
               muted={muted}
+              onAddToPlaylist={setAddingVideo}
             />
           )
         )}
@@ -137,6 +140,11 @@ export default function Feed() {
       )}
 
       <FeedBottomNav />
+
+      <AddToPlaylistModal
+        video={addingVideo}
+        onClose={() => setAddingVideo(null)}
+      />
     </div>
   )
 }
@@ -149,11 +157,13 @@ function FeedVideoItem({
   idx,
   isActive,
   muted,
+  onAddToPlaylist,
 }: {
   video: Video
   idx: number
   isActive: boolean
   muted: boolean
+  onAddToPlaylist: (v: Video) => void
 }) {
   const { t, i18n } = useTranslation()
   const lang = i18n.language as 'ar' | 'en'
@@ -245,6 +255,7 @@ function FeedVideoItem({
           <div className="flex flex-col items-center gap-3 pointer-events-auto">
             <button
               type="button"
+              onClick={() => onAddToPlaylist(video)}
               className={cn(
                 'w-12 h-12 rounded-full bg-white/15 hover:bg-white/25 backdrop-blur',
                 'flex items-center justify-center text-white shadow-lg transition-colors'

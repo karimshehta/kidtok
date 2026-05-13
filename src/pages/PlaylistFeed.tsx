@@ -11,6 +11,7 @@ import {
   ListMusic,
 } from 'lucide-react'
 import { usePlaylist, usePlaylistVideos } from '@/hooks/usePlaylists'
+import AddToPlaylistModal from '@/components/AddToPlaylistModal'
 import { getYouTubeThumbnail } from '@/lib/youtube'
 import type { PlaylistVideo } from '@/types/db'
 import { cn } from '@/lib/utils'
@@ -28,8 +29,9 @@ export default function PlaylistFeed() {
   const { data: videos = [], isLoading } = usePlaylistVideos(playlistId)
 
   const [activeIdx, setActiveIdx] = useState(startIndex)
-  const [muted, setMuted] = useState(false)     // start with sound in playlist mode
+  const [muted, setMuted] = useState(false)
   const [showList, setShowList] = useState(false)
+  const [addingVideo, setAddingVideo] = useState<any>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const itemRefs = useRef<(HTMLDivElement | null)[]>([])
 
@@ -125,6 +127,7 @@ export default function PlaylistFeed() {
             idx={idx}
             isActive={idx === activeIdx}
             muted={muted}
+            onAddToPlaylist={setAddingVideo}
             ref={(el) => { itemRefs.current[idx] = el }}
           />
         ))}
@@ -206,6 +209,7 @@ export default function PlaylistFeed() {
           </div>
         </div>
       )}
+    <AddToPlaylistModal video={addingVideo} onClose={() => setAddingVideo(null)} />
     </div>
   )
 }
@@ -217,8 +221,8 @@ import { forwardRef } from 'react'
 
 const PlaylistVideoItem = forwardRef<
   HTMLDivElement,
-  { pv: PlaylistVideo; idx: number; isActive: boolean; muted: boolean }
->(function PlaylistVideoItem({ pv, idx, isActive, muted }, ref) {
+  { pv: PlaylistVideo; idx: number; isActive: boolean; muted: boolean; onAddToPlaylist?: (v: any) => void }
+>(function PlaylistVideoItem({ pv, idx, isActive, muted, onAddToPlaylist }, ref) {
   const { t, i18n } = useTranslation()
   const lang = i18n.language as 'ar' | 'en'
   const video = pv.video
@@ -317,6 +321,7 @@ const PlaylistVideoItem = forwardRef<
           {/* Save button */}
           <div className="flex flex-col gap-3 pointer-events-auto flex-shrink-0">
             <button
+              onClick={() => onAddToPlaylist?.(video)}
               className="w-11 h-11 rounded-full bg-white/15 hover:bg-white/25 backdrop-blur flex items-center justify-center text-white"
               title={t('feed.addToPlaylist')}
             >
