@@ -16,11 +16,11 @@ import {
 import { useChild } from '@/hooks/useChildren'
 import { usePlaylists, usePlaylistVideos } from '@/hooks/usePlaylists'
 import { useChildMode, formatTime } from '@/hooks/useChildMode'
-import VideoPlayer from '@/components/VideoPlayer'
 import ChildAvatar from '@/components/ChildAvatar'
 import type { Playlist, PlaylistVideo } from '@/types/db'
 import { cn } from '@/lib/utils'
 import { getYouTubeThumbnail } from '@/lib/youtube'
+import ChildModePlaylistFeed from '@/components/ChildModePlaylistFeed'
 
 export default function ChildMode() {
   const { childId } = useParams<{ childId: string }>()
@@ -41,7 +41,7 @@ export default function ChildMode() {
   } = useChildMode(childId!)
 
   const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(null)
-  const [playingPV, setPlayingPV] = useState<PlaylistVideo | null>(null)
+  const [feedPlaylist, setFeedPlaylist] = useState<{ playlist: Playlist; startIndex: number } | null>(null)
 
   const [showExitModal, setShowExitModal] = useState(false)
 
@@ -181,9 +181,7 @@ export default function ChildMode() {
           <PlaylistVideos
             playlist={selectedPlaylist}
             onBack={() => setSelectedPlaylist(null)}
-            onPlay={(pv) => {
-              setPlayingPV(pv)
-            }}
+            onPlay={(pv, idx) => setFeedPlaylist({ playlist: selectedPlaylist, startIndex: idx })}
           />
         ) : (
           <PlaylistGrid
@@ -201,15 +199,16 @@ export default function ChildMode() {
         onSuccess={() => navigate('/children')}
       />
 
-      {/* Video player */}
-      <VideoPlayer
-        open={!!playingPV}
-        onClose={() => setPlayingPV(null)}
-        youtubeId={playingPV?.video?.youtube_id || null}
-        cloudflareUid={playingPV?.video?.source === 'creator' ? (playingPV?.video?.thumbnail_url?.match(/cloudflarestream\.com\/([^/]+)/)?.[1] || null) : null}
-        title={playingPV?.video?.title}
-        channel={playingPV?.video?.channel_name}
-      />
+      {/* TikTok-style feed overlay */}
+      {feedPlaylist && (
+        <ChildModePlaylistFeed
+          playlist={feedPlaylist.playlist}
+          startIndex={feedPlaylist.startIndex}
+          onClose={() => setFeedPlaylist(null)}
+          secondsLeft={secondsLeft}
+          limitSeconds={timeStatus?.limitSeconds ?? 0}
+        />
+      )}
     </ChildShell>
   )
 }
@@ -315,7 +314,7 @@ function PlaylistVideos({
 }: {
   playlist: Playlist
   onBack: () => void
-  onPlay: (pv: PlaylistVideo) => void
+  onPlay: (pv: PlaylistVideo, idx: number) => void
 }) {
   const { t } = useTranslation()
   const { data: items = [], isLoading } = usePlaylistVideos(playlist.id)
@@ -334,13 +333,13 @@ function PlaylistVideos({
         <p className="text-white/70 text-center py-8">{t('childMode.playlistEmpty')}</p>
       ) : (
         <div className="grid grid-cols-2 gap-3">
-          {items.map((pv) => {
+          {items.map((pv, idx) => {
             if (!pv.video) return null
             const ytId = pv.video.youtube_id
             return (
               <button
                 key={pv.id}
-                onClick={() => onPlay(pv)}
+                onClick={() => onPlay(pv, idx)}
                 className="bg-white/15 hover:bg-white/25 backdrop-blur rounded-2xl overflow-hidden text-white text-left active:scale-95 transition-transform"
               >
                 <div className="aspect-video bg-black/30 relative">

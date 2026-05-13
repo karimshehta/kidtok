@@ -1,26 +1,24 @@
 import { useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useForm } from 'react-hook-form'
 import toast from 'react-hot-toast'
 import { ArrowRight, Plus, Trash2, Play, ExternalLink, Search } from 'lucide-react'
 import AppLayout from '@/components/AppLayout'
 import Modal from '@/components/Modal'
-import VideoPlayer from '@/components/VideoPlayer'
 import { usePlaylist, usePlaylistVideos, useAddVideoToPlaylist, useRemoveVideoFromPlaylist } from '@/hooks/usePlaylists'
 import { extractYouTubeId, getYouTubeThumbnail, getYouTubeWatchUrl, fetchYouTubeOEmbed } from '@/lib/youtube'
-import type { PlaylistVideo } from '@/types/db'
 
 export default function PlaylistDetail() {
   const { playlistId } = useParams()
   const { t } = useTranslation()
+  const navigate = useNavigate()
 
   const { data: playlist, isLoading: plLoading } = usePlaylist(playlistId)
   const { data: videos = [], isLoading: vLoading } = usePlaylistVideos(playlistId)
   const removeMut = useRemoveVideoFromPlaylist()
 
   const [addOpen, setAddOpen] = useState(false)
-  const [playingPV, setPlayingPV] = useState<PlaylistVideo | null>(null)
 
   const handleRemove = async (e: React.MouseEvent, pvId: string) => {
     e.stopPropagation()
@@ -95,14 +93,14 @@ export default function PlaylistDetail() {
           </div>
         ) : (
           <div className="space-y-3">
-            {videos.map((pv) => {
+            {videos.map((pv, idx) => {
               if (!pv.video) return null
               const ytId = pv.video.youtube_id
               return (
                 <button
                   type="button"
                   key={pv.id}
-                  onClick={() => setPlayingPV(pv)}
+                  onClick={() => navigate(`/playlists/${playlistId}/play?start=${idx}`)}
                   className="card flex gap-3 group p-3 w-full text-start hover:shadow-md transition-shadow"
                 >
                   <div className="relative w-32 sm:w-40 aspect-video rounded-lg overflow-hidden flex-shrink-0 bg-neutral-300">
@@ -162,13 +160,7 @@ export default function PlaylistDetail() {
         />
       </Modal>
 
-      <VideoPlayer
-        open={!!playingPV}
-        onClose={() => setPlayingPV(null)}
-        youtubeId={playingPV?.video?.youtube_id || null}
-        title={playingPV?.video?.title}
-        channel={playingPV?.video?.channel_name}
-      />
+
     </AppLayout>
   )
 }

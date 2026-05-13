@@ -20,6 +20,7 @@ import SubscriptionFailed from '@/pages/subscription/Failed'
 import Statistics from '@/pages/Statistics'
 import CreatorUpload from '@/pages/creator/Upload'
 import CreatorMyVideos from '@/pages/creator/MyVideos'
+import PlaylistFeed from '@/pages/PlaylistFeed'
 import AdminDashboard from '@/pages/admin/Dashboard'
 import AdminContent from '@/pages/admin/Content'
 import AdminModeration from '@/pages/admin/Moderation'
@@ -62,6 +63,7 @@ export default function App() {
         <Route path="/children" element={<Children />} />
         <Route path="/children/:childId" element={<ChildDetail />} />
         <Route path="/playlists/:playlistId" element={<PlaylistDetail />} />
+        <Route path="/playlists/:playlistId/play" element={<PlaylistFeed />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/subscription" element={<Subscription />} />
         <Route path="/subscription/success" element={<SubscriptionSuccess />} />
