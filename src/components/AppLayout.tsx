@@ -1,7 +1,7 @@
 import { ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { Users, User, Bell, Globe, Upload, Sparkles } from 'lucide-react'
+import { Users, User, Bell, Globe, Upload, Sparkles, Search } from 'lucide-react'
 import { useAuth } from '@/stores/auth'
 import { useUserRole } from '@/hooks/useCreator'
 import { useAds, useAdSenseScript } from '@/hooks/useAds'
@@ -26,6 +26,7 @@ export default function AppLayout({ children }: Props) {
   const navItems = [
     { to: '/feed', label: t('nav.feed'), icon: Sparkles, match: (p: string) => p === '/feed' || p === '/home' },
     { to: '/children', label: t('nav.children'), icon: Users, match: (p: string) => p.startsWith('/children') },
+    { to: '/search', label: t('nav.search'), icon: Search, match: (p: string) => p === '/search' },
     { to: '/profile', label: t('nav.profile'), icon: User, match: (p: string) => p === '/profile' || p.startsWith('/admin') || p.startsWith('/creator') },
   ]
 

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useForm } from 'react-hook-form'
 import toast from 'react-hot-toast'
-import { Eye, EyeOff, LogOut, KeyRound, User as UserIcon, Mail, Phone, Video, Upload, ShieldCheck, Crown } from 'lucide-react'
+import { Eye, EyeOff, LogOut, KeyRound, User as UserIcon, Mail, Phone, Video, Upload, ShieldCheck, Crown, Edit2 } from 'lucide-react'
 import AppLayout from '@/components/AppLayout'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/stores/auth'
@@ -50,7 +50,13 @@ export default function Profile() {
   return (
     <AppLayout>
       <div className="container mx-auto px-4 py-6 max-w-xl">
-        <h1 className="text-2xl font-bold mb-4">{t('profile.title')}</h1>
+        <div className="flex items-center justify-between mb-4">
+          <h1 className="text-2xl font-bold">{t('profile.title')}</h1>
+          <Link to="/profile/edit" className="btn-outline text-sm inline-flex items-center gap-1.5">
+            <Edit2 className="w-4 h-4" />
+            {t('profile.edit.title')}
+          </Link>
+        </div>
 
         <div className="card space-y-4 mb-4">
           <Info icon={UserIcon} label={t('profile.nameLabel')} value={userName} />

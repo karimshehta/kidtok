@@ -8,6 +8,7 @@ import AddToPlaylistModal from '@/components/AddToPlaylistModal'
 import VideoSocialActions from '@/components/VideoSocialActions'
 import { useFeedVideos } from '@/hooks/useFeed'
 import { useAds, useAdSenseScript } from '@/hooks/useAds'
+import { useFollowingFeed } from '@/hooks/useFollowingFeed'
 import { getYouTubeThumbnail } from '@/lib/youtube'
 import type { Video } from '@/types/db'
 import { cn } from '@/lib/utils'
@@ -19,8 +20,17 @@ type FeedItem =
 export default function Feed() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { data: videos = [], isLoading } = useFeedVideos()
+  const [tab, setTab] = useState<'foryou' | 'following'>('foryou')
+
+  const { data: forYouVideos = [], isLoading: forYouLoading } = useFeedVideos()
+  const { data: followingVideos = [], isLoading: followingLoading } = useFollowingFeed()
+
+  const videos = tab === 'foryou' ? forYouVideos : followingVideos
+  const isLoading = tab === 'foryou' ? forYouLoading : followingLoading
   const { showAds, publisherId, feedUnitId, adFrequency } = useAds()
+
+  // Reset scroll on tab change
+  useEffect(() => { setActiveIdx(0) }, [tab])
   const [activeIdx, setActiveIdx] = useState(0)
   const [muted, setMuted] = useState(true)
   const [addingVideo, setAddingVideo] = useState<Video | null>(null)
@@ -66,17 +76,43 @@ export default function Feed() {
     )
   }
 
-  if (feedItems.length === 0) {
+  if (feedItems.length === 0 && !isLoading) {
     return (
-      <AppLayout>
-        <div className="container mx-auto px-4 py-12 max-w-md text-center">
-          <div className="w-20 h-20 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
-            <Sparkles className="w-10 h-10 text-white" />
+      <div className="h-[100dvh] bg-black flex flex-col">
+        {/* Top bar even on empty */}
+        <div className="flex items-center justify-between px-4 py-3">
+          <div className="flex items-center gap-3">
+            <div className="flex bg-white/15 backdrop-blur rounded-full p-0.5">
+              {(['foryou', 'following'] as const).map((tb) => (
+                <button key={tb} onClick={() => setTab(tb)}
+                  className={cn('px-3 py-1.5 rounded-full text-xs font-bold transition-all',
+                    tab === tb ? 'bg-white text-neutral-900' : 'text-white/80')}>
+                  {tb === 'foryou' ? t('feed.forYou') : t('feed.following')}
+                </button>
+              ))}
+            </div>
           </div>
-          <h1 className="text-xl font-bold mb-2">{t('feed.emptyTitle')}</h1>
-          <p className="text-sm text-neutral-700">{t('feed.emptyBody')}</p>
         </div>
-      </AppLayout>
+        <div className="flex-1 flex flex-col items-center justify-center text-white text-center px-6">
+          {tab === 'following' ? (
+            <>
+              <div className="text-5xl mb-4">👥</div>
+              <h1 className="text-xl font-bold mb-2">{t('feed.followingEmpty')}</h1>
+              <p className="text-white/70 text-sm mb-6">{t('feed.followingEmptyBody')}</p>
+              <button onClick={() => navigate('/search')} className="bg-white text-neutral-900 font-bold px-6 py-3 rounded-full">
+                {t('search.discoverTitle')}
+              </button>
+            </>
+          ) : (
+            <>
+              <Sparkles className="w-16 h-16 mb-4 text-primary" />
+              <h1 className="text-xl font-bold mb-2">{t('feed.emptyTitle')}</h1>
+              <p className="text-white/70 text-sm">{t('feed.emptyBody')}</p>
+            </>
+          )}
+        </div>
+        <FeedBottomNav />
+      </div>
     )
   }
 
@@ -88,13 +124,30 @@ export default function Feed() {
           <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white font-bold">K</div>
           <span className="text-lg font-bold text-white">{t('common.appName')}</span>
         </button>
-        <button
-          onClick={() => setMuted((m) => !m)}
-          className="w-10 h-10 rounded-full bg-white/15 hover:bg-white/25 backdrop-blur flex items-center justify-center text-white"
-          aria-label="mute"
-        >
-          {muted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
-        </button>
+        <div className="flex items-center gap-3">
+          {/* Tabs */}
+          <div className="flex bg-white/15 backdrop-blur rounded-full p-0.5">
+            {(['foryou', 'following'] as const).map((tb) => (
+              <button
+                key={tb}
+                onClick={() => setTab(tb)}
+                className={cn(
+                  'px-3 py-1.5 rounded-full text-xs font-bold transition-all',
+                  tab === tb ? 'bg-white text-neutral-900' : 'text-white/80'
+                )}
+              >
+                {tb === 'foryou' ? t('feed.forYou') : t('feed.following')}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={() => setMuted((m) => !m)}
+            className="w-10 h-10 rounded-full bg-white/15 hover:bg-white/25 backdrop-blur flex items-center justify-center text-white"
+            aria-label="mute"
+          >
+            {muted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+          </button>
+        </div>
       </div>
 
       {/* Scrollable feed */}

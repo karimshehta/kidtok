@@ -16,6 +16,8 @@ import ChildMode from '@/pages/ChildMode'
 import Profile from '@/pages/Profile'
 import Subscription from '@/pages/Subscription'
 import Statistics from '@/pages/Statistics'
+import Search from '@/pages/Search'
+import ProfileEdit from '@/pages/ProfileEdit'
 import SubscriptionSuccess from '@/pages/subscription/Success'
 import SubscriptionFailed from '@/pages/subscription/Failed'
 import CreatorUpload from '@/pages/creator/Upload'
@@ -67,6 +69,8 @@ export default function App() {
         <Route path="/playlists/:playlistId/play" element={<PlaylistFeed />} />
         <Route path="/creator/:userId" element={<CreatorProfile />} />
         <Route path="/profile" element={<Profile />} />
+        <Route path="/profile/edit" element={<ProfileEdit />} />
+        <Route path="/search" element={<Search />} />
         <Route path="/subscription" element={<Subscription />} />
         <Route path="/subscription/success" element={<SubscriptionSuccess />} />
         <Route path="/subscription/failed" element={<SubscriptionFailed />} />
