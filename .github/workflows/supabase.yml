@@ -45,4 +45,4 @@ jobs:
         run: supabase db push --password "$SUPABASE_DB_PASSWORD"
 
       - name: Verify migrations applied
-        run: supabase migration list --project-ref "$SUPABASE_PROJECT_ID"
+        run: supabase migration list --linked
