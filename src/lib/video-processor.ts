@@ -9,9 +9,7 @@
  * are needed on the host.
  */
 
-/* eslint-disable @typescript-eslint/no-require-imports */
-// FFmpeg 0.11.x ships CommonJS; import via require to avoid TS issues.
-const { createFFmpeg, fetchFile } = require('@ffmpeg/ffmpeg')
+import { createFFmpeg, fetchFile } from '@ffmpeg/ffmpeg'
 
 export type ProgressCallback = (pct: number, stage: 'loading' | 'trimming' | 'compressing') => void
 
@@ -157,7 +155,7 @@ export async function processVideo(
   await ff.run(...args)
 
   const data = ff.FS('readFile', outputName)
-  const blob = new Blob([data.buffer], { type: 'video/mp4' })
+  const blob = new Blob([new Uint8Array(data.buffer as ArrayBuffer)], { type: 'video/mp4' })
   const outputFile = new File([blob], 'processed.mp4', { type: 'video/mp4' })
 
   // Clean up virtual FS
