@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { X, ExternalLink } from 'lucide-react'
+import { X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { getYouTubeEmbedUrl, getYouTubeWatchUrl } from '@/lib/youtube'
+import { getYouTubeEmbedUrl } from '@/lib/youtube'
 
 interface Props {
   open: boolean
@@ -92,17 +92,7 @@ export default function VideoPlayer({
           {hasError ? (
             <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-6 text-center">
               <p className="mb-4">{t('videos.embedBlocked')}</p>
-              {youtubeId && (
-                <a
-                  href={getYouTubeWatchUrl(youtubeId)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn-primary inline-flex items-center gap-2"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                  {t('videos.openInYouTube')}
-                </a>
-              )}
+              {youtubeId && <p className="text-sm text-neutral-300">{t('videos.safeEmbedOnly')}</p>}
             </div>
           ) : (
             <iframe

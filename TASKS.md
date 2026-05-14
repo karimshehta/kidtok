@@ -9,6 +9,52 @@
 
 ## Codex Coordination Update - 2026-05-14
 
+### YouTube Search UX Redesign - Codex
+- [x] Replaced the playlist "paste YouTube link" primary flow with a search-first Add Video experience.
+- [x] Added `youtube-search` Supabase Edge Function so YouTube API keys stay server-side.
+- [x] Search results show thumbnail, title, channel name, and duration.
+- [x] User can click Add from a result and the video is inserted into the playlist immediately.
+- [x] Kept a secondary "Direct link" tab for advanced users.
+- [x] Direct-link mode now passes through the same YouTube lookup and moderation filters before adding.
+- [x] Removed user-facing links that sent parents/children out to the real YouTube watch page from playlist/player flows.
+- [x] Player fallback now stays inside KidTok and does not offer "Open in YouTube".
+
+### YouTube Search Technical Notes
+- Edge Function: `supabase/functions/youtube-search`.
+- API used: YouTube Data API v3:
+  - `search.list` for keyword search.
+  - `videos.list` for duration, embeddable status, channel metadata, and thumbnails.
+- Frontend hook additions:
+  - `useYouTubeSearch()` for keyword search.
+  - `useYouTubeVideoLookup()` for moderated direct-link validation.
+- Playlist insert path still uses existing `videos` and `playlist_videos` tables.
+- New stored metadata on inserted videos: `channel_id`, `thumbnail_url`, `duration_seconds`.
+- Search uses `safeSearch=strict`, `videoEmbeddable=true`, and `videoSyndicated=true`.
+
+### YouTube Moderation / Child Safety
+- New app settings migration: `20260514000007_youtube_search_moderation.sql`.
+- Moderation settings:
+  - `youtube_max_duration_seconds` default `1200`.
+  - `youtube_blocked_keywords` comma-separated title/channel keyword blocklist.
+  - `youtube_blocked_channel_ids` comma-separated channel blocklist.
+  - `youtube_allowed_channel_ids` comma-separated approved channel allowlist.
+  - `youtube_require_approved_channels` toggles allowlist-only search.
+- Filtered videos are hidden from search results and rejected in direct-link mode.
+- The app embeds with `youtube-nocookie.com`, `rel=0`, and no YouTube outbound fallback from the parent playlist/player UI.
+
+### Required Deployment / Env
+- Add Supabase Edge Function secret: `YOUTUBE_API_KEY`.
+- Deploy new Edge Function: `youtube-search`.
+- Apply migration: `20260514000007_youtube_search_moderation.sql`.
+
+### Next Related Improvements
+- [ ] Add admin UI for YouTube moderation settings instead of editing `app_settings` manually.
+- [ ] Add per-child age/interest-aware search query boosting or filtering.
+- [ ] Add "report search result" / "block this channel" actions for parents/admins.
+- [ ] Cache recent safe search results to reduce YouTube API quota usage.
+- [ ] Add stricter direct-link review for videos that are unavailable through `search.list` but valid through `videos.list`.
+- [ ] Add browser QA with real Supabase env and `YOUTUBE_API_KEY`.
+
 ### Completed by Codex
 - [x] Replaced client-side subscription coin redemption with `subscription-redeem-coins` Edge Function.
 - [x] Added `redeem_subscription_with_coins()` DB RPC so subscription creation, coin deduction, ledger insert, and old-active cancellation run transactionally.
@@ -340,6 +386,9 @@ PAYMOB_IFRAME_ID=
 PAYMOB_CARD_INTEGRATION_ID=
 PAYMOB_WALLET_INTEGRATION_ID=
 PAYMOB_APPLE_PAY_INTEGRATION_ID=
+
+# YouTube search (parent Add Video flow)
+YOUTUBE_API_KEY=
 
 # App URL (for Paymob redirect)
 APP_URL=https://kidtok.vercel.app
