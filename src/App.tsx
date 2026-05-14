@@ -1,42 +1,58 @@
-import { useEffect } from 'react'
+import { useEffect, lazy, Suspense } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from '@/stores/auth'
+import ProtectedRoute from '@/components/ProtectedRoute'
+import OnboardingModal from '@/components/OnboardingModal'
+
+// ── Critical path (always loaded) ────────────────────────────
 import Landing from '@/pages/Landing'
 import Login from '@/pages/auth/Login'
 import Signup from '@/pages/auth/Signup'
-import ForgotPassword from '@/pages/auth/ForgotPassword'
-import ResetPassword from '@/pages/auth/ResetPassword'
-import AuthCallback from '@/pages/auth/AuthCallback'
-import Home from '@/pages/Home'
-import Feed from '@/pages/Feed'
-import Children from '@/pages/Children'
-import ChildDetail from '@/pages/ChildDetail'
-import PlaylistDetail from '@/pages/PlaylistDetail'
-import ChildMode from '@/pages/ChildMode'
-import Profile from '@/pages/Profile'
-import Subscription from '@/pages/Subscription'
-import Statistics from '@/pages/Statistics'
-import Search from '@/pages/Search'
-import ProfileEdit from '@/pages/ProfileEdit'
-import SubscriptionSuccess from '@/pages/subscription/Success'
-import SubscriptionFailed from '@/pages/subscription/Failed'
-import CreatorUpload from '@/pages/creator/Upload'
-import CreatorMyVideos from '@/pages/creator/MyVideos'
-import PlaylistFeed from '@/pages/PlaylistFeed'
-import CreatorProfile from '@/pages/CreatorProfile'
-import AdminDashboard from '@/pages/admin/Dashboard'
-import AdminContent from '@/pages/admin/Content'
-import AdminModeration from '@/pages/admin/Moderation'
-import AdminUsers from '@/pages/admin/Users'
-import AdminPlans from '@/pages/admin/Plans'
-import AdminAds from '@/pages/admin/Ads'
-import AdminAppVersion from '@/pages/admin/AppVersion'
-import AdminSecurity from '@/pages/admin/Security'
-import AdminReference from '@/pages/admin/Reference'
-import AdminReports from '@/pages/admin/Reports'
-import NotFound from '@/pages/NotFound'
-import ProtectedRoute from '@/components/ProtectedRoute'
-import OnboardingModal from '@/components/OnboardingModal'
+
+// ── Lazy loaded (code-split per route) ───────────────────────
+const ForgotPassword   = lazy(() => import('@/pages/auth/ForgotPassword'))
+const ResetPassword    = lazy(() => import('@/pages/auth/ResetPassword'))
+const AuthCallback     = lazy(() => import('@/pages/auth/AuthCallback'))
+const Home             = lazy(() => import('@/pages/Home'))
+const Feed             = lazy(() => import('@/pages/Feed'))
+const Children         = lazy(() => import('@/pages/Children'))
+const ChildDetail      = lazy(() => import('@/pages/ChildDetail'))
+const PlaylistDetail   = lazy(() => import('@/pages/PlaylistDetail'))
+const PlaylistFeed     = lazy(() => import('@/pages/PlaylistFeed'))
+const ChildMode        = lazy(() => import('@/pages/ChildMode'))
+const Profile          = lazy(() => import('@/pages/Profile'))
+const ProfileEdit      = lazy(() => import('@/pages/ProfileEdit'))
+const Search           = lazy(() => import('@/pages/Search'))
+const Statistics       = lazy(() => import('@/pages/Statistics'))
+const Subscription     = lazy(() => import('@/pages/Subscription'))
+const SubscriptionSuccess = lazy(() => import('@/pages/subscription/Success'))
+const SubscriptionFailed  = lazy(() => import('@/pages/subscription/Failed'))
+const CreatorUpload    = lazy(() => import('@/pages/creator/Upload'))
+const CreatorMyVideos  = lazy(() => import('@/pages/creator/MyVideos'))
+const CreatorProfile   = lazy(() => import('@/pages/CreatorProfile'))
+
+// ── Admin (separate chunk — only for admins) ─────────────────
+const AdminDashboard   = lazy(() => import('@/pages/admin/Dashboard'))
+const AdminContent     = lazy(() => import('@/pages/admin/Content'))
+const AdminModeration  = lazy(() => import('@/pages/admin/Moderation'))
+const AdminUsers       = lazy(() => import('@/pages/admin/Users'))
+const AdminPlans       = lazy(() => import('@/pages/admin/Plans'))
+const AdminAds         = lazy(() => import('@/pages/admin/Ads'))
+const AdminAppVersion  = lazy(() => import('@/pages/admin/AppVersion'))
+const AdminSecurity    = lazy(() => import('@/pages/admin/Security'))
+const AdminReference   = lazy(() => import('@/pages/admin/Reference'))
+const AdminReports     = lazy(() => import('@/pages/admin/Reports'))
+
+const NotFound = lazy(() => import('@/pages/NotFound'))
+
+// Minimal loading spinner used while lazy chunks load
+function PageLoader() {
+  return (
+    <div className="min-h-[100dvh] flex items-center justify-center bg-white">
+      <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+    </div>
+  )
+}
 
 export default function App() {
   const init = useAuth((s) => s.init)
@@ -57,6 +73,7 @@ export default function App() {
   return (
     <>
       <OnboardingModal />
+      <Suspense fallback={<PageLoader />}>
       <Routes>
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
@@ -98,6 +115,7 @@ export default function App() {
       <Route path="/404" element={<NotFound />} />
       <Route path="*" element={<Navigate to="/404" replace />} />
     </Routes>
+    </Suspense>
     </>
   )
 }

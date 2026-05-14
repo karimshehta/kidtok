@@ -397,6 +397,10 @@ const ar = {
     yearlyDiscount: '% خصم على السنوي',
     onboardingEnabled: 'تفعيل نافذة الترحيب',
     saveSuccess: 'تم حفظ إعدادات العملات',
+    notEnough: 'رصيدك {{have}} عملة. تحتاج {{need}} عملة',
+    redeemWith: 'استخدم {{n}} عملة للحصول على {{pct}}% خصم',
+    needMore: 'تحتاج {{need}} عملة (لديك {{have}})',
+    redeemSuccess: 'تم الاشتراك في {{plan}} باستخدام عملاتك! 🎉',
   },
   onboarding: {
     welcome: 'مرحباً في KidTok!',
@@ -961,6 +965,10 @@ const en: typeof ar = {
     yearlyDiscount: '% discount on yearly',
     onboardingEnabled: 'Show welcome popup',
     saveSuccess: 'Coin settings saved',
+    notEnough: 'You have {{have}} coins. You need {{need}}',
+    redeemWith: 'Use {{n}} coins for {{pct}}% off',
+    needMore: 'Need {{need}} coins (you have {{have}})',
+    redeemSuccess: 'Subscribed to {{plan}} with your coins! 🎉',
   },
   onboarding: {
     welcome: 'Welcome to KidTok!',

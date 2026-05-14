@@ -12,8 +12,12 @@ import {
   Shield,
   X,
   Crown,
+  Coins,
 } from 'lucide-react'
 import { usePublicPlans, useMySubscription, useSubscribe, type SubscriptionPlan } from '@/hooks/useSubscription'
+import { useCoinBalance, useCoinConfig } from '@/hooks/useCoins'
+import { supabase } from '@/lib/supabase'
+import { useQueryClient } from '@tanstack/react-query'
 import { cn } from '@/lib/utils'
 
 export default function SubscriptionPlans() {
@@ -23,6 +27,10 @@ export default function SubscriptionPlans() {
 
   const { data: plans = [], isLoading } = usePublicPlans()
   const { data: mySub } = useMySubscription()
+  const { data: coinBalance = 0 } = useCoinBalance()
+  const { coinsForMonthly, coinsForYearly, monthlyDiscountPct, yearlyDiscountPct } = useCoinConfig()
+  const qc = useQueryClient()
+  const [redeemingCoins, setRedeemingCoins] = useState(false)
 
   const [activeIdx, setActiveIdx] = useState(0)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -56,6 +64,47 @@ export default function SubscriptionPlans() {
     }
     setSelectedPlan(plan)
     setMethodOpen(true)
+  }
+
+  const handleRedeemCoins = async (plan: SubscriptionPlan) => {
+    const isMonthly = plan.duration_days <= 31
+    const coinsNeeded = isMonthly ? coinsForMonthly : coinsForYearly
+    if (coinBalance < coinsNeeded) {
+      toast.error(t('coins.notEnough', { need: coinsNeeded, have: coinBalance }))
+      return
+    }
+    setRedeemingCoins(true)
+    try {
+      // Deduct coins via RPC
+      const { error: deductErr } = await supabase.rpc('deduct_user_coins', {
+        p_user_id: (await supabase.auth.getUser()).data.user?.id,
+        p_amount: coinsNeeded,
+        p_notes: `Redeemed for ${plan.name_en} subscription`,
+      })
+      if (deductErr) throw deductErr
+
+      // Create a 'coins' subscription record (no payment gateway)
+      const expiresAt = new Date()
+      expiresAt.setDate(expiresAt.getDate() + (plan.duration_days || 30))
+      const { error: subErr } = await supabase.from('subscriptions').insert({
+        plan_id: plan.id,
+        status: 'active',
+        started_at: new Date().toISOString(),
+        expires_at: expiresAt.toISOString(),
+        paid_amount: 0,
+        paid_currency: 'COINS',
+        provider: 'coins',
+      })
+      if (subErr) throw subErr
+
+      await qc.invalidateQueries({ queryKey: ['my-subscription'] })
+      await qc.invalidateQueries({ queryKey: ['coins'] })
+      toast.success(t('coins.redeemSuccess', { plan: plan.name_ar }))
+    } catch (err) {
+      toast.error((err as Error).message)
+    } finally {
+      setRedeemingCoins(false)
+    }
   }
 
   if (isLoading) {
@@ -102,6 +151,13 @@ export default function SubscriptionPlans() {
             isActive={idx === activeIdx}
             isCurrent={mySub?.plan_id === plan.id}
             onSubscribe={() => handleSubscribeClick(plan)}
+                  onRedeemCoins={handleRedeemCoins}
+                  coinBalance={coinBalance}
+                  coinsForMonthly={coinsForMonthly}
+                  coinsForYearly={coinsForYearly}
+                  monthlyDiscountPct={monthlyDiscountPct}
+                  yearlyDiscountPct={yearlyDiscountPct}
+                  redeemingCoins={redeemingCoins}
           />
         ))}
       </div>
@@ -143,12 +199,26 @@ function PlanCard({
   isActive,
   isCurrent,
   onSubscribe,
+  onRedeemCoins,
+  coinBalance,
+  coinsForMonthly,
+  coinsForYearly,
+  monthlyDiscountPct,
+  yearlyDiscountPct,
+  redeemingCoins,
 }: {
   plan: SubscriptionPlan
   idx: number
   isActive: boolean
   isCurrent: boolean
   onSubscribe: () => void
+  onRedeemCoins: (plan: SubscriptionPlan) => void
+  coinBalance: number
+  coinsForMonthly: number
+  coinsForYearly: number
+  monthlyDiscountPct: number
+  yearlyDiscountPct: number
+  redeemingCoins: boolean
 }) {
   const { t, i18n } = useTranslation()
   const lang = i18n.language as 'ar' | 'en'
@@ -268,6 +338,38 @@ function PlanCard({
             </>
           )}
         </button>
+
+        {/* Coin redemption CTA */}
+        {!isFree && !isCurrent && (() => {
+          const isMonthly = plan.duration_days <= 31
+          const coinsNeeded = isMonthly ? coinsForMonthly : coinsForYearly
+          const discountPct = isMonthly ? monthlyDiscountPct : yearlyDiscountPct
+          const canRedeem = coinBalance >= coinsNeeded
+          return (
+            <button
+              type="button"
+              onClick={() => onRedeemCoins(plan)}
+              disabled={redeemingCoins || !canRedeem}
+              className={cn(
+                'w-full mt-2 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all',
+                canRedeem
+                  ? 'bg-amber-400/20 hover:bg-amber-400/30 text-amber-300 border border-amber-400/40'
+                  : 'bg-white/5 text-white/30 border border-white/10 cursor-not-allowed'
+              )}
+            >
+              {redeemingCoins ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <>
+                  <Coins className="w-4 h-4" />
+                  {canRedeem
+                    ? t('coins.redeemWith', { n: coinsNeeded, pct: discountPct })
+                    : t('coins.needMore', { need: coinsNeeded, have: coinBalance })}
+                </>
+              )}
+            </button>
+          )
+        })()}
         {!isFree && !isCurrent && (
           <p className="text-center text-xs text-white/70 mt-3 inline-flex items-center gap-1 justify-center w-full">
             <Shield className="w-3 h-3" />
