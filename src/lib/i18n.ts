@@ -415,6 +415,7 @@ const ar = {
       ads: 'الإعلانات',
       reference: 'الفئات والاهتمامات',
       reports: 'البلاغات',
+      appVersion: 'إصدار التطبيق',
       backToApp: 'العودة للتطبيق',
     },
     dashboard: {
@@ -943,6 +944,7 @@ const en: typeof ar = {
       ads: 'Ads',
       reference: 'Ages & Interests',
       reports: 'Reports',
+      appVersion: 'App Version',
       backToApp: 'Back to app',
     },
     dashboard: {

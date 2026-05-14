@@ -30,6 +30,7 @@ import AdminModeration from '@/pages/admin/Moderation'
 import AdminUsers from '@/pages/admin/Users'
 import AdminPlans from '@/pages/admin/Plans'
 import AdminAds from '@/pages/admin/Ads'
+import AdminAppVersion from '@/pages/admin/AppVersion'
 import AdminReference from '@/pages/admin/Reference'
 import AdminReports from '@/pages/admin/Reports'
 import NotFound from '@/pages/NotFound'
@@ -84,6 +85,7 @@ export default function App() {
         <Route path="/admin/users" element={<AdminUsers />} />
         <Route path="/admin/plans" element={<AdminPlans />} />
         <Route path="/admin/ads" element={<AdminAds />} />
+        <Route path="/admin/app-version" element={<AdminAppVersion />} />
         <Route path="/admin/reference" element={<AdminReference />} />
         <Route path="/admin/reports" element={<AdminReports />} />
       </Route>

@@ -75,3 +75,7 @@ verify_jwt = true
 [functions.subscription-paymob-callback]
 verify_jwt = false
 
+
+# App config (version control + maintenance) — no JWT
+[functions.app-config]
+verify_jwt = false
