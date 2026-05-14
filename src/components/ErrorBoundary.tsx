@@ -1,12 +1,9 @@
-import { Component, ErrorInfo, ReactNode } from 'react'
-import i18n from '@/lib/i18n'
+import { Component, type ReactNode, type ErrorInfo } from 'react'
 
-interface State {
-  hasError: boolean
-  error: Error | null
-}
+interface Props { children: ReactNode }
+interface State { hasError: boolean; error: Error | null }
 
-export default class ErrorBoundary extends Component<{ children: ReactNode }, State> {
+export default class ErrorBoundary extends Component<Props, State> {
   state: State = { hasError: false, error: null }
 
   static getDerivedStateFromError(error: Error): State {
@@ -14,29 +11,62 @@ export default class ErrorBoundary extends Component<{ children: ReactNode }, St
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error('App error:', error, info)
+    console.error('[KidTok] App crash:', error, info.componentStack)
   }
 
   render() {
     if (this.state.hasError) {
+      const missingEnv =
+        !import.meta.env.VITE_SUPABASE_URL ||
+        !import.meta.env.VITE_SUPABASE_ANON_KEY ||
+        (import.meta.env.VITE_SUPABASE_ANON_KEY as string) === 'your-anon-key-here'
+
       return (
-        <div className="min-h-screen bg-gradient-to-b from-primary-light to-white flex items-center justify-center p-4">
-          <div className="card max-w-md w-full text-center">
-            <div className="text-6xl mb-4">⚠️</div>
-            <h1 className="text-xl font-bold mb-2">{i18n.t('errors.title')}</h1>
-            <p className="text-neutral-700 mb-6 text-sm">{i18n.t('errors.body')}</p>
-            <button onClick={() => window.location.reload()} className="btn-primary w-full">
-              {i18n.t('errors.reload')}
-            </button>
-            {import.meta.env.DEV && this.state.error && (
-              <details className="mt-4 text-start text-xs text-neutral-700 bg-neutral-200 rounded-lg p-3">
-                <summary className="cursor-pointer">dev details</summary>
-                <pre className="mt-2 overflow-auto whitespace-pre-wrap">
-                  {this.state.error.message}
-                  {'\n'}
-                  {this.state.error.stack}
-                </pre>
-              </details>
+        <div style={{
+          minHeight: '100vh', display: 'flex', alignItems: 'center',
+          justifyContent: 'center', background: '#f5f5f5',
+          fontFamily: 'system-ui,sans-serif', padding: '24px', direction: 'ltr',
+        }}>
+          <div style={{
+            background: 'white', borderRadius: '24px', padding: '32px',
+            maxWidth: '480px', width: '100%',
+            boxShadow: '0 4px 32px rgba(0,0,0,0.12)', textAlign: 'center',
+          }}>
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}>
+              {missingEnv ? '🔑' : '⚠️'}
+            </div>
+            <h1 style={{ fontSize: '20px', fontWeight: 700, marginBottom: '8px' }}>
+              {missingEnv ? 'Missing Configuration' : 'Something went wrong'}
+            </h1>
+            {missingEnv ? (
+              <div style={{ textAlign: 'left' }}>
+                <p style={{ color: '#666', marginBottom: '16px', fontSize: '14px' }}>
+                  Set these in your Vercel dashboard → Settings → Environment Variables:
+                </p>
+                <div style={{
+                  background: '#1e1e1e', color: '#86efac', borderRadius: '12px',
+                  padding: '16px', fontFamily: 'monospace', fontSize: '13px', lineHeight: '1.8',
+                }}>
+                  <div>VITE_SUPABASE_URL=https://xxx.supabase.co</div>
+                  <div>VITE_SUPABASE_ANON_KEY=eyJ...</div>
+                </div>
+              </div>
+            ) : (
+              <>
+                <p style={{ color: '#666', marginBottom: '16px', fontSize: '14px' }}>
+                  {this.state.error?.message}
+                </p>
+                <button
+                  onClick={() => window.location.reload()}
+                  style={{
+                    background: '#03BBE5', color: 'white', border: 'none',
+                    borderRadius: '12px', padding: '12px 24px',
+                    cursor: 'pointer', fontSize: '15px', fontWeight: 600,
+                  }}
+                >
+                  Reload page
+                </button>
+              </>
             )}
           </div>
         </div>

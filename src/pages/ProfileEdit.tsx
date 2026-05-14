@@ -195,5 +195,3 @@ export default function ProfileEdit() {
   )
 }
 
-// Export a re-export of useUserProfile from here too
-export { useUserProfile } from '@/hooks/useProfile'

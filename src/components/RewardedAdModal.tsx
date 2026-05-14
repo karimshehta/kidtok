@@ -18,7 +18,7 @@ const AD_WATCH_SECONDS = 5   // minimum seconds to watch before claiming
 export default function RewardedAdModal({ onDone, onClose, anonymous }: Props) {
   const { t } = useTranslation()
   const { coinsPerAd } = useCoinConfig()
-  const { publisherId } = useAds()
+  const { publisherId, feedUnitId } = useAds()
   const claimMut = useClaimAdReward()
 
   const [countdown, setCountdown] = useState(AD_WATCH_SECONDS)
@@ -86,7 +86,7 @@ export default function RewardedAdModal({ onDone, onClose, anonymous }: Props) {
           <div className="min-h-[200px] bg-neutral-100 flex items-center justify-center p-4">
             {publisherId ? (
               <AdSlot
-                unitId={useAds().feedUnitId || ''}
+                unitId={feedUnitId || ''}
                 publisherId={publisherId}
                 format="rectangle"
                 className="w-full min-h-[150px]"
