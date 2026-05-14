@@ -8,7 +8,7 @@
   }
 
   body {
-    @apply bg-white text-neutral-900 antialiased;
+    @apply bg-neutral-200 text-neutral-900 antialiased;
   }
 
   /* Better RTL */
@@ -19,23 +19,27 @@
 
 @layer components {
   .btn-primary {
-    @apply bg-primary hover:bg-primary-semi-dark text-white px-6 py-3 rounded-full font-semibold transition-colors disabled:opacity-50;
+    @apply bg-gradient-to-b from-primary to-[#0A94B4] text-white px-6 py-3 rounded-full font-bold shadow-[0_10px_24px_rgba(3,187,229,0.20)] transition-all hover:-translate-y-0.5 hover:shadow-[0_14px_28px_rgba(3,187,229,0.26)] disabled:translate-y-0 disabled:opacity-50;
   }
 
   .btn-secondary {
-    @apply bg-secondary hover:opacity-90 text-white px-6 py-3 rounded-full font-semibold transition-opacity disabled:opacity-50;
+    @apply bg-secondary hover:opacity-90 text-white px-6 py-3 rounded-full font-bold shadow-[0_10px_24px_rgba(249,98,134,0.18)] transition-opacity disabled:opacity-50;
   }
 
   .btn-outline {
-    @apply border border-primary text-primary hover:bg-primary/5 px-6 py-3 rounded-full font-semibold transition-colors;
+    @apply border border-primary bg-primary/5 text-primary hover:bg-primary/10 px-6 py-3 rounded-full font-bold transition-colors;
   }
 
   .input-field {
-    @apply w-full bg-neutral-200 border border-neutral-200 focus:border-primary focus:bg-white rounded-2xl px-4 py-3 outline-none transition-colors placeholder:text-neutral-700/50;
+    @apply w-full bg-[#F9F9FA] border border-[#F9F9FA] focus:border-primary focus:bg-white rounded-[25px] px-4 py-3 outline-none transition-colors placeholder:text-neutral-700/55;
   }
 
   .card {
-    @apply bg-white rounded-2xl shadow-sm border border-neutral-300 p-4;
+    @apply bg-white rounded-2xl shadow-[0_10px_30px_rgba(7,55,91,0.06)] border border-neutral-300/80 p-4;
+  }
+
+  .kidtok-soft-surface {
+    @apply bg-white/90 shadow-[0_12px_30px_rgba(7,55,91,0.08)] ring-1 ring-neutral-300/70 backdrop-blur;
   }
 }
 

@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Shield, Clock, BarChart3, Sparkles } from 'lucide-react'
+import KidTokLogo from '@/components/KidTokLogo'
 
 export default function Landing() {
   const { t, i18n } = useTranslation()
@@ -14,12 +15,9 @@ export default function Landing() {
   ] as const
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-primary-light via-white to-white">
-      <nav className="container mx-auto px-4 py-6 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white font-bold">K</div>
-          <span className="text-2xl font-bold text-primary-dark">{t('common.appName')}</span>
-        </div>
+    <div className="min-h-screen bg-gradient-to-b from-primary-light via-neutral-200 to-white">
+      <nav className="container mx-auto px-4 py-5 flex items-center justify-between">
+        <KidTokLogo textClassName="text-2xl" markClassName="h-11 w-11" />
         <div className="flex items-center gap-3">
           <button onClick={toggleLang} className="text-sm font-medium text-neutral-700">
             {i18n.language === 'ar' ? 'EN' : 'عربي'}
@@ -29,20 +27,33 @@ export default function Landing() {
         </div>
       </nav>
 
-      <section className="container mx-auto px-4 py-16 md:py-24 text-center">
-        <h1 className="text-4xl md:text-6xl font-bold text-primary-dark mb-6">
-          {t('landing.heroTitle')} <span className="text-secondary">🎈</span>
-        </h1>
-        <p className="text-xl md:text-2xl text-neutral-700 mb-8 max-w-2xl mx-auto">
-          {t('landing.heroSubtitle')}
-        </p>
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <Link to="/signup" className="btn-primary text-lg">{t('landing.startFree')}</Link>
-          <a href="#features" className="btn-outline text-lg">{t('landing.learnMore')}</a>
+      <section className="container mx-auto grid min-h-[calc(100vh-88px)] items-center gap-10 px-4 py-10 md:grid-cols-[1.05fr_0.95fr] md:py-14">
+        <div className="text-center md:text-start">
+          <h1 className="mb-5 text-4xl font-extrabold text-primary-dark md:text-6xl">
+            {t('common.appName')}
+          </h1>
+          <p className="mb-3 text-2xl font-bold text-secondary md:text-3xl">
+            {t('landing.heroTitle')}
+          </p>
+          <p className="mx-auto mb-8 max-w-2xl text-lg text-neutral-700 md:mx-0 md:text-xl">
+            {t('landing.heroSubtitle')}
+          </p>
+          <div className="flex flex-col gap-4 sm:flex-row md:justify-start justify-center">
+            <Link to="/signup" className="btn-primary text-lg">{t('landing.startFree')}</Link>
+            <a href="#features" className="btn-outline text-lg">{t('landing.learnMore')}</a>
+          </div>
+        </div>
+        <div className="relative mx-auto w-full max-w-sm">
+          <div className="absolute -inset-4 rounded-[40px] bg-gradient-secondary opacity-70 blur-2xl" />
+          <img
+            src="/assets/kidtok-hero.jpg"
+            alt="KidTok"
+            className="relative aspect-[3/4] w-full rounded-[32px] object-cover shadow-[0_30px_70px_rgba(7,55,91,0.20)] ring-8 ring-white"
+          />
         </div>
       </section>
 
-      <section id="features" className="container mx-auto px-4 py-16">
+      <section id="features" className="container mx-auto px-4 py-14">
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
           {features.map((f) => (
             <div key={f.key} className="card text-center hover:shadow-lg transition-shadow">

@@ -12,6 +12,7 @@ import { useFollowingFeed } from '@/hooks/useFollowingFeed'
 import { getYouTubeThumbnail } from '@/lib/youtube'
 import type { Video } from '@/types/db'
 import { cn } from '@/lib/utils'
+import KidTokLogo from '@/components/KidTokLogo'
 
 type FeedItem =
   | { type: 'video'; video: Video; displayIdx: number }
@@ -121,8 +122,7 @@ export default function Feed() {
       {/* Top bar */}
       <div className="absolute top-0 inset-x-0 z-30 flex items-center justify-between px-4 py-3 bg-gradient-to-b from-black/60 to-transparent">
         <button onClick={() => navigate('/feed')} className="flex items-center gap-2">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white font-bold">K</div>
-          <span className="text-lg font-bold text-white">{t('common.appName')}</span>
+          <KidTokLogo inverted textClassName="text-lg" markClassName="h-10 w-10" />
         </button>
         <div className="flex items-center gap-3">
           {/* Tabs */}

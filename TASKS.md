@@ -9,6 +9,33 @@
 
 ## Codex Coordination Update - 2026-05-14
 
+### Web Style Parity with Flutter App - Codex
+- [x] Audited the current web UI against `D:\kidtokapp\KidTok-feature-localization`.
+- [x] Imported the Flutter app brand assets into the web public assets:
+  - `/assets/kidtok-logo.svg`
+  - `/assets/kidtok-logo.png`
+  - `/assets/kidtok-hero.jpg`
+  - `/favicon.png`
+- [x] Added a shared `KidTokLogo` React component so the landing page, auth shell, app header, and feed header all use the same app logo instead of the temporary `K` mark.
+- [x] Updated global web UI tokens to better match the Flutter app:
+  gradient primary buttons, pill inputs, softer app background, and lighter card shadows.
+- [x] Refreshed the landing page to use the real KidTok visual asset and the same brand-first direction needed for the future Expo app.
+- [x] Fixed the authenticated bottom navigation grid from 3 columns to 4 columns so all four nav items align correctly.
+- [x] Fixed broken Arabic metadata in `index.html` and switched the favicon to the Flutter app favicon.
+
+### Verification - Style Parity Pass
+- [x] `npm run build` passes after the style/asset changes.
+- [x] Local Vite dev server responds on `http://127.0.0.1:5173`.
+- [ ] Manual mobile browser QA still needed on a real device for auth forms, feed, child mode, and modals.
+
+### Proposed Before Expo / React Native
+- [ ] Extract a small shared design-token document before starting Expo: colors, gradients, border radius, spacing scale, font weights, button/input/card rules, and navigation colors.
+- [ ] Decide whether Expo should reuse the imported Flutter brand assets directly or regenerate app icon/splash assets from the same source files.
+- [ ] Freeze the Supabase mobile contract: auth/session storage, Edge Function payloads, RPC names, `app_settings` keys, subscription/coin/ad flows.
+- [ ] Run a production web smoke test with real Supabase env before mobile starts: auth, child creation, YouTube search add, playlist playback, subscription, coin redemption, creator upload, admin moderation.
+- [ ] Rotate any credentials shared in chat or command history, especially GitHub PATs, before opening the mobile repository or CI setup.
+- [ ] Pick Expo packages up front: Expo Router, secure Supabase session storage, video player, AdMob/rewarded ads, push notifications, and child-mode lock strategy.
+
 ### YouTube Search UX Redesign - Codex
 - [x] Replaced the playlist "paste YouTube link" primary flow with a search-first Add Video experience.
 - [x] Added `youtube-search` Supabase Edge Function so YouTube API keys stay server-side.
@@ -310,10 +337,10 @@
 ## 🔨 FEATURES IN PROGRESS / PARTIALLY DONE
 
 ### Subscription Coin Redemption
-**Status:** DB ready, UI missing
-- `deduct_user_coins()` RPC exists and is secure
-- Plan picker (`/subscription/plans`) has no coin discount UI
-- **Next:** Add "Use N coins for 100% off" button to Plans page
+**Status:** Completed via server-authoritative Edge Function
+- `subscription-redeem-coins` Edge Function handles redemption from the client.
+- `redeem_subscription_with_coins()` RPC creates the subscription and deducts coins transactionally.
+- Plan picker blocks partial discounts until a Paymob pricing flow is added.
 
 ### Mobile App (Expo)
 **Status:** Backend 100% ready, mobile app not started

@@ -7,6 +7,7 @@ import { useUserRole } from '@/hooks/useCreator'
 import { useAds, useAdSenseScript } from '@/hooks/useAds'
 import { BannerAd } from '@/components/AdSlot'
 import { cn } from '@/lib/utils'
+import KidTokLogo from '@/components/KidTokLogo'
 
 interface Props {
   children: ReactNode
@@ -34,12 +35,11 @@ export default function AppLayout({ children }: Props) {
   const isCreator = role === 'creator' || role === 'admin'
 
   return (
-    <div className="min-h-screen bg-neutral-200/50 pb-24">
-      <header className="bg-white border-b border-neutral-300 sticky top-0 z-40">
+    <div className="min-h-screen bg-neutral-200/70 pb-24">
+      <header className="kidtok-soft-surface sticky top-0 z-40">
         <div className="container mx-auto px-4 py-3 flex items-center justify-between">
           <button onClick={() => navigate('/feed')} className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white font-bold">K</div>
-            <span className="text-xl font-bold text-primary-dark">{t('common.appName')}</span>
+            <KidTokLogo textClassName="text-xl" markClassName="h-10 w-10" />
           </button>
 
           <div className="flex items-center gap-1 sm:gap-3">
@@ -75,9 +75,9 @@ export default function AppLayout({ children }: Props) {
         {children}
       </main>
 
-      <nav className="fixed bottom-0 inset-x-0 bg-white border-t border-neutral-300 z-40">
+      <nav className="fixed bottom-0 inset-x-0 kidtok-soft-surface z-40">
         <div className="container mx-auto px-4">
-          <div className="grid grid-cols-3 py-2">
+          <div className="grid grid-cols-4 py-2">
             {navItems.map((item) => {
               const active = item.match(location.pathname)
               return (
@@ -85,8 +85,8 @@ export default function AppLayout({ children }: Props) {
                   key={item.to}
                   to={item.to}
                   className={cn(
-                    'flex flex-col items-center gap-1 py-2 transition-colors',
-                    active ? 'text-primary' : 'text-neutral-700'
+                    'flex flex-col items-center gap-1 rounded-2xl py-2 transition-colors',
+                    active ? 'text-secondary bg-secondary/10' : 'text-neutral-700'
                   )}
                 >
                   <item.icon className="w-6 h-6" />
