@@ -1,17 +1,33 @@
 -- ============================================================
--- Fix: coin-based subscriptions + allow authenticated RPCs
+-- Allow authenticated users to redeem subscriptions with coins
+-- via a secure wrapper that auto-uses auth.uid()
 -- ============================================================
 
--- 1. Add 'coins' to payment_provider allowed values
-ALTER TABLE public.subscriptions
-  DROP CONSTRAINT IF EXISTS subscriptions_payment_provider_check;
+-- Wrapper: no p_user_id param — uses auth.uid() automatically
+-- This is safe to grant to authenticated role
+CREATE OR REPLACE FUNCTION public.my_redeem_subscription_with_coins(
+  p_plan_id integer
+)
+RETURNS TABLE (
+  subscription_id uuid,
+  coins_spent     integer,
+  new_balance     integer,
+  expires_at      timestamptz
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  RETURN QUERY
+    SELECT * FROM public.redeem_subscription_with_coins(auth.uid(), p_plan_id);
+END;
+$$;
 
-ALTER TABLE public.subscriptions
-  ADD CONSTRAINT subscriptions_payment_provider_check
-    CHECK (payment_provider IN ('stripe','paymob','apple','google','manual','coins'));
+REVOKE ALL ON FUNCTION public.my_redeem_subscription_with_coins(integer) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.my_redeem_subscription_with_coins(integer) TO authenticated;
 
--- 2. Allow authenticated users to call deduct_user_coins on their own account
---    (they can only deduct from their own balance — enforced inside the function)
+-- Also grant deduct_user_coins to authenticated (users can deduct their own balance)
 CREATE OR REPLACE FUNCTION public.deduct_user_coins(
   p_user_id uuid,
   p_amount  integer,
@@ -38,7 +54,8 @@ BEGIN
    FOR UPDATE;
 
   IF v_current IS NULL OR v_current < p_amount THEN
-    RAISE EXCEPTION 'INSUFFICIENT_COINS: have %, need %', COALESCE(v_current, 0), p_amount;
+    RAISE EXCEPTION 'INSUFFICIENT_COINS: have %, need %',
+      COALESCE(v_current, 0), p_amount;
   END IF;
 
   v_new := v_current - p_amount;
@@ -56,7 +73,6 @@ BEGIN
 END;
 $$;
 
--- Grant to authenticated (safe — function checks auth.uid())
 REVOKE ALL ON FUNCTION public.deduct_user_coins(uuid, integer, uuid, text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.deduct_user_coins(uuid, integer, uuid, text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.deduct_user_coins(uuid, integer, uuid, text) TO service_role;

@@ -69,43 +69,27 @@ export default function SubscriptionPlans() {
   const handleRedeemCoins = async (plan: SubscriptionPlan) => {
     const isMonthly = plan.duration_days <= 31
     const coinsNeeded = isMonthly ? coinsForMonthly : coinsForYearly
-    const discountPct = isMonthly ? monthlyDiscountPct : yearlyDiscountPct
-    if (discountPct < 100) {
-      toast.error(t('coins.fullDiscountOnly'))
-      return
-    }
     if (coinBalance < coinsNeeded) {
       toast.error(t('coins.notEnough', { need: coinsNeeded, have: coinBalance }))
       return
     }
     setRedeemingCoins(true)
     try {
-      const { error } = await supabase.functions.invoke('subscription-redeem-coins', {
-        body: { plan_id: plan.id },
+      const { error } = await supabase.rpc('my_redeem_subscription_with_coins', {
+        p_plan_id: plan.id,
       })
-      if (deductErr) throw deductErr
-
-      // Create a 'coins' subscription record (no payment gateway)
-      const expiresAt = new Date()
-      expiresAt.setDate(expiresAt.getDate() + (plan.duration_days || 30))
-      const userId = (await supabase.auth.getUser()).data.user?.id
-      const { error: subErr } = await supabase.from('subscriptions').insert({
-        user_id: userId,
-        plan_id: plan.id,
-        status: 'active',
-        started_at: new Date().toISOString(),
-        expires_at: expiresAt.toISOString(),
-        paid_amount: 0,
-        paid_currency: 'COINS',
-        payment_provider: 'coins',
-        provider_data: { method: 'coins', coins_used: coinsNeeded },
-      })
-      if (subErr) throw subErr
-
+      if (error) {
+        if (error.message.includes('INSUFFICIENT_COINS')) {
+          toast.error(t('coins.notEnough', { need: coinsNeeded, have: coinBalance }))
+        } else {
+          toast.error(error.message)
+        }
+        return
+      }
       await qc.invalidateQueries({ queryKey: ['my-subscription'] })
       await qc.invalidateQueries({ queryKey: ['coins'] })
       await qc.invalidateQueries({ queryKey: ['coin-transactions'] })
-      toast.success(t('coins.redeemSuccess', { plan: plan.name_ar }))
+      toast.success(t('coins.redeemSuccess', { plan: lang === 'ar' ? plan.name_ar : plan.name_en }))
     } catch (err) {
       toast.error((err as Error).message)
     } finally {
