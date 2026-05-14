@@ -20,7 +20,8 @@
 - [x] `npm run build` passes.
 
 ### Current Blockers
-- Supabase migration `20260514000005_coin_subscription_redemption.sql` must be applied before coin redemption works in production.
+- Supabase migration `20260514000006_coin_subscription_redemption.sql` must be applied before coin redemption works in production.
+- **CI note:** renamed from `20260514000005` to avoid colliding with `20260514000005_security_hardening.sql`.
 - Edge Function `subscription-redeem-coins` must be deployed with JWT verification enabled.
 - Paymob + Cloudflare secrets and first admin account are still operational blockers.
 
