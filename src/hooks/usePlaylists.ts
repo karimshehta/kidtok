@@ -128,21 +128,21 @@ export function useAddVideoIdToPlaylist() {
         .single()
       if (existing) throw new Error('already')
 
-      // Get next sort_order
+      // Get next playlist position
       const { data: last } = await supabase
         .from('playlist_videos')
-        .select('sort_order')
+        .select('position')
         .eq('playlist_id', playlist_id)
-        .order('sort_order', { ascending: false })
+        .order('position', { ascending: false })
         .limit(1)
-        .single()
+        .maybeSingle()
 
       const { data, error } = await supabase
         .from('playlist_videos')
         .insert({
           playlist_id,
           video_id,
-          sort_order: ((last?.sort_order ?? 0) as number) + 1,
+          position: ((last?.position ?? -1) as number) + 1,
         })
         .select()
         .single()
@@ -159,8 +159,51 @@ export function useAddVideoIdToPlaylist() {
 interface AddVideoInput {
   playlist_id: string
   url: string
+  youtube_id?: string
   title?: string
   channel_name?: string
+  channel_id?: string
+  thumbnail_url?: string
+  duration_seconds?: number
+}
+
+export interface YouTubeSearchResult {
+  youtube_id: string
+  title: string
+  channel_name: string
+  channel_id: string
+  thumbnail_url: string
+  duration_seconds: number
+}
+
+export function useYouTubeSearch() {
+  return useMutation({
+    mutationFn: async (query: string): Promise<YouTubeSearchResult[]> => {
+      const { data, error } = await supabase.functions.invoke('youtube-search', {
+        body: { query },
+      })
+      if (error) {
+        const msg = (error as any)?.context?.error?.message || (error as Error).message
+        throw new Error(msg || 'YOUTUBE_SEARCH_FAILED')
+      }
+      return (data?.results || []) as YouTubeSearchResult[]
+    },
+  })
+}
+
+export function useYouTubeVideoLookup() {
+  return useMutation({
+    mutationFn: async (youtubeId: string): Promise<YouTubeSearchResult | null> => {
+      const { data, error } = await supabase.functions.invoke('youtube-search', {
+        body: { video_id: youtubeId },
+      })
+      if (error) {
+        const msg = (error as any)?.context?.error?.message || (error as Error).message
+        throw new Error(msg || 'YOUTUBE_LOOKUP_FAILED')
+      }
+      return ((data?.results || []) as YouTubeSearchResult[])[0] || null
+    },
+  })
 }
 
 export function useAddVideoToPlaylist() {
@@ -170,7 +213,7 @@ export function useAddVideoToPlaylist() {
     mutationFn: async (input: AddVideoInput): Promise<PlaylistVideo> => {
       if (!userId) throw new Error('Not authenticated')
 
-      const youtubeId = extractYouTubeId(input.url)
+      const youtubeId = input.youtube_id || extractYouTubeId(input.url)
       if (!youtubeId) throw new Error('INVALID_URL')
 
       // 1. Find or create the video row
@@ -199,7 +242,9 @@ export function useAddVideoToPlaylist() {
             youtube_id: youtubeId,
             title,
             channel_name: channel,
-            thumbnail_url: getYouTubeThumbnail(youtubeId),
+            channel_id: input.channel_id || null,
+            thumbnail_url: input.thumbnail_url || getYouTubeThumbnail(youtubeId),
+            duration_seconds: input.duration_seconds ?? null,
             source: 'youtube',
             added_by: userId,
             is_active: true,

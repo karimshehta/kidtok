@@ -44,25 +44,30 @@ export default function ChildMode() {
   const [feedPlaylist, setFeedPlaylist] = useState<{ playlist: Playlist; startIndex: number } | null>(null)
 
   const [showExitModal, setShowExitModal] = useState(false)
+  const [hasEntered, setHasEntered] = useState(false)
 
   // Open exit modal whenever status goes to locked
   useEffect(() => {
     if (status === 'locked') setShowExitModal(true)
     else setShowExitModal(false)
   }, [status])
-  useEffect(() => {
-    document.documentElement.requestFullscreen?.().catch(() => null)
-    return () => {
+  useEffect(() => () => {
+    if (document.fullscreenElement) {
       document.exitFullscreen?.().catch(() => null)
     }
   }, [])
 
+  const enterChildMode = async () => {
+    await document.documentElement.requestFullscreen?.().catch(() => null)
+    setHasEntered(true)
+  }
+
   // Start session when mode becomes active
   useEffect(() => {
-    if (status === 'active' && childId) {
+    if (status === 'active' && childId && hasEntered) {
       startSession()
     }
-  }, [status, childId, startSession])
+  }, [status, childId, hasEntered, startSession])
 
   // Show warnings
   useEffect(() => {
@@ -143,6 +148,29 @@ export default function ChildMode() {
             onCancel={dismissLock}
             onSuccess={() => navigate('/children')}
           />
+        </div>
+      </ChildShell>
+    )
+  }
+
+  if (status === 'active' && !hasEntered) {
+    return (
+      <ChildShell>
+        <div className="flex flex-col items-center justify-center gap-6 h-full text-white text-center px-6">
+          {child && <ChildAvatar name={child.name} imageUrl={child.image_url} gender={child.gender} size="lg" />}
+          <div>
+            <h1 className="text-3xl font-extrabold mb-2">{child?.name || t('nav.childMode')}</h1>
+            <p className="text-white/80 max-w-xs">
+              {t('childMode.enterBody', { defaultValue: 'Tap to begin a safe, locked viewing session.' })}
+            </p>
+          </div>
+          <button
+            onClick={enterChildMode}
+            className="inline-flex items-center gap-2 bg-white text-neutral-900 font-bold px-8 py-4 rounded-full shadow-lg active:scale-95 transition-transform"
+          >
+            <Play className="w-5 h-5 ms-0.5" fill="currentColor" />
+            {t('childMode.enterButton', { defaultValue: 'Start watching' })}
+          </button>
         </div>
       </ChildShell>
     )

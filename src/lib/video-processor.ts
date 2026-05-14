@@ -35,6 +35,7 @@ async function getFFmpeg(): Promise<ReturnType<typeof createFFmpeg>> {
 
   ffmpegInstance = createFFmpeg({
     corePath: '/ffmpeg/ffmpeg-core.js',
+    mainName: 'main',
     log: import.meta.env.DEV,
   })
 
@@ -124,6 +125,7 @@ export async function processVideo(
 
   const inputName = 'input.mp4'
   const outputName = 'output.mp4'
+  const safeDuration = Math.max(1, Math.min(durationSec, 30))
 
   // Write input to FFmpeg virtual FS
   ff.FS('writeFile', inputName, await fetchFile(file))
@@ -139,7 +141,7 @@ export async function processVideo(
   const args = [
     '-ss', String(startSec),
     '-i', inputName,
-    '-t', String(Math.min(durationSec, 30)),
+    '-t', String(safeDuration),
     '-vf', `scale=${scale}`,
     '-c:v', 'libx264',
     '-crf', '26',
@@ -166,7 +168,7 @@ export async function processVideo(
 
   return {
     file: outputFile,
-    durationSec: Math.min(durationSec, 30),
+    durationSec: safeDuration,
     originalSizeMB: file.size / 1024 / 1024,
     outputSizeMB: outputFile.size / 1024 / 1024,
     compressionRatio: file.size / outputFile.size,

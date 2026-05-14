@@ -363,7 +363,7 @@ export default function CreatorUpload() {
                 {fileState.duration > MAX_CLIP_SEC && (
                   <div className="absolute top-2 end-2 bg-amber-500 text-white text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1">
                     <Scissors className="w-3 h-3" />
-                    {Math.round(fileState.startSec)}s → {Math.round(fileState.startSec + fileState.clipSec)}s
+                    {Math.round(fileState.startSec)}s - {Math.round(fileState.startSec + fileState.clipSec)}s
                   </div>
                 )}
               </div>
@@ -372,7 +372,7 @@ export default function CreatorUpload() {
                   <div className="text-sm font-medium truncate">{fileState.raw.name}</div>
                   <div className="text-xs text-neutral-700 flex items-center gap-2 mt-0.5">
                     <span>{fileState.clipSec.toFixed(1)}s selected</span>
-                    <span>•</span>
+                    <span>-</span>
                     <span>{(fileState.raw.size / 1024 / 1024).toFixed(1)} MB raw</span>
                     <Zap className="w-3 h-3 text-primary" />
                     <span className="text-primary">will compress</span>
@@ -386,7 +386,7 @@ export default function CreatorUpload() {
                       className="text-xs text-amber-600 hover:underline inline-flex items-center gap-1"
                     >
                       <Scissors className="w-3 h-3" />
-                      {t('creator.upload.replaceFile')}
+                      {t('creator.upload.editTrim')}
                     </button>
                   )}
                   <button
@@ -454,7 +454,7 @@ export default function CreatorUpload() {
         </form>
 
         <p className="text-xs text-neutral-700 text-center mt-6">
-          Max {MAX_CLIP_SEC}s • {MAX_VIDEO_SIZE_MB} MB • Auto-compressed to 720p
+          Max {MAX_CLIP_SEC}s - {MAX_VIDEO_SIZE_MB} MB - Auto-compressed to 720p
         </p>
       </div>
     </AppLayout>

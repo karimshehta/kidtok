@@ -11,10 +11,11 @@ import { extractThumbnails } from '@/lib/video-processor'
 import { cn } from '@/lib/utils'
 
 export const MAX_CLIP_SEC = 30
+const MIN_CLIP_SEC = 1
 
 interface Props {
   file: File
-  videoDuration: number   // seconds
+  videoDuration: number
   onConfirm: (startSec: number, durationSec: number) => void
   onCancel: () => void
 }
@@ -27,24 +28,25 @@ export default function VideoTrimmer({
 }: Props) {
   const { t } = useTranslation()
 
-  /* ── Video preview ref ── */
   const videoRef = useRef<HTMLVideoElement>(null)
   const trackRef = useRef<HTMLDivElement>(null)
   const objectUrl = useMemo(() => URL.createObjectURL(file), [file])
   useEffect(() => () => URL.revokeObjectURL(objectUrl), [objectUrl])
 
-  /* ── Thumbnails ── */
   const [thumbs, setThumbs] = useState<string[]>([])
   useEffect(() => {
     extractThumbnails(file, 14).then(setThumbs)
   }, [file])
 
-  /* ── Trim handles (in seconds) ── */
-  const clipSec = Math.min(MAX_CLIP_SEC, videoDuration)
   const [startSec, setStartSec] = useState(0)
-  const endSec = Math.min(startSec + clipSec, videoDuration)
+  const [endSec, setEndSec] = useState(Math.min(MAX_CLIP_SEC, videoDuration))
+  const clipDuration = Math.max(MIN_CLIP_SEC, endSec - startSec)
 
-  /* ── Playback ── */
+  useEffect(() => {
+    setStartSec(0)
+    setEndSec(Math.min(MAX_CLIP_SEC, videoDuration))
+  }, [file, videoDuration])
+
   const [playing, setPlaying] = useState(false)
   const [currentSec, setCurrentSec] = useState(0)
 
@@ -84,10 +86,10 @@ export default function VideoTrimmer({
     }
   }
 
-  /* ── Drag logic ── */
-  const dragging = useRef<false | 'start'>(false)
+  const dragging = useRef<false | 'window' | 'start' | 'end'>(false)
   const pointerStart = useRef(0)
-  const secAtPointerStart = useRef(0)
+  const startAtPointerStart = useRef(0)
+  const endAtPointerStart = useRef(0)
 
   const trackWidthToSec = useCallback((dx: number): number => {
     const track = trackRef.current
@@ -96,47 +98,55 @@ export default function VideoTrimmer({
     return ratio * videoDuration
   }, [videoDuration])
 
-  const onPointerDown = (e: React.PointerEvent) => {
+  const beginDrag = (e: React.PointerEvent, handle: 'window' | 'start' | 'end') => {
     e.currentTarget.setPointerCapture(e.pointerId)
-    dragging.current = 'start'
+    dragging.current = handle
     pointerStart.current = e.clientX
-    secAtPointerStart.current = startSec
+    startAtPointerStart.current = startSec
+    endAtPointerStart.current = endSec
     videoRef.current?.pause()
     setPlaying(false)
   }
 
   const onPointerMove = (e: React.PointerEvent) => {
     if (!dragging.current) return
-    const dx = e.clientX - pointerStart.current
-    const delta = trackWidthToSec(dx)
-    const newStart = Math.max(0, Math.min(
-      secAtPointerStart.current + delta,
-      videoDuration - clipSec
-    ))
-    setStartSec(newStart)
-    if (videoRef.current) {
-      videoRef.current.currentTime = newStart
+    const delta = trackWidthToSec(e.clientX - pointerStart.current)
+    const initialStart = startAtPointerStart.current
+    const initialEnd = endAtPointerStart.current
+    const initialClip = initialEnd - initialStart
+
+    if (dragging.current === 'window') {
+      const newStart = clamp(initialStart + delta, 0, videoDuration - initialClip)
+      setStartSec(newStart)
+      setEndSec(newStart + initialClip)
+      if (videoRef.current) videoRef.current.currentTime = newStart
+      return
     }
+
+    if (dragging.current === 'start') {
+      const newStart = clamp(initialStart + delta, Math.max(0, initialEnd - MAX_CLIP_SEC), initialEnd - MIN_CLIP_SEC)
+      setStartSec(newStart)
+      if (videoRef.current) videoRef.current.currentTime = newStart
+      return
+    }
+
+    const newEnd = clamp(initialEnd + delta, initialStart + MIN_CLIP_SEC, Math.min(videoDuration, initialStart + MAX_CLIP_SEC))
+    setEndSec(newEnd)
   }
 
-  const onPointerUp = () => { dragging.current = false }
+  const endDrag = () => { dragging.current = false }
 
-  /* ── Progress of the playhead inside the clip ── */
   const clipProgress =
     endSec > startSec
-      ? Math.max(0, Math.min(1, (currentSec - startSec) / (endSec - startSec)))
+      ? clamp((currentSec - startSec) / (endSec - startSec), 0, 1)
       : 0
 
-  /* ── Left/right percentages for the yellow window ── */
   const leftPct = (startSec / videoDuration) * 100
   const rightPct = (endSec / videoDuration) * 100
   const clipWidthPct = rightPct - leftPct
 
-  const clipDuration = endSec - startSec
-
   return (
     <div className="flex flex-col gap-4">
-      {/* Video preview */}
       <div className="relative bg-black rounded-xl overflow-hidden aspect-video">
         <video
           ref={videoRef}
@@ -145,7 +155,6 @@ export default function VideoTrimmer({
           muted={false}
           onEnded={() => setPlaying(false)}
         />
-        {/* Play/pause button */}
         <button
           type="button"
           onClick={togglePlay}
@@ -162,7 +171,6 @@ export default function VideoTrimmer({
         </button>
       </div>
 
-      {/* Timecode */}
       <div className="flex justify-between text-xs font-mono text-neutral-700 px-1">
         <span>{fmtSec(startSec)}</span>
         <span className="font-bold text-amber-500">
@@ -171,9 +179,7 @@ export default function VideoTrimmer({
         <span>{fmtSec(endSec)}</span>
       </div>
 
-      {/* WhatsApp-style filmstrip + trim window */}
       <div className="relative select-none">
-        {/* Thumbnail strip */}
         <div
           ref={trackRef}
           className="flex h-14 rounded-xl overflow-hidden relative"
@@ -192,33 +198,39 @@ export default function VideoTrimmer({
             : <div className="w-full h-full bg-neutral-300 animate-pulse rounded-xl" />}
         </div>
 
-        {/* Dark overlay: left of clip */}
         <div
           className="absolute inset-y-0 left-0 bg-black/55 rounded-s-xl pointer-events-none"
           style={{ width: `${leftPct}%` }}
         />
-
-        {/* Dark overlay: right of clip */}
         <div
           className="absolute inset-y-0 right-0 bg-black/55 rounded-e-xl pointer-events-none"
           style={{ width: `${100 - rightPct}%` }}
         />
 
-        {/* Yellow selection border */}
         <div
           className="absolute inset-y-0 border-2 border-amber-400 rounded pointer-events-none"
           style={{ left: `${leftPct}%`, width: `${clipWidthPct}%` }}
         >
-          {/* Corner handles */}
-          <div className="absolute inset-y-0 left-0 w-2 bg-amber-400 rounded-s flex items-center justify-center">
+          <div
+            className="absolute inset-y-0 left-0 z-20 w-3 bg-amber-400 rounded-s flex items-center justify-center pointer-events-auto touch-none cursor-ew-resize"
+            onPointerDown={(e) => beginDrag(e, 'start')}
+            onPointerMove={onPointerMove}
+            onPointerUp={endDrag}
+            onPointerCancel={endDrag}
+          >
             <div className="w-0.5 h-5 bg-white/70 rounded" />
           </div>
-          <div className="absolute inset-y-0 right-0 w-2 bg-amber-400 rounded-e flex items-center justify-center">
+          <div
+            className="absolute inset-y-0 right-0 z-20 w-3 bg-amber-400 rounded-e flex items-center justify-center pointer-events-auto touch-none cursor-ew-resize"
+            onPointerDown={(e) => beginDrag(e, 'end')}
+            onPointerMove={onPointerMove}
+            onPointerUp={endDrag}
+            onPointerCancel={endDrag}
+          >
             <div className="w-0.5 h-5 bg-white/70 rounded" />
           </div>
         </div>
 
-        {/* Playhead */}
         {playing && (
           <div
             className="absolute inset-y-0 w-0.5 bg-white/90 shadow pointer-events-none"
@@ -226,14 +238,13 @@ export default function VideoTrimmer({
           />
         )}
 
-        {/* Drag zone — covers the whole clip window */}
         <div
-          className="absolute inset-y-0 touch-none cursor-ew-resize"
+          className="absolute inset-y-0 z-10 touch-none cursor-grab active:cursor-grabbing"
           style={{ left: `${leftPct}%`, width: `${clipWidthPct}%` }}
-          onPointerDown={onPointerDown}
+          onPointerDown={(e) => beginDrag(e, 'window')}
           onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onPointerCancel={onPointerUp}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
         />
       </div>
 
@@ -241,7 +252,6 @@ export default function VideoTrimmer({
         {t('creator.trim.dragHint')}
       </p>
 
-      {/* Actions */}
       <div className="flex gap-3 mt-2">
         <button type="button" onClick={onCancel} className="btn-outline flex-1">
           {t('common.cancel')}
@@ -258,6 +268,10 @@ export default function VideoTrimmer({
       </div>
     </div>
   )
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value))
 }
 
 function fmtSec(s: number): string {

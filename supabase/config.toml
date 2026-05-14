@@ -82,3 +82,9 @@ verify_jwt = false
 
 [functions.reward-coins]
 verify_jwt = true
+
+[functions.subscription-redeem-coins]
+verify_jwt = true
+
+[functions.youtube-search]
+verify_jwt = true
