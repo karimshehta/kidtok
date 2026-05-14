@@ -74,3 +74,4 @@ verify_jwt = true
 # Paymob calls us back without JWT — HMAC is verified inside.
 [functions.subscription-paymob-callback]
 verify_jwt = false
+

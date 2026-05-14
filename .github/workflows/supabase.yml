@@ -6,6 +6,7 @@ on:
     paths:
       - 'supabase/migrations/**'
       - 'supabase/config.toml'
+      - '.github/workflows/supabase.yml'
   workflow_dispatch:
 
 env:
