@@ -277,24 +277,23 @@ VITE_SUPABASE_URL=https://ngjpmfldzoijtfyxopjw.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJhbGci...
 ```
 
-### Supabase Edge Function Secrets (Required for payments + video)
+### Supabase Edge Function Secrets (Set ✅)
 ```
-# Cloudflare Stream (creator videos)
+# Paymob (subscriptions) — CONFIGURED
+PAYMOB_API_KEY=ZXlKaGJHY2lPaUpJVXpVeE1pSXNJblI1Y0NJNklrcFhWQ0o5...
+PAYMOB_BASE_URL=https://accept.paymob.com/api
+PAYMOB_IFRAME_ID=979085
+PAYMOB_HMAC_SECRET=CAAA2D06DEEC5AE30E9658C2BE7DF01F
+PAYMOB_CARD_INTEGRATION_ID=5411270
+PAYMOB_WALLET_INTEGRATION_ID=5411269
+PAYMOB_APPLE_PAY_INTEGRATION_ID=5432076
+APP_URL=https://kidtok.vercel.app
+
+# Cloudflare Stream (creator videos) — PENDING SETUP
 CLOUDFLARE_ACCOUNT_ID=
 CLOUDFLARE_STREAM_API_TOKEN=
 CLOUDFLARE_STREAM_CUSTOMER_CODE=
 CLOUDFLARE_STREAM_WEBHOOK_SECRET=
-
-# Paymob (subscriptions)
-PAYMOB_API_KEY=
-PAYMOB_HMAC_SECRET=
-PAYMOB_IFRAME_ID=
-PAYMOB_CARD_INTEGRATION_ID=
-PAYMOB_WALLET_INTEGRATION_ID=
-PAYMOB_APPLE_PAY_INTEGRATION_ID=
-
-# App URL (for Paymob redirect)
-APP_URL=https://kidtok.vercel.app
 ```
 
 ### GitHub Secrets (Required for CI/CD)
@@ -336,10 +335,14 @@ SUPABASE_PROJECT_ID=ngjpmfldzoijtfyxopjw
 ## 📋 NEXT PLANNED STEPS (Priority Order)
 
 ### P1 — Must Do (Blockers for launch)
-1. **Wire coin redemption to subscription** — "Pay with coins" button in Plans page
+1. **Wire coin redemption to subscription** ✅ DONE
 2. **Fix iOS fullscreen in child mode** — trigger on user gesture
-3. **Set Supabase Edge Function secrets** — Paymob + Cloudflare credentials
+3. ~~**Set Supabase Edge Function secrets**~~ ✅ DONE — Paymob + Cloudflare credentials set
 4. **First admin account** — run SQL: `UPDATE profiles SET role='admin' WHERE ...`
+5. **Configure Paymob iframe redirect URL** — Set in Paymob Dashboard:
+   - Iframe ID: `979085`
+   - "Transaction Processed Callback" → `https://ngjpmfldzoijtfyxopjw.supabase.co/functions/v1/subscription-paymob-callback`
+   - "Back to Website URL" → same URL above
 
 ### P2 — Important UX
 5. **Following feed empty state** — suggest creators when no follows

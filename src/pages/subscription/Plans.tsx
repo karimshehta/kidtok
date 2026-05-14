@@ -86,14 +86,17 @@ export default function SubscriptionPlans() {
       // Create a 'coins' subscription record (no payment gateway)
       const expiresAt = new Date()
       expiresAt.setDate(expiresAt.getDate() + (plan.duration_days || 30))
+      const userId = (await supabase.auth.getUser()).data.user?.id
       const { error: subErr } = await supabase.from('subscriptions').insert({
+        user_id: userId,
         plan_id: plan.id,
         status: 'active',
         started_at: new Date().toISOString(),
         expires_at: expiresAt.toISOString(),
         paid_amount: 0,
         paid_currency: 'COINS',
-        provider: 'coins',
+        payment_provider: 'coins',
+        provider_data: { method: 'coins', coins_used: coinsNeeded },
       })
       if (subErr) throw subErr
 
