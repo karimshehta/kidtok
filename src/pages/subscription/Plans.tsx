@@ -435,10 +435,18 @@ function PaymentMethodPicker({
 
   const startPayment = async (method: 'card' | 'wallet' | 'apple_pay') => {
     try {
+      // Format wallet phone: ensure it has the right format for Paymob
+      const formattedWalletPhone = method === 'wallet' && walletPhone
+        ? walletPhone.startsWith('+2') ? walletPhone
+          : walletPhone.startsWith('2') ? `+${walletPhone}`
+          : walletPhone.startsWith('0') ? `+2${walletPhone}`
+          : `+20${walletPhone}`
+        : undefined
+
       const res = await subscribeMut.mutateAsync({
         plan_id: plan.id,
         payment_method: method,
-        wallet_phone: method === 'wallet' ? walletPhone : undefined,
+        wallet_phone: formattedWalletPhone,
       })
 
       // Card + Apple Pay → redirect to Paymob iframe/page
@@ -472,7 +480,10 @@ function PaymentMethodPicker({
       }
 
     } catch (err) {
-      toast.error((err as Error).message)
+      const msg = (err as Error).message
+      console.error('[payment error]', msg)
+      // Show the actual Paymob error (often explains what's wrong)
+      toast.error(msg, { duration: 5000 })
     }
   }
 

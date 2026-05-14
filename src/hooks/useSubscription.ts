@@ -94,9 +94,19 @@ export function useSubscribe() {
         body: input,
       })
       if (error) {
-        const msg = (error as any)?.context?.error?.message || (error as Error).message
+        // Try to get the real error message from the Edge Function response body
+        let msg = (error as Error).message
+        try {
+          const ctx = (error as any)?.context
+          if (ctx && typeof ctx.json === 'function') {
+            const body = await ctx.json()
+            msg = body?.error?.message || body?.message || msg
+          }
+        } catch {}
+        console.error('[subscription-create] error:', msg)
         throw new Error(msg || 'EDGE_FUNCTION_FAILED')
       }
+      console.log('[subscription-create] response:', JSON.stringify(data))
       return data as SubscribeResponse
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['my-subscription'] }),
