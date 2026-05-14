@@ -4,7 +4,7 @@
 
 -- ── 1. Video interactions (like / dislike) ──────────────────
 create table if not exists public.video_interactions (
-  id          uuid primary key default uuid_generate_v4(),
+  id          uuid primary key default gen_random_uuid(),
   user_id     uuid not null references auth.users(id) on delete cascade,
   video_id    uuid not null references public.videos(id) on delete cascade,
   type        text not null check (type in ('like', 'dislike')),
@@ -25,7 +25,7 @@ create policy "public_read_interactions"
 
 -- ── 2. Video comments ────────────────────────────────────────
 create table if not exists public.video_comments (
-  id          uuid primary key default uuid_generate_v4(),
+  id          uuid primary key default gen_random_uuid(),
   user_id     uuid not null references auth.users(id) on delete cascade,
   video_id    uuid not null references public.videos(id) on delete cascade,
   content     text not null check (char_length(content) between 1 and 500),
@@ -56,7 +56,7 @@ create policy "admin_delete_comments"
 
 -- ── 3. Creator follows ───────────────────────────────────────
 create table if not exists public.creator_follows (
-  id           uuid primary key default uuid_generate_v4(),
+  id           uuid primary key default gen_random_uuid(),
   follower_id  uuid not null references auth.users(id) on delete cascade,
   following_id uuid not null references auth.users(id) on delete cascade,
   created_at   timestamptz not null default now(),
