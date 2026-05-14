@@ -7,6 +7,50 @@
 
 ---
 
+## Codex Coordination Update - 2026-05-14
+
+### Completed by Codex
+- [x] Replaced client-side subscription coin redemption with `subscription-redeem-coins` Edge Function.
+- [x] Added `redeem_subscription_with_coins()` DB RPC so subscription creation, coin deduction, ledger insert, and old-active cancellation run transactionally.
+- [x] Added migration to allow `payment_provider = 'coins'`.
+- [x] Guarded partial coin discounts: only 100% coin redemptions can create a no-payment subscription; partial discounts remain a future Paymob pricing flow.
+- [x] Fixed Child Mode fullscreen entry to run from a user tap and start watch sessions only after entry.
+
+### Verification
+- [x] `npm run build` passes.
+
+### Current Blockers
+- Supabase migration `20260514000005_coin_subscription_redemption.sql` must be applied before coin redemption works in production.
+- Edge Function `subscription-redeem-coins` must be deployed with JWT verification enabled.
+- Paymob + Cloudflare secrets and first admin account are still operational blockers.
+
+### Next Planned Milestone
+- Finish the web launch-readiness pass before starting Expo/React Native:
+  Following feed suggestions, upload compression stats, Admin Reports starter analytics,
+  mobile browser QA, and production deployment checks.
+
+### Recommended Before Expo / React Native
+- [ ] **Web production smoke test** — auth, child creation, playlist add, feed playback, subscription payment, coin redemption, creator upload, admin moderation.
+- [ ] **Mobile Safari / Chrome QA pass** — viewport height, keyboard overlap, fullscreen fallback, feed gestures, modal scroll locking, safe-area padding.
+- [ ] **Backend contract freeze for mobile** — document stable RPCs, Edge Function payloads, app_settings keys, and subscription/ad/coin flows.
+- [ ] **Expo architecture decision** — confirm Expo Router, Supabase auth/session storage, video player library, AdMob package, push notification provider, and locked child-mode strategy.
+- [ ] **Shared API/types strategy** — generate Supabase types and decide whether the web repo exports shared contracts or the mobile repo vendors generated types.
+- [ ] **Security pass** — verify no client writes bypass RLS, rotate any exposed GitHub/Supabase/Paymob/Cloudflare secrets, audit Edge Function JWT settings.
+- [ ] **Observability baseline** — add error logging strategy for Edge Functions and client critical flows before mobile multiplies surfaces.
+
+### Schema / Env Changes
+- New RPC: `public.redeem_subscription_with_coins(p_user_id uuid, p_plan_id integer)`.
+- Updated `subscriptions.payment_provider` check constraint to include `coins`.
+- New Edge Function: `subscription-redeem-coins` (uses existing Supabase service role env).
+- No new Vercel environment variables required.
+
+### Architectural Notes
+- Coin redemption now follows the same server-authoritative pattern as rewarded ads and Paymob subscriptions.
+- The frontend no longer calls service-role-only coin RPCs or inserts subscription rows directly.
+- Child Mode now avoids iOS Safari's mount-time fullscreen rejection by gating entry behind a tap.
+
+---
+
 ## ✅ COMPLETED FEATURES
 
 ### Authentication
@@ -176,16 +220,19 @@
 ## 🐛 KNOWN BUGS & ISSUES
 
 ### High Priority
-- [ ] **Subscription coin redemption UI missing** — coins can be earned but the
+- [x] **Subscription coin redemption UI missing** — coins can be earned but the
   "Pay with coins" button on the subscription page hasn't been wired to
   `deduct_user_coins()` RPC. Users can see the balance but can't use it.
+  **Codex 2026-05-14:** resolved via `subscription-redeem-coins` Edge Function
+  and transactional `redeem_subscription_with_coins()` RPC.
 
 - [ ] **Following feed empty for new users** — shows empty state immediately
   instead of suggesting popular creators to follow first.
 
-- [ ] **Child mode fullscreen breaks on iOS** — `requestFullscreen()` is not
+- [x] **Child mode fullscreen breaks on iOS** — `requestFullscreen()` is not
   allowed on iOS Safari without a user gesture on the specific element.
   Need to trigger on button tap instead of useEffect.
+  **Codex 2026-05-14:** resolved with tap-to-enter gate before sessions start.
 
 ### Medium Priority
 - [ ] **Creator upload: no size shown after compression** — the user doesn't see
@@ -336,8 +383,8 @@ SUPABASE_PROJECT_ID=ngjpmfldzoijtfyxopjw
 ## 📋 NEXT PLANNED STEPS (Priority Order)
 
 ### P1 — Must Do (Blockers for launch)
-1. **Wire coin redemption to subscription** — "Pay with coins" button in Plans page
-2. **Fix iOS fullscreen in child mode** — trigger on user gesture
+1. **DONE - Wire coin redemption to subscription** — "Pay with coins" button in Plans page
+2. **DONE - Fix iOS fullscreen in child mode** — trigger on user gesture
 3. **Set Supabase Edge Function secrets** — Paymob + Cloudflare credentials
 4. **First admin account** — run SQL: `UPDATE profiles SET role='admin' WHERE ...`
 
@@ -345,6 +392,7 @@ SUPABASE_PROJECT_ID=ngjpmfldzoijtfyxopjw
 5. **Following feed empty state** — suggest creators when no follows
 6. **Upload page: show compression stats** — before/after MB
 7. **Admin Reports page** — basic analytics (users over time, video uploads)
+8. **Pre-mobile web QA checklist** — complete the "Recommended Before Expo / React Native" section above
 
 ### P3 — Phase 1B (Mobile)
 8. **Expo mobile app** — separate repo `kidtok-mobile`

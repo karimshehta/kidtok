@@ -400,6 +400,7 @@ const ar = {
     notEnough: 'رصيدك {{have}} عملة. تحتاج {{need}} عملة',
     redeemWith: 'استخدم {{n}} عملة للحصول على {{pct}}% خصم',
     needMore: 'تحتاج {{need}} عملة (لديك {{have}})',
+    fullDiscountOnly: 'استبدال العملات متاح فقط للخصم الكامل',
     redeemSuccess: 'تم الاشتراك في {{plan}} باستخدام عملاتك! 🎉',
   },
   onboarding: {
@@ -968,6 +969,7 @@ const en: typeof ar = {
     notEnough: 'You have {{have}} coins. You need {{need}}',
     redeemWith: 'Use {{n}} coins for {{pct}}% off',
     needMore: 'Need {{need}} coins (you have {{have}})',
+    fullDiscountOnly: 'Coin redemption is available for 100% discount plans only',
     redeemSuccess: 'Subscribed to {{plan}} with your coins! 🎉',
   },
   onboarding: {

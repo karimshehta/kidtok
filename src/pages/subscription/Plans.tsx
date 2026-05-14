@@ -69,36 +69,28 @@ export default function SubscriptionPlans() {
   const handleRedeemCoins = async (plan: SubscriptionPlan) => {
     const isMonthly = plan.duration_days <= 31
     const coinsNeeded = isMonthly ? coinsForMonthly : coinsForYearly
+    const discountPct = isMonthly ? monthlyDiscountPct : yearlyDiscountPct
+    if (discountPct < 100) {
+      toast.error(t('coins.fullDiscountOnly'))
+      return
+    }
     if (coinBalance < coinsNeeded) {
       toast.error(t('coins.notEnough', { need: coinsNeeded, have: coinBalance }))
       return
     }
     setRedeemingCoins(true)
     try {
-      // Deduct coins via RPC
-      const { error: deductErr } = await supabase.rpc('deduct_user_coins', {
-        p_user_id: (await supabase.auth.getUser()).data.user?.id,
-        p_amount: coinsNeeded,
-        p_notes: `Redeemed for ${plan.name_en} subscription`,
+      const { error } = await supabase.functions.invoke('subscription-redeem-coins', {
+        body: { plan_id: plan.id },
       })
-      if (deductErr) throw deductErr
-
-      // Create a 'coins' subscription record (no payment gateway)
-      const expiresAt = new Date()
-      expiresAt.setDate(expiresAt.getDate() + (plan.duration_days || 30))
-      const { error: subErr } = await supabase.from('subscriptions').insert({
-        plan_id: plan.id,
-        status: 'active',
-        started_at: new Date().toISOString(),
-        expires_at: expiresAt.toISOString(),
-        paid_amount: 0,
-        paid_currency: 'COINS',
-        provider: 'coins',
-      })
-      if (subErr) throw subErr
+      if (error) {
+        const msg = (error as any)?.context?.error?.message || (error as Error).message
+        throw new Error(msg || 'REDEEM_FAILED')
+      }
 
       await qc.invalidateQueries({ queryKey: ['my-subscription'] })
       await qc.invalidateQueries({ queryKey: ['coins'] })
+      await qc.invalidateQueries({ queryKey: ['coin-transactions'] })
       toast.success(t('coins.redeemSuccess', { plan: plan.name_ar }))
     } catch (err) {
       toast.error((err as Error).message)
@@ -344,15 +336,16 @@ function PlanCard({
           const isMonthly = plan.duration_days <= 31
           const coinsNeeded = isMonthly ? coinsForMonthly : coinsForYearly
           const discountPct = isMonthly ? monthlyDiscountPct : yearlyDiscountPct
+          const isFullDiscount = discountPct >= 100
           const canRedeem = coinBalance >= coinsNeeded
           return (
             <button
               type="button"
               onClick={() => onRedeemCoins(plan)}
-              disabled={redeemingCoins || !canRedeem}
+              disabled={redeemingCoins || !canRedeem || !isFullDiscount}
               className={cn(
                 'w-full mt-2 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all',
-                canRedeem
+                canRedeem && isFullDiscount
                   ? 'bg-amber-400/20 hover:bg-amber-400/30 text-amber-300 border border-amber-400/40'
                   : 'bg-white/5 text-white/30 border border-white/10 cursor-not-allowed'
               )}
@@ -362,7 +355,9 @@ function PlanCard({
               ) : (
                 <>
                   <Coins className="w-4 h-4" />
-                  {canRedeem
+                  {!isFullDiscount
+                    ? t('coins.fullDiscountOnly')
+                    : canRedeem
                     ? t('coins.redeemWith', { n: coinsNeeded, pct: discountPct })
                     : t('coins.needMore', { need: coinsNeeded, have: coinBalance })}
                 </>
