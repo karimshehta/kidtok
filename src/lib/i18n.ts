@@ -450,6 +450,7 @@ const ar = {
       reference: 'الفئات والاهتمامات',
       reports: 'البلاغات',
       appVersion: 'إصدار التطبيق',
+      security: 'الأمان والسجل',
       backToApp: 'العودة للتطبيق',
     },
     dashboard: {
@@ -1013,6 +1014,7 @@ const en: typeof ar = {
       reference: 'Ages & Interests',
       reports: 'Reports',
       appVersion: 'App Version',
+      security: 'Security & Audit',
       backToApp: 'Back to app',
     },
     dashboard: {
