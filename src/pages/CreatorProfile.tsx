@@ -61,9 +61,9 @@ export default function CreatorProfile() {
       <div className="px-4 pt-6 pb-4 text-center">
         {/* Avatar */}
         <div className="relative inline-block mb-3">
-          {profile.image_url ? (
+          {profile.avatar_url ? (
             <img
-              src={profile.image_url}
+              src={profile.avatar_url}
               alt={profile.name || ''}
               className="w-24 h-24 rounded-full object-cover mx-auto border-4 border-white shadow-lg"
             />

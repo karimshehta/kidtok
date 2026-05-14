@@ -2,6 +2,10 @@
 -- Social Features: Likes/Dislikes, Comments, Follows, View Counts
 -- ============================================================
 
+-- ── 0. Add bio column to profiles (for creator profiles) ──
+alter table public.profiles
+  add column if not exists bio text;
+
 -- ── 1. Video interactions (like / dislike) ──────────────────
 create table if not exists public.video_interactions (
   id          uuid primary key default gen_random_uuid(),
@@ -146,7 +150,7 @@ select
   p.id                                               as user_id,
   p.name,
   p.role,
-  p.image_url,
+  p.avatar_url as avatar_url,
   count(distinct cv.id) filter (
     where cv.status = 'approved'
   )                                                  as video_count,
@@ -160,7 +164,7 @@ left join public.videos v          on v.id = cv.id
 left join public.creator_follows f on f.following_id = p.id
 left join public.creator_follows f2 on f2.follower_id = p.id
 where p.role in ('creator', 'admin')
-group by p.id, p.name, p.role, p.image_url;
+group by p.id, p.name, p.role, p.avatar_url;
 
 -- ── 7. Auto-publish: update moderation webhook default ──────
 -- The webhook now sets status='approved' unless manual_review=true

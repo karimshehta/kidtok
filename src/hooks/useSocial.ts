@@ -74,7 +74,7 @@ export interface VideoComment {
   content: string
   created_at: string
   is_deleted: boolean
-  profile: { name: string | null; image_url: string | null }
+  profile: { name: string | null; avatar_url: string | null }
 }
 
 export function useComments(videoId: string | undefined) {
@@ -84,7 +84,7 @@ export function useComments(videoId: string | undefined) {
     queryFn: async (): Promise<VideoComment[]> => {
       const { data, error } = await supabase
         .from('video_comments')
-        .select('id, user_id, content, created_at, is_deleted, profile:profiles(name, image_url)')
+        .select('id, user_id, content, created_at, is_deleted, profile:profiles(name, avatar_url)')
         .eq('video_id', videoId!)
         .eq('is_deleted', false)
         .order('created_at', { ascending: true })
@@ -183,7 +183,7 @@ export function useToggleFollow(creatorId: string) {
 export interface CreatorProfile {
   user_id: string
   name: string | null
-  image_url: string | null
+  avatar_url: string | null
   bio: string | null
   role: string
   video_count: number
