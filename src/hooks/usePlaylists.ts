@@ -128,21 +128,21 @@ export function useAddVideoIdToPlaylist() {
         .single()
       if (existing) throw new Error('already')
 
-      // Get next sort_order
+      // Get next playlist position
       const { data: last } = await supabase
         .from('playlist_videos')
-        .select('sort_order')
+        .select('position')
         .eq('playlist_id', playlist_id)
-        .order('sort_order', { ascending: false })
+        .order('position', { ascending: false })
         .limit(1)
-        .single()
+        .maybeSingle()
 
       const { data, error } = await supabase
         .from('playlist_videos')
         .insert({
           playlist_id,
           video_id,
-          sort_order: ((last?.sort_order ?? 0) as number) + 1,
+          position: ((last?.position ?? -1) as number) + 1,
         })
         .select()
         .single()

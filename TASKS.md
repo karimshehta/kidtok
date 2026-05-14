@@ -23,6 +23,13 @@
 - [x] Fixed the authenticated bottom navigation grid from 3 columns to 4 columns so all four nav items align correctly.
 - [x] Fixed broken Arabic metadata in `index.html` and switched the favicon to the Flutter app favicon.
 
+### Playlist Add + Creator Upload Fixes - Codex
+- [x] Fixed adding a feed video to a child playlist by writing `playlist_videos.position` instead of the non-existent `sort_order` column.
+- [x] Added migration `20260514000008_playlist_videos_position_compat.sql` to ensure `position` exists and reload PostgREST schema cache.
+- [x] Updated the creator trimmer from a fixed 30-second window to adjustable start/end handles, allowing shorter clips such as 20 seconds.
+- [x] Updated FFmpeg.wasm loading for `@ffmpeg/core-st` by using the correct `main` entrypoint instead of `proxy_main`.
+- [x] Replaced the static FFmpeg core file with the installed `@ffmpeg/core-st` build so compression uses a matching JS/WASM pair.
+
 ### Verification - Style Parity Pass
 - [x] `npm run build` passes after the style/asset changes.
 - [x] Local Vite dev server responds on `http://127.0.0.1:5173`.

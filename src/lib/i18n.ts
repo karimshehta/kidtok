@@ -314,6 +314,7 @@ const ar = {
       pickFile: 'اختر ملف الفيديو',
       pickFileHint: 'MP4 / MOV / WebM • حتى 30 ثانية • حتى 200 ميجابايت',
       replaceFile: 'تغيير الملف',
+      editTrim: 'تعديل القص',
       fields: {
         title: 'عنوان الفيديو',
         titlePlaceholder: 'مثال: حكاية النحلة الصغيرة',
@@ -856,9 +857,9 @@ const en: typeof ar = {
   },
   creator: {
     trim: {
-      title: 'Pick a 30-second clip',
-      subtitle: 'Your video is longer than 30 seconds. Drag to select the best clip.',
-      dragHint: 'Drag the yellow frame to pick the best 30 seconds',
+      title: 'Pick a clip up to 30 seconds',
+      subtitle: 'Your video is longer than 30 seconds. Drag the start or end handle to choose the exact length.',
+      dragHint: 'Drag the yellow window to move it, or drag either edge to shorten the clip',
       confirm: 'Trim & compress {{sec}}s',
       loadingThumbs: 'Loading frames...',
       processing: 'Compressing... {{pct}}%',
@@ -893,6 +894,7 @@ const en: typeof ar = {
       pickFile: 'Pick video file',
       pickFileHint: 'MP4 / MOV / WebM • up to 30 seconds • up to 200 MB',
       replaceFile: 'Replace file',
+      editTrim: 'Edit trim',
       fields: {
         title: 'Title',
         titlePlaceholder: 'e.g. The little bee’s story',
