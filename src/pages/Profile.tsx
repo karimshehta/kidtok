@@ -3,13 +3,15 @@ import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useForm } from 'react-hook-form'
 import toast from 'react-hot-toast'
-import { Eye, EyeOff, LogOut, KeyRound, User as UserIcon, Mail, Phone, Video, Upload, ShieldCheck, Crown, Edit2 } from 'lucide-react'
+import { Eye, EyeOff, LogOut, KeyRound, User as UserIcon, Mail, Phone, Video, Upload, ShieldCheck, Crown, Edit2, Coins } from 'lucide-react'
 import AppLayout from '@/components/AppLayout'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/stores/auth'
 import { translateAuthError } from '@/lib/auth-errors'
 import { useUserRole } from '@/hooks/useCreator'
 import { useMySubscription } from '@/hooks/useSubscription'
+import { useCoinBalance, useCoinTransactions, useCoinConfig } from '@/hooks/useCoins'
+import RewardedAdModal from '@/components/RewardedAdModal'
 import { cn } from '@/lib/utils'
 
 type PassForm = { password: string; confirmPassword: string }
@@ -20,6 +22,10 @@ export default function Profile() {
   const signOut = useAuth((s) => s.signOut)
   const { data: role } = useUserRole()
   const { data: mySub } = useMySubscription()
+  const { data: coinBalance = 0 } = useCoinBalance()
+  const { data: coinTx = [] } = useCoinTransactions()
+  const { coinsPerAd, coinsForMonthly, coinsForYearly } = useCoinConfig()
+  const [showRewardedAd, setShowRewardedAd] = useState(false)
 
   const [showSection, setShowSection] = useState<'none' | 'password'>('none')
   const [showPass, setShowPass] = useState(false)
@@ -103,7 +109,69 @@ export default function Profile() {
           </div>
         </Link>
 
-        {isCreator && (
+        {/* Coin balance card */}
+        <div className="card mb-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center">
+                <Coins className="w-5 h-5 text-amber-600" />
+              </div>
+              <div>
+                <div className="font-bold">{t('coins.myCoins')}</div>
+                <div className="text-xs text-neutral-700">{t('coins.redeemHint')}</div>
+              </div>
+            </div>
+            <div className="text-3xl font-extrabold text-amber-500">
+              {coinBalance.toLocaleString()}
+            </div>
+          </div>
+
+          {/* Requirements */}
+          <div className="grid grid-cols-2 gap-2 mb-3 text-xs">
+            <div className="bg-primary/5 rounded-xl p-2 text-center">
+              <div className="font-bold text-primary">{coinsForMonthly}</div>
+              <div className="text-neutral-700">{t('coins.forMonthly')}</div>
+            </div>
+            <div className="bg-secondary/5 rounded-xl p-2 text-center">
+              <div className="font-bold text-secondary">{coinsForYearly}</div>
+              <div className="text-neutral-700">{t('coins.forYearly')}</div>
+            </div>
+          </div>
+
+          <button
+            onClick={() => setShowRewardedAd(true)}
+            className="w-full bg-gradient-to-r from-amber-400 to-yellow-400 text-neutral-900 font-bold py-2.5 rounded-xl inline-flex items-center justify-center gap-2"
+          >
+            <Eye className="w-4 h-4" />
+            {t('coins.watchAd', { n: coinsPerAd })}
+          </button>
+
+          {/* Recent transactions */}
+          {coinTx.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-neutral-200 space-y-1.5">
+              {coinTx.slice(0, 3).map((tx) => (
+                <div key={tx.id} className="flex items-center justify-between text-xs">
+                  <span className="text-neutral-700">{tx.notes || tx.type}</span>
+                  <span className={cn('font-bold', tx.amount > 0 ? 'text-green-600' : 'text-red-500')}>
+                    {tx.amount > 0 ? '+' : ''}{tx.amount}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {showRewardedAd && (
+          <RewardedAdModal
+            onDone={(earned) => {
+              setShowRewardedAd(false)
+              toast.success(t('coins.earned', { n: earned }))
+            }}
+            onClose={() => setShowRewardedAd(false)}
+          />
+        )}
+
+                {isCreator && (
           <div className="card mb-4 space-y-2">
             <Link
               to="/creator/upload"

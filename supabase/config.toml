@@ -79,3 +79,6 @@ verify_jwt = false
 # App config (version control + maintenance) — no JWT
 [functions.app-config]
 verify_jwt = false
+
+[functions.reward-coins]
+verify_jwt = true

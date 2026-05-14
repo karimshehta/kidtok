@@ -10,6 +10,7 @@ import {
   ToggleLeft,
   ToggleRight,
   Info,
+  Coins,
 } from 'lucide-react'
 import AdminLayout from '@/components/AdminLayout'
 import { useAdminSettings, useUpdateSettings } from '@/hooks/useAds'
@@ -206,6 +207,48 @@ export default function AdminAds() {
               min={5}
               max={1440}
             />
+          </div>
+        </section>
+
+
+        {/* ======================================================
+            Coin / Rewards System
+        ====================================================== */}
+        <section className="card mb-4">
+          <h2 className="font-bold flex items-center gap-2 mb-4">
+            <span className="text-xl">🪙</span>
+            {t('coins.adminTitle')}
+          </h2>
+          <p className="text-sm text-neutral-700 mb-4">{t('coins.adminSubtitle')}</p>
+
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <Field label={t('coins.perAd')} hint="Default: 5"
+              value={form['coins_per_ad'] || '5'} onChange={(v) => set('coins_per_ad', v)} type="number" min={1} max={100} />
+            <Field label={t('coins.cooldown')} hint="Default: 30"
+              value={form['ad_reward_cooldown_min'] || '30'} onChange={(v) => set('ad_reward_cooldown_min', v)} type="number" min={1} max={1440} />
+            <Field label={t('coins.monthlyRequired')} hint="Default: 100"
+              value={form['coins_for_monthly'] || '100'} onChange={(v) => set('coins_for_monthly', v)} type="number" min={1} />
+            <Field label={t('coins.yearlyRequired')} hint="Default: 200"
+              value={form['coins_for_yearly'] || '200'} onChange={(v) => set('coins_for_yearly', v)} type="number" min={1} />
+            <Field label={t('coins.monthlyDiscount')} hint="100 = free"
+              value={form['monthly_discount_pct'] || '100'} onChange={(v) => set('monthly_discount_pct', v)} type="number" min={1} max={100} />
+            <Field label={t('coins.yearlyDiscount')} hint="50 = half price"
+              value={form['yearly_discount_pct'] || '50'} onChange={(v) => set('yearly_discount_pct', v)} type="number" min={1} max={100} />
+          </div>
+
+          <div className="flex items-center justify-between py-3 border-t border-neutral-300">
+            <div>
+              <div className="font-medium">{t('coins.onboardingEnabled')}</div>
+              <div className="text-xs text-neutral-700">Show Watch/Login/Skip popup on first visit</div>
+            </div>
+            <button type="button" onClick={() => {
+              const cur = form['coins_onboarding_enabled']
+              set('coins_onboarding_enabled', cur === 'false' ? 'true' : 'false')
+            }}>
+              {form['coins_onboarding_enabled'] !== 'false'
+                ? <ToggleRight className="w-9 h-9 text-primary" />
+                : <ToggleLeft className="w-9 h-9 text-neutral-700" />}
+            </button>
           </div>
         </section>
 

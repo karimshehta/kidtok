@@ -35,6 +35,7 @@ import AdminReference from '@/pages/admin/Reference'
 import AdminReports from '@/pages/admin/Reports'
 import NotFound from '@/pages/NotFound'
 import ProtectedRoute from '@/components/ProtectedRoute'
+import OnboardingModal from '@/components/OnboardingModal'
 
 export default function App() {
   const init = useAuth((s) => s.init)
@@ -53,7 +54,9 @@ export default function App() {
   }
 
   return (
-    <Routes>
+    <>
+      <OnboardingModal />
+      <Routes>
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
@@ -93,5 +96,6 @@ export default function App() {
       <Route path="/404" element={<NotFound />} />
       <Route path="*" element={<Navigate to="/404" replace />} />
     </Routes>
+    </>
   )
 }
