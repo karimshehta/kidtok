@@ -50,7 +50,7 @@ export interface Playlist {
 
 export interface Video {
   id: string
-  youtube_id: string
+  youtube_id: string | null
   title: string | null
   description: string | null
   thumbnail_url: string | null
@@ -64,7 +64,15 @@ export interface Video {
   is_active: boolean
   source: 'youtube' | 'creator'
   added_by: string | null
+  creator_id: string | null
+  like_count: number
+  dislike_count: number
+  comment_count: number
+  view_count: number
   created_at: string
+  // joined relations (optional)
+  age?: { name_ar: string; name_en: string }
+  interest?: { name_ar: string; name_en: string }
 }
 
 export interface PlaylistVideo {

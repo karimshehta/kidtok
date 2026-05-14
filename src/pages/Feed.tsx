@@ -5,6 +5,7 @@ import { Play, Volume2, VolumeX, Sparkles, Plus, Loader2 } from 'lucide-react'
 import AppLayout from '@/components/AppLayout'
 import { FeedAdCard } from '@/components/AdSlot'
 import AddToPlaylistModal from '@/components/AddToPlaylistModal'
+import VideoSocialActions from '@/components/VideoSocialActions'
 import { useFeedVideos } from '@/hooks/useFeed'
 import { useAds, useAdSenseScript } from '@/hooks/useAds'
 import { getYouTubeThumbnail } from '@/lib/youtube'
@@ -119,6 +120,7 @@ export default function Feed() {
               isActive={item.displayIdx === activeIdx}
               muted={muted}
               onAddToPlaylist={setAddingVideo}
+              onCreatorClick={(id) => navigate(`/creator/${id}`)}
             />
           )
         )}
@@ -158,12 +160,14 @@ function FeedVideoItem({
   isActive,
   muted,
   onAddToPlaylist,
+  onCreatorClick,
 }: {
   video: Video
   idx: number
   isActive: boolean
   muted: boolean
   onAddToPlaylist: (v: Video) => void
+  onCreatorClick: (creatorId: string) => void
 }) {
   const { t, i18n } = useTranslation()
   const lang = i18n.language as 'ar' | 'en'
@@ -230,17 +234,21 @@ function FeedVideoItem({
         <div className="flex items-end gap-3">
           <div className="flex-1 min-w-0 text-white">
             {video.channel_name && (
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-sm font-bold">
+              <button
+                type="button"
+                onClick={() => video.creator_id && onCreatorClick(video.creator_id)}
+                className="flex items-center gap-2 mb-2 pointer-events-auto group"
+              >
+                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-sm font-bold group-hover:ring-2 group-hover:ring-white">
                   {video.channel_name.charAt(0).toUpperCase()}
                 </div>
-                <span className="font-semibold text-sm truncate">{video.channel_name}</span>
+                <span className="font-semibold text-sm truncate group-hover:underline">{video.channel_name}</span>
                 {isCreator && (
                   <span className="px-2 py-0.5 rounded-full bg-primary text-[10px] font-semibold">
                     {t('feed.creatorBadge')}
                   </span>
                 )}
-              </div>
+              </button>
             )}
             {video.title && <h3 className="text-base font-medium line-clamp-2 mb-2">{video.title}</h3>}
             <div className="flex flex-wrap gap-1.5">

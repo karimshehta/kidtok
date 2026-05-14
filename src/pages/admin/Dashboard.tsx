@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
@@ -13,9 +14,11 @@ import {
   ArrowRight,
   ShieldCheck,
   Loader2,
+  AlertTriangle,
 } from 'lucide-react'
 import AdminLayout from '@/components/AdminLayout'
 import { useAdminStats } from '@/hooks/useFeed'
+import { supabase } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
 
 export default function AdminDashboard() {
@@ -76,6 +79,9 @@ export default function AdminDashboard() {
           })}
         </section>
 
+        {/* Flagged videos alert */}
+        <FlaggedVideosSection />
+
         {/* Quick actions */}
         <section>
           <h2 className="text-lg font-bold mb-3">{t('admin.dashboard.quickActions')}</h2>
@@ -112,5 +118,68 @@ export default function AdminDashboard() {
         </section>
       </div>
     </AdminLayout>
+  )
+}
+
+// ── Flagged videos (high dislike ratio or reports) ──
+function FlaggedVideosSection() {
+  const { t } = useTranslation()
+  const [videos, setVideos] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  useEffect(() => {
+    supabase.from('videos')
+      .select('id, title, thumbnail_url, like_count, dislike_count, view_count, creator_id')
+      .eq('source', 'creator')
+      .or('dislike_count.gte.5,report_count.gte.3')
+      .order('dislike_count', { ascending: false })
+      .limit(5)
+      .then(({ data }) => { setVideos(data || []); setLoading(false) })
+  }, [])
+
+  if (loading || videos.length === 0) return null
+
+  return (
+    <section className="mb-6">
+      <div className="flex items-center gap-2 mb-3">
+        <AlertTriangle className="w-5 h-5 text-red-500" />
+        <h2 className="text-base font-bold text-red-600">فيديوهات مُبلَّغ عنها</h2>
+        <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full">{videos.length} تحتاج مراجعة</span>
+      </div>
+      <div className="space-y-2">
+        {videos.map((v: any) => (
+          <div key={v.id} className="card flex items-center gap-3 p-3 border-s-4 border-red-400">
+            {v.thumbnail_url && (
+              <img src={v.thumbnail_url} alt="" className="w-14 aspect-video rounded-lg object-cover flex-shrink-0" />
+            )}
+            <div className="flex-1 min-w-0">
+              <div className="font-medium text-sm truncate">{v.title}</div>
+              <div className="text-xs text-neutral-700">
+                👎 {v.dislike_count} · 👍 {v.like_count} · 👁 {v.view_count}
+              </div>
+            </div>
+            <DeleteVideoButton videoId={v.id} onDeleted={() => setVideos((prev: any[]) => prev.filter((x: any) => x.id !== v.id))} />
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function DeleteVideoButton({ videoId, onDeleted }: { videoId: string; onDeleted: () => void }) {
+  const [deleting, setDeleting] = useState(false)
+  return (
+    <button
+      onClick={async () => {
+        if (!confirm('حذف هذا الفيديو نهائياً؟')) return
+        setDeleting(true)
+        await supabase.from('videos').delete().eq('id', videoId)
+        onDeleted()
+        setDeleting(false)
+      }}
+      disabled={deleting}
+      className="text-xs text-danger hover:underline flex-shrink-0"
+    >
+      {deleting ? '...' : 'حذف'}
+    </button>
   )
 }

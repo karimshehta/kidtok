@@ -105,11 +105,11 @@ export default function PlaylistDetail() {
                 >
                   <div className="relative w-32 sm:w-40 aspect-video rounded-lg overflow-hidden flex-shrink-0 bg-neutral-300">
                     <img
-                      src={pv.video.thumbnail_url || getYouTubeThumbnail(ytId)}
+                      src={pv.video.thumbnail_url || getYouTubeThumbnail(ytId || "")}
                       alt={pv.video.title || ''}
                       className="w-full h-full object-cover"
                       onError={(e) => {
-                        (e.currentTarget as HTMLImageElement).src = getYouTubeThumbnail(ytId, 'default')
+                        (e.currentTarget as HTMLImageElement).src = getYouTubeThumbnail(ytId || "", 'default')
                       }}
                     />
                     <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
@@ -127,7 +127,7 @@ export default function PlaylistDetail() {
                     )}
                     <div className="mt-auto flex gap-3 items-center">
                       <a
-                        href={getYouTubeWatchUrl(ytId)}
+                        href={getYouTubeWatchUrl(ytId || "")}
                         target="_blank"
                         rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
