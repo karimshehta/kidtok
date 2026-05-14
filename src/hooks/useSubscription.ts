@@ -80,8 +80,9 @@ interface SubscribeInput {
 interface SubscribeResponse {
   subscription_id: string
   method: string
-  payment_url?: string
-  wallet_response?: unknown
+  payment_url?: string        // card + apple_pay
+  redirect_url?: string       // wallet (top-level for easy access)
+  wallet_response?: any       // full raw Paymob wallet response
 }
 
 /** Invokes the Edge Function to create a Paymob payment intent. */

@@ -448,33 +448,25 @@ function PaymentMethodPicker({
         return
       }
 
-      // Wallet → Paymob sends OTP to phone, then redirect_url to confirm
-      if (method === 'wallet' && res.wallet_response) {
-        const wr = res.wallet_response as any
+      // Wallet → Paymob sends OTP to phone then redirect_url to confirm OTP
+      if (method === 'wallet') {
+        // redirect_url is now at top level (see Edge Function)
         const redirectUrl =
-          wr.redirect_url ||
-          wr.redirection_url ||
+          res.redirect_url ||
+          (res.wallet_response as any)?.redirect_url ||
+          (res.wallet_response as any)?.redirection_url ||
           null
+
+        console.log('[wallet] redirect_url:', redirectUrl, 'full response:', res)
 
         if (redirectUrl) {
           toast.loading(t('subscription.walletOtpSent'), { duration: 4000 })
-          window.location.href = redirectUrl
+          setTimeout(() => { window.location.href = redirectUrl }, 500)
           return
         }
 
-        // Paymob returned success without redirect (some wallet types)
-        if ((res.wallet_response as any).success === true || (res.wallet_response as any).pending === false) {
-          toast.success(t('subscription.walletSent'))
-          onClose()
-          return
-        }
-
-        // No redirect URL — show the raw message from Paymob
-        const msg =
-          (res.wallet_response as any).message ||
-          (res.wallet_response as any).detail ||
-          t('subscription.walletSent')
-        toast.success(msg)
+        // Fallback: success without redirect
+        toast.success(t('subscription.walletSent'))
         onClose()
         return
       }

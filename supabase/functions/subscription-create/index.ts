@@ -176,9 +176,25 @@ Deno.serve(async (req) => {
     }
     // wallet
     const walletResponse = await paymobWalletPay(cfg, paymentKey, body.wallet_phone!)
+
+    // Log the full wallet response for debugging
+    console.log('[wallet-pay] raw Paymob response:', JSON.stringify(walletResponse))
+
+    // Check for error from Paymob
+    if (walletResponse?.detail) {
+      throw new Error(`Paymob wallet error: ${walletResponse.detail}`)
+    }
+    if (walletResponse?.message === 'Receiver is not registered') {
+      return errorResponse(
+        'رقم المحفظة غير مسجل في خدمة الدفع. تأكد من صحة الرقم.',
+        400, 'WALLET_NOT_REGISTERED'
+      )
+    }
+
     return jsonResponse({
       subscription_id: sub.id,
       method: 'wallet',
+      redirect_url: walletResponse?.redirect_url || walletResponse?.redirection_url || null,
       wallet_response: walletResponse,
     })
   } catch (err) {
