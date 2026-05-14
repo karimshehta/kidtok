@@ -440,16 +440,45 @@ function PaymentMethodPicker({
         payment_method: method,
         wallet_phone: method === 'wallet' ? walletPhone : undefined,
       })
-      if (method === 'wallet') {
-        toast.success(t('subscription.walletSent'))
+
+      // Card + Apple Pay → redirect to Paymob iframe/page
+      if (res.payment_url) {
+        toast.loading(t('subscription.redirecting'), { duration: 4000 })
+        window.location.href = res.payment_url
+        return
+      }
+
+      // Wallet → Paymob sends OTP to phone, then redirect_url to confirm
+      if (method === 'wallet' && res.wallet_response) {
+        const wr = res.wallet_response as any
+        const redirectUrl =
+          wr.redirect_url ||
+          wr.redirection_url ||
+          null
+
+        if (redirectUrl) {
+          toast.loading(t('subscription.walletOtpSent'), { duration: 4000 })
+          window.location.href = redirectUrl
+          return
+        }
+
+        // Paymob returned success without redirect (some wallet types)
+        if ((res.wallet_response as any).success === true || (res.wallet_response as any).pending === false) {
+          toast.success(t('subscription.walletSent'))
+          onClose()
+          return
+        }
+
+        // No redirect URL — show the raw message from Paymob
+        const msg =
+          (res.wallet_response as any).message ||
+          (res.wallet_response as any).detail ||
+          t('subscription.walletSent')
+        toast.success(msg)
         onClose()
         return
       }
-      if (res.payment_url) {
-        toast.loading(t('subscription.redirecting'))
-        // Redirect to Paymob iframe / Apple Pay
-        window.location.href = res.payment_url
-      }
+
     } catch (err) {
       toast.error((err as Error).message)
     }
