@@ -1,0 +1,46 @@
+{
+  "expo": {
+    "name": "KidTok",
+    "slug": "kidtok",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "kidtok",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#03BBE5"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.kidtok.app",
+      "infoPlist": {
+        "NSAppTransportSecurity": { "NSAllowsArbitraryLoads": true }
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#03BBE5"
+      },
+      "package": "com.kidtok.app"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      "expo-localization"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "SUPABASE_URL": "https://ngjpmfldzoijtfyxopjw.supabase.co",
+      "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5nanBtZmxkem9panRmeXhvcGp3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg1MzQzNjMsImV4cCI6MjA5NDExMDM2M30.St75N5VZR-eeWi8HvhelcAY144c6u6yJdGdzCyt44gA"
+    }
+  }
+}

@@ -1,0 +1,14 @@
+node_modules/
+.expo/
+dist/
+web-build/
+*.log
+*.tsbuildinfo
+.DS_Store
+.env
+ios/
+android/
+*.tgz
+*.jks
+*.p8
+*.p12
