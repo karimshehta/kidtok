@@ -10,12 +10,16 @@ import { supabase } from '@/lib/supabase'
 import { colors, spacing, fontSize, radius } from '@/lib/theme'
 
 interface YTResult {
-  video_id: string
+  youtube_id: string
+  video_id?: string          // alias, may be absent
   title: string
-  thumbnail: string
-  channel: string
+  thumbnail_url: string
+  thumbnail?: string         // alias
+  channel_name: string
+  channel?: string           // alias
   channel_id: string
   duration_seconds: number
+  blocked?: boolean
 }
 
 export default function SearchScreen() {
@@ -108,7 +112,7 @@ export default function SearchScreen() {
           <View style={{ gap: spacing.sm }}>
             {results.map((v) => (
               <View
-                key={v.video_id}
+                key={v.youtube_id || v.video_id}
                 style={{
                   flexDirection: 'row',
                   backgroundColor: colors.grey50,
@@ -118,14 +122,14 @@ export default function SearchScreen() {
                 }}
               >
                 <View style={{ width: 120, height: 80, backgroundColor: colors.black }}>
-                  <Image source={{ uri: v.thumbnail }} style={{ width: '100%', height: '100%' }} />
+                  <Image source={{ uri: v.thumbnail_url || v.thumbnail }} style={{ width: '100%', height: '100%' }} resizeMode="cover" onError={() => {}} />
                 </View>
                 <View style={{ flex: 1, padding: spacing.sm }}>
                   <Text style={{ fontSize: fontSize.sm, fontWeight: '700', color: colors.grey900 }} numberOfLines={2}>
                     {v.title}
                   </Text>
                   <Text style={{ fontSize: fontSize.xs, color: colors.grey600, marginTop: 4 }} numberOfLines={1}>
-                    {v.channel}
+                    {v.channel_name || v.channel || 'YouTube'}
                   </Text>
                 </View>
               </View>

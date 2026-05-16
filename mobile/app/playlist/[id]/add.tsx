@@ -10,10 +10,13 @@ import { supabase } from '@/lib/supabase'
 import { colors, spacing, fontSize, radius } from '@/lib/theme'
 
 interface YTResult {
-  video_id: string
+  youtube_id: string
+  video_id?: string
   title: string
-  thumbnail: string
-  channel: string
+  thumbnail_url: string
+  thumbnail?: string
+  channel_name: string
+  channel?: string
   channel_id: string
   duration_seconds: number
 }
@@ -46,13 +49,13 @@ export default function AddVideoScreen() {
   }, [query])
 
   const handleAdd = async (video: YTResult) => {
-    setAdding(video.video_id)
+    setAdding(video.youtube_id || video.video_id || "")
     try {
       // Upsert video into videos table
       const { data: existingVideo } = await supabase
         .from('videos')
         .select('id')
-        .eq('youtube_id', video.video_id)
+        .eq('youtube_id', video.youtube_id || video.video_id || "")
         .maybeSingle()
 
       let videoId = existingVideo?.id
@@ -61,10 +64,10 @@ export default function AddVideoScreen() {
           .from('videos')
           .insert({
             source: 'youtube',
-            youtube_id: video.video_id,
+            youtube_id: video.youtube_id || video.video_id || "",
             title: video.title,
-            thumbnail_url: video.thumbnail,
-            channel_name: video.channel,
+            thumbnail_url: video.thumbnail_url || video.thumbnail || "",
+            channel_name: video.channel_name || video.channel || "",
             channel_id: video.channel_id,
             duration_seconds: video.duration_seconds,
             is_active: true,
@@ -165,7 +168,7 @@ export default function AddVideoScreen() {
           <View style={{ gap: spacing.sm }}>
             {results.map((v) => (
               <View
-                key={v.video_id}
+                key={v.youtube_id || v.video_id}
                 style={{
                   flexDirection: 'row',
                   backgroundColor: colors.grey50,
@@ -175,7 +178,7 @@ export default function AddVideoScreen() {
                 }}
               >
                 <View style={{ width: 120, height: 80, backgroundColor: colors.black }}>
-                  <Image source={{ uri: v.thumbnail }} style={{ width: '100%', height: '100%' }} />
+                  <Image source={{ uri: v.thumbnail_url || v.thumbnail }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
                 </View>
                 <View style={{ flex: 1, padding: spacing.sm, justifyContent: 'space-between' }}>
                   <Text style={{ fontSize: fontSize.sm, fontWeight: '700', color: colors.grey900 }} numberOfLines={2}>
@@ -183,11 +186,11 @@ export default function AddVideoScreen() {
                   </Text>
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                     <Text style={{ fontSize: fontSize.xs, color: colors.grey600 }} numberOfLines={1}>
-                      {v.channel}
+                      {v.channel_name || v.channel}
                     </Text>
                     <Pressable
                       onPress={() => handleAdd(v)}
-                      disabled={adding === v.video_id}
+                      disabled={adding === (v.youtube_id || v.video_id)}
                       style={{
                         backgroundColor: colors.primary,
                         paddingHorizontal: spacing.sm + 4,
@@ -198,7 +201,7 @@ export default function AddVideoScreen() {
                         gap: 4,
                       }}
                     >
-                      {adding === v.video_id ? (
+                      {adding === (v.youtube_id || v.video_id) ? (
                         <ActivityIndicator size="small" color={colors.white} />
                       ) : (
                         <>

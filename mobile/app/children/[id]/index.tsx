@@ -6,7 +6,9 @@ import { Ionicons } from '@expo/vector-icons'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import Toast from 'react-native-toast-message'
 
+import { useTranslation } from 'react-i18next'
 import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/stores/auth'
 import ChildAvatar from '@/components/ChildAvatar'
 import { colors, spacing, fontSize, radius } from '@/lib/theme'
 
@@ -22,6 +24,8 @@ export default function ChildDetailScreen() {
   const router = useRouter()
   const { id } = useLocalSearchParams<{ id: string }>()
   const qc = useQueryClient()
+  const { t } = useTranslation()
+  const userId = useAuth((s) => s.user?.id)
 
   const [addOpen, setAddOpen] = useState(false)
   const [playlistName, setPlaylistName] = useState('')
@@ -62,6 +66,7 @@ export default function ChildDetailScreen() {
     try {
       const { error } = await supabase.from('playlists').insert({
         child_id: id,
+        parent_id: userId,
         name: playlistName.trim(),
       })
       if (error) throw error

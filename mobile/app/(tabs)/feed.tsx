@@ -343,6 +343,9 @@ function ReelWebVideo({
           domStorageEnabled
           scrollEnabled={false}
           setSupportMultipleWindows={false}
+          cacheEnabled
+          thirdPartyCookiesEnabled
+          userAgent="Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
           onShouldStartLoadWithRequest={(request) => {
             const url = request.url.toLowerCase()
             return !url.includes('/watch') && !url.includes('youtube.com/redirect')
