@@ -184,10 +184,40 @@ Deno.serve(async (req) => {
     if (walletResponse?.detail) {
       throw new Error(`Paymob wallet error: ${walletResponse.detail}`)
     }
-    if (walletResponse?.message === 'Receiver is not registered') {
+
+    // ───────────────────────────────────────────────────────────────
+    // Detect wallet failures.
+    //
+    // Paymob returns success=false with `data.message` like:
+    //   "Receiver is not registered"  → wallet phone has no mobile wallet
+    //   "INVALID_MSISDN"              → bad phone format
+    //   "AUTHENTICATION_FAILED"       → wrong wallet PIN
+    //
+    // The top-level `redirect_url` is "" (empty) on failure, and the
+    // top-level `success` flag is false.
+    // ───────────────────────────────────────────────────────────────
+    const walletMessage: string =
+      walletResponse?.data?.message ||
+      walletResponse?.message ||
+      ''
+    const hasRedirect = !!(walletResponse?.redirect_url || walletResponse?.redirection_url)
+    const isWalletFailure = walletResponse?.success === false && !hasRedirect
+
+    if (walletMessage === 'Receiver is not registered' || /receiver.*not.*register/i.test(walletMessage)) {
+      // Clean up the pending subscription
+      await admin.from('subscriptions').update({ status: 'cancelled' }).eq('id', sub.id)
       return errorResponse(
-        'رقم المحفظة غير مسجل في خدمة الدفع. تأكد من صحة الرقم.',
-        400, 'WALLET_NOT_REGISTERED'
+        'رقم المحفظة غير مسجل في خدمة الدفع الإلكتروني. تأكد أن لديك محفظة موبايل نشطة (فودافون كاش، اتصالات كاش، أو CIB Smart Wallet) ثم حاول مجدداً.',
+        400,
+        'WALLET_NOT_REGISTERED'
+      )
+    }
+    if (isWalletFailure) {
+      await admin.from('subscriptions').update({ status: 'cancelled' }).eq('id', sub.id)
+      return errorResponse(
+        walletMessage || 'فشل الدفع من المحفظة. تحقق من رقم المحفظة وحاول مرة أخرى.',
+        400,
+        'WALLET_PAYMENT_FAILED'
       )
     }
 
