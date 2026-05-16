@@ -129,6 +129,13 @@ Functions, and database schema. The mobile-specific differences are:
 - [x] **For You / Following tabs** on Feed
 - [x] **Creator Profile** screen (TikTok-style: gradient hero, stats, 3-col grid, Follow button)
 - [x] **Following Feed** (filters videos by uploaded_by IN (followed creator ids))
+- [x] **🎥 In-app camera recording** (TikTok-style) — record video directly with
+  the camera, 30s max, front/back toggle, flash toggle, recording timer +
+  progress ring, preview screen with Retake/Post, uploads to Cloudflare Stream
+  via `creator-upload-url` Edge Function. **Only visible to creators + admins.**
+- [x] **Record FAB** floating button on Feed — gated by `useIsCreator()` hook
+- [x] **`recorded_in_app` column** added to `creator_videos` (migration
+  20260515000001) so we can distinguish in-app captures from gallery uploads
 
 ## 🚧 Pending — Phase 1D / 2
 

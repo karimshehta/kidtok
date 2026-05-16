@@ -13,6 +13,7 @@ import Toast from 'react-native-toast-message'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/stores/auth'
 import { useMyVideoInteraction, useToggleVideoInteraction } from '@/hooks/useSocial'
+import { useIsCreator } from '@/hooks/useMyRole'
 import CommentsSheet from '@/components/CommentsSheet'
 import { colors, spacing, fontSize, radius } from '@/lib/theme'
 
@@ -40,6 +41,8 @@ export default function FeedScreen() {
   const [activeIndex, setActiveIndex] = useState(0)
   const [commentsForVideo, setCommentsForVideo] = useState<string | null>(null)
   const userId = useAuth((s) => s.user?.id)
+  const isCreator = useIsCreator()
+  const router = useRouter()
   const itemHeight = SCREEN_HEIGHT - TAB_BAR_HEIGHT
 
   const { data: videos = [], isLoading, refetch, isFetching } = useQuery({
@@ -125,6 +128,29 @@ export default function FeedScreen() {
           viewabilityConfig={viewabilityConfig}
           refreshControl={<RefreshControl tintColor={colors.white} refreshing={isFetching} onRefresh={refetch} />}
         />
+      )}
+
+      {/* Record FAB — only visible for creators / admins */}
+      {isCreator && (
+        <Pressable
+          onPress={() => router.push('/creator/record')}
+          style={({ pressed }) => ({
+            position: 'absolute',
+            right: spacing.lg,
+            bottom: 100,
+            width: 56, height: 56, borderRadius: 28,
+            backgroundColor: colors.secondary,
+            alignItems: 'center', justifyContent: 'center',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.3,
+            shadowRadius: 8,
+            elevation: 8,
+            transform: [{ scale: pressed ? 0.92 : 1 }],
+          })}
+        >
+          <Ionicons name="videocam" size={28} color={colors.white} />
+        </Pressable>
       )}
 
       {commentsForVideo && (

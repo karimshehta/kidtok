@@ -68,6 +68,26 @@ async function getVideoResolution(file: File): Promise<{ w: number; h: number }>
 }
 
 /**
+ * Detect total video duration in seconds.
+ */
+async function getVideoDuration(file: File): Promise<number> {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file)
+    const v = document.createElement('video')
+    v.preload = 'metadata'
+    v.onloadedmetadata = () => {
+      URL.revokeObjectURL(url)
+      resolve(Number.isFinite(v.duration) ? v.duration : 30)
+    }
+    v.onerror = () => {
+      URL.revokeObjectURL(url)
+      resolve(30)
+    }
+    v.src = url
+  })
+}
+
+/**
  * Build the FFmpeg scale + quality args based on input resolution.
  *
  * Strategy:
@@ -97,12 +117,16 @@ function buildCompressionArgs(
 }
 
 /**
- * Trim + compress a video file.
+/**
+ * Trim a video file FAST using stream copy.
  *
- * @param file       Raw video file from the <input>
- * @param startSec   Start of the desired segment (seconds)
- * @param durationSec Length of the desired clip (max 30s)
- * @param onProgress Called with 0-100 progress and the current stage
+ * The previous version re-encoded the video on the main thread (libx264 +
+ * CRF 26) which froze the browser tab. Cloudflare Stream handles
+ * transcoding server-side anyway, so client-side compression is redundant
+ * and risky on low-end devices.
+ *
+ * Now we just trim with `-c copy` (no re-encode) which finishes in
+ * milliseconds even for long inputs.
  */
 export async function processVideo(
   file: File,
@@ -112,59 +136,73 @@ export async function processVideo(
 ): Promise<ProcessResult> {
   onProgress?.(0, 'loading')
 
+  // Fast path: file is already short enough → upload as-is
+  if (file.size < 30 * 1024 * 1024 && durationSec >= (await getVideoDuration(file)) - 0.5) {
+    onProgress?.(100, 'trimming')
+    return {
+      file,
+      durationSec,
+      originalSizeMB: file.size / 1024 / 1024,
+      outputSizeMB: file.size / 1024 / 1024,
+      compressionRatio: 1,
+    }
+  }
+
   const ff = await getFFmpeg()
 
-  // Wire FFmpeg progress to our callback
   ff.setProgress(({ ratio }: { ratio: number }) => {
     const pct = Math.min(99, Math.round(ratio * 100))
-    onProgress?.(pct, startSec === 0 && durationSec >= 30 ? 'compressing' : 'trimming')
+    onProgress?.(pct, 'trimming')
   })
-
-  const res = await getVideoResolution(file)
-  const { scale, videoBitrate } = buildCompressionArgs(res.w, res.h)
 
   const inputName = 'input.mp4'
   const outputName = 'output.mp4'
   const safeDuration = Math.max(1, Math.min(durationSec, 30))
 
-  // Write input to FFmpeg virtual FS
   ff.FS('writeFile', inputName, await fetchFile(file))
 
-  // Build FFmpeg args:
-  //   -ss before -i → fast seek (key-frame accurate)
-  //   -t → output duration
-  //   -vf scale → resize with even dimensions
-  //   -c:v libx264 -crf 26 -preset veryfast → H.264 quality/speed trade-off
-  //   -b:v → max bitrate for VBR
-  //   -c:a aac -b:a 128k → AAC audio
-  //   -movflags +faststart → moov atom at front for streaming
+  // Stream-copy trim — no re-encode, no UI blocking
+  // -ss BEFORE -i = fast seek; -c copy = no re-encode
   const args = [
     '-ss', String(startSec),
     '-i', inputName,
     '-t', String(safeDuration),
-    '-vf', `scale=${scale}`,
-    '-c:v', 'libx264',
-    '-crf', '26',
-    '-preset', 'veryfast',
-    '-b:v', videoBitrate,
-    '-c:a', 'aac',
-    '-b:a', '128k',
+    '-c', 'copy',
+    '-avoid_negative_ts', 'make_zero',
     '-movflags', '+faststart',
     '-y',
     outputName,
   ]
 
-  await ff.run(...args)
+  try {
+    await ff.run(...args)
+  } catch {
+    // Stream copy failed (uncommon container/codec issue). Fall back to a
+    // very light re-encode at the same resolution but veryfast preset.
+    const fallbackArgs = [
+      '-ss', String(startSec),
+      '-i', inputName,
+      '-t', String(safeDuration),
+      '-c:v', 'libx264',
+      '-preset', 'ultrafast',
+      '-crf', '28',
+      '-c:a', 'aac',
+      '-b:a', '96k',
+      '-movflags', '+faststart',
+      '-y',
+      outputName,
+    ]
+    await ff.run(...fallbackArgs)
+  }
 
   const data = ff.FS('readFile', outputName)
   const blob = new Blob([new Uint8Array(data.buffer as ArrayBuffer)], { type: 'video/mp4' })
   const outputFile = new File([blob], 'processed.mp4', { type: 'video/mp4' })
 
-  // Clean up virtual FS
   try { ff.FS('unlink', inputName) } catch {}
   try { ff.FS('unlink', outputName) } catch {}
 
-  onProgress?.(100, 'compressing')
+  onProgress?.(100, 'trimming')
 
   return {
     file: outputFile,
