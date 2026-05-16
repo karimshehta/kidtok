@@ -260,6 +260,7 @@ function VideoItem({
           isActive={isActive}
           poster={poster}
           html={getYouTubeEmbedHtml(video.youtube_id, muted)}
+          videoId={video.youtube_id}
         />
       ) : cloudflareUid ? (
         <ReelWebVideo
@@ -314,23 +315,70 @@ function ReelWebVideo({
   poster,
   html,
   uri,
+  videoId,
 }: {
   isActive: boolean
   poster: string | null
   html?: string
   uri?: string
+  videoId?: string
 }) {
+  const [hasError, setHasError] = useState(false)
+
+  const openInYouTube = () => {
+    if (videoId) {
+      const { Linking } = require('react-native')
+      Linking.openURL(`https://www.youtube.com/watch?v=${videoId}`)
+    }
+  }
+
+  const handleMessage = (event: any) => {
+    try {
+      const data = JSON.parse(event.nativeEvent.data)
+      // YouTube IFrame API error codes: 2=bad param, 5=HTML5 error, 100=not found, 101/150=embed not allowed
+      if (data.type === 'yt_error' || data.type === 'error') {
+        setHasError(true)
+      }
+    } catch {}
+  }
+
   return (
     <View style={{ flex: 1, backgroundColor: colors.black, overflow: 'hidden' }}>
+      {/* Poster / thumbnail */}
       {poster && (
         <Image
           source={{ uri: poster }}
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: isActive ? 0.35 : 1 }}
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: isActive && !hasError ? 0.35 : 1 }}
           resizeMode="cover"
-          blurRadius={isActive ? 18 : 0}
+          blurRadius={isActive && !hasError ? 18 : 0}
         />
       )}
-      {isActive && (html || uri) ? (
+
+      {/* Video error fallback */}
+      {isActive && hasError ? (
+        <View style={{ position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <Pressable
+            onPress={openInYouTube}
+            style={{
+              backgroundColor: '#FF0000',
+              paddingHorizontal: 24, paddingVertical: 14,
+              borderRadius: 999,
+              flexDirection: 'row', alignItems: 'center', gap: 10,
+            }}
+          >
+            <Ionicons name="logo-youtube" size={26} color="#fff" />
+            <Text style={{ color: '#fff', fontWeight: '800', fontSize: 16 }}>
+              شاهد على YouTube
+            </Text>
+          </Pressable>
+          <Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 12, marginTop: 12, textAlign: 'center' }}>
+            هذا الفيديو لا يدعم التشغيل المضمّن
+          </Text>
+        </View>
+      ) : null}
+
+      {/* WebView player */}
+      {isActive && !hasError && (html || uri) ? (
         <WebView
           originWhitelist={['*']}
           source={html ? { html } : { uri: uri! }}
@@ -346,35 +394,73 @@ function ReelWebVideo({
           cacheEnabled
           thirdPartyCookiesEnabled
           userAgent="Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+          onMessage={handleMessage}
           onShouldStartLoadWithRequest={(request) => {
             const url = request.url.toLowerCase()
-            return !url.includes('/watch') && !url.includes('youtube.com/redirect')
+            if (url.includes('youtube.com/watch') || url.includes('youtube.com/redirect')) {
+              return false
+            }
+            return true
           }}
         />
-      ) : (
+      ) : !isActive ? (
         <View style={{ position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center' }}>
           <View style={{ width: 78, height: 78, borderRadius: 39, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' }}>
             <Ionicons name="play" size={38} color={colors.white} style={{ marginLeft: 4 }} />
           </View>
         </View>
-      )}
+      ) : null}
     </View>
   )
 }
 
 function getYouTubeEmbedHtml(videoId: string, muted: boolean) {
-  const src = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&mute=${muted ? 1 : 0}&controls=0&modestbranding=1&playsinline=1&rel=0&loop=1&playlist=${videoId}`
+  // Use YouTube IFrame API so we can catch Error 153 and other errors
+  // and communicate them back to React Native via postMessage
   return `<!doctype html>
 <html>
 <head>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <style>
-html,body{margin:0;width:100%;height:100%;background:#000;overflow:hidden}
-iframe{position:absolute;left:50%;top:50%;width:177.78vh;height:100vh;min-width:100vw;min-height:56.25vw;transform:translate(-50%,-50%);border:0}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;background:#000;overflow:hidden}
+#player{position:absolute;left:50%;top:50%;width:177.78vh;height:100vh;min-width:100vw;min-height:56.25vw;transform:translate(-50%,-50%)}
 </style>
 </head>
 <body>
-<iframe src="${src}" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>
+<div id="player"></div>
+<script>
+  var tag = document.createElement('script');
+  tag.src = 'https://www.youtube.com/iframe_api';
+  document.head.appendChild(tag);
+
+  function onYouTubeIframeAPIReady() {
+    new YT.Player('player', {
+      videoId: '${videoId}',
+      playerVars: {
+        autoplay: 1,
+        mute: ${muted ? 1 : 0},
+        controls: 0,
+        playsinline: 1,
+        rel: 0,
+        loop: 1,
+        playlist: '${videoId}',
+        modestbranding: 1,
+        iv_load_policy: 3,
+        fs: 0
+      },
+      events: {
+        onReady: function(e) { e.target.playVideo(); },
+        onError: function(e) {
+          // Error codes: 2=bad param, 5=html5 error, 100=not found, 101/150=embed not allowed
+          if (window.ReactNativeWebView) {
+            window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'yt_error', code: e.data }));
+          }
+        }
+      }
+    });
+  }
+</script>
 </body>
 </html>`
 }

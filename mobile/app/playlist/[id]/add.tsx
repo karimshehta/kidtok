@@ -7,6 +7,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import Toast from 'react-native-toast-message'
 
 import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/stores/auth'
 import { colors, spacing, fontSize, radius } from '@/lib/theme'
 
 interface YTResult {
@@ -23,6 +24,7 @@ interface YTResult {
 
 export default function AddVideoScreen() {
   const router = useRouter()
+  const userId = useAuth((s) => s.user?.id)
   const { id: playlistId } = useLocalSearchParams<{ id: string }>()
   const qc = useQueryClient()
 
@@ -65,6 +67,7 @@ export default function AddVideoScreen() {
           .insert({
             source: 'youtube',
             youtube_id: video.youtube_id || video.video_id || "",
+            added_by: userId,
             title: video.title,
             thumbnail_url: video.thumbnail_url || video.thumbnail || "",
             channel_name: video.channel_name || video.channel || "",
@@ -180,34 +183,35 @@ export default function AddVideoScreen() {
                 <View style={{ width: 120, height: 80, backgroundColor: colors.black }}>
                   <Image source={{ uri: v.thumbnail_url || v.thumbnail }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
                 </View>
-                <View style={{ flex: 1, padding: spacing.sm, justifyContent: 'space-between' }}>
+                <View style={{ flex: 1, padding: spacing.sm, gap: 6 }}>
                   <Text style={{ fontSize: fontSize.sm, fontWeight: '700', color: colors.grey900 }} numberOfLines={2}>
                     {v.title}
                   </Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Text style={{ fontSize: fontSize.xs, color: colors.grey600 }} numberOfLines={1}>
-                      {v.channel_name || v.channel}
-                    </Text>
-                    <Pressable
-                      onPress={() => handleAdd(v)}
-                      disabled={adding === (v.youtube_id || v.video_id)}
-                      style={{
-                        backgroundColor: colors.primary,
-                        paddingHorizontal: spacing.sm + 4,
-                        paddingVertical: 4,
-                        borderRadius: radius.pill,
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        gap: 4,
-                      }}
-                    >
-                      {adding === (v.youtube_id || v.video_id) ? (
-                        <ActivityIndicator size="small" color={colors.white} />
-                      ) : (
-                        <>
-                          <Ionicons name="add" size={16} color={colors.white} />
-                          <Text style={{ color: colors.white, fontSize: fontSize.xs, fontWeight: '700' }}>
-                            إضافة
+                  <Text style={{ fontSize: fontSize.xs, color: colors.grey600 }} numberOfLines={1}>
+                    {v.channel_name || v.channel}
+                  </Text>
+                  <Pressable
+                    onPress={() => handleAdd(v)}
+                    disabled={adding === (v.youtube_id || v.video_id)}
+                    style={{
+                      backgroundColor: colors.primary,
+                      paddingHorizontal: spacing.sm + 4,
+                      paddingVertical: 6,
+                      borderRadius: radius.pill,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 4,
+                      alignSelf: 'flex-start',
+                    }}
+                  >
+                    {adding === (v.youtube_id || v.video_id) ? (
+                      <ActivityIndicator size="small" color={colors.white} />
+                    ) : (
+                      <>
+                        <Ionicons name="add" size={16} color={colors.white} />
+                        <Text style={{ color: colors.white, fontSize: fontSize.xs, fontWeight: '700' }}>
+                          إضافة
                           </Text>
                         </>
                       )}
