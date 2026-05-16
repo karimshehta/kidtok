@@ -7,6 +7,7 @@ import { Eye, EyeOff, CheckCircle2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { translateAuthError } from '@/lib/auth-errors'
 import AuthShell from '@/components/AuthShell'
+import OpenInAppBanner from '@/components/OpenInAppBanner'
 
 type FormData = { password: string; confirmPassword: string }
 
@@ -58,6 +59,7 @@ export default function ResetPassword() {
   if (errorState) {
     return (
       <AuthShell title={t('auth.resetInvalidTitle')} subtitle="">
+      <OpenInAppBanner />
         <p className="text-neutral-700 mb-6 text-center">{errorState}</p>
         <button onClick={() => navigate('/forgot-password')} className="btn-primary w-full">
           {t('auth.resetRequestNew')}

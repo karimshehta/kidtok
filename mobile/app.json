@@ -15,8 +15,17 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.kidtok.app",
+      "associatedDomains": [
+        "applinks:kidtok.vercel.app"
+      ],
       "infoPlist": {
-        "NSAppTransportSecurity": { "NSAllowsArbitraryLoads": true }
+        "NSAppTransportSecurity": { "NSAllowsArbitraryLoads": true },
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLName": "com.kidtok.app",
+            "CFBundleURLSchemes": ["kidtok"]
+          }
+        ]
       }
     },
     "android": {
@@ -24,7 +33,25 @@
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#03BBE5"
       },
-      "package": "com.kidtok.app"
+      "package": "com.kidtok.app",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            { "scheme": "https", "host": "kidtok.vercel.app", "pathPrefix": "/auth" },
+            { "scheme": "https", "host": "kidtok.vercel.app", "pathPrefix": "/reset-password" }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        },
+        {
+          "action": "VIEW",
+          "data": [
+            { "scheme": "kidtok" }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",

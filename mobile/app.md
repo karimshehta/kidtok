@@ -97,6 +97,23 @@ Functions, and database schema. The mobile-specific differences are:
 - [x] **First-launch popup** (Watch Ad / Login / Skip)
 - [x] Stored in AsyncStorage so it appears once
 
+### Deep Links / Universal Links
+- [x] **URI scheme** `kidtok://` configured
+- [x] **Android App Links** for `kidtok.vercel.app/auth/*` (autoVerify)
+- [x] **iOS Universal Links** with `associatedDomains: applinks:kidtok.vercel.app`
+- [x] **Auth Callback handler** (`app/auth/callback.tsx`) processes email
+  confirmation tokens and signs the user in inside the app
+- [x] **Reset Password handler** (`app/auth/reset-password.tsx`) sets new password
+- [x] `getAuthRedirectUrl()` helper picks dev (exp://) vs prod (universal link)
+- [x] **Web fallback banner** (`src/components/OpenInAppBanner.tsx`)
+  → shown on web auth pages if user is on mobile without the app
+  → buttons go to Play Store / App Store
+- [x] `public/.well-known/assetlinks.json` (Android App Links proof)
+- [x] `public/.well-known/apple-app-site-association` (iOS UL proof)
+- [x] `vercel.json` configured: excludes `.well-known/*` from SPA rewrites,
+  adds correct `application/json` Content-Type headers
+- [x] **Setup guide** in `docs/deep-links.md` (SHA fingerprint + Team ID steps)
+
 ---
 
 ## 🚧 Pending — Phase 1C

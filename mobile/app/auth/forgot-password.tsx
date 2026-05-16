@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons'
 import Toast from 'react-native-toast-message'
 
 import { supabase } from '@/lib/supabase'
+import { getAuthRedirectUrl } from '@/lib/links'
 import { colors, spacing, fontSize, radius } from '@/lib/theme'
 
 export default function ForgotPassword() {
@@ -19,7 +20,7 @@ export default function ForgotPassword() {
     setLoading(true)
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: 'kidtok://reset-password',
+        redirectTo: getAuthRedirectUrl('reset-password'),
       })
       if (error) throw error
       setSent(true)

@@ -1,0 +1,13 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["REPLACE_WITH_TEAM_ID.com.kidtok.app"],
+        "components": [
+          { "/": "/auth/*", "comment": "Email confirmation + reset password" },
+          { "/": "/reset-password*", "comment": "Password reset link from email" }
+        ]
+      }
+    ]
+  }
+}

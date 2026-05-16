@@ -8,6 +8,7 @@ import Toast from 'react-native-toast-message'
 
 import { colors, spacing, radius, fontSize } from '@/lib/theme'
 import { useAuth } from '@/stores/auth'
+import { getAuthRedirectUrl } from '@/lib/links'
 
 export default function Signup() {
   const { t } = useTranslation()
@@ -24,7 +25,7 @@ export default function Signup() {
     if (!name || !email || !password) return
     setLoading(true)
     try {
-      await signUp(email.trim(), password, name.trim())
+      await signUp(email.trim(), password, name.trim(), getAuthRedirectUrl('callback'))
       Toast.show({ type: 'success', text1: t('auth.signupSuccess') })
       router.replace('/(tabs)/feed')
     } catch (err) {
