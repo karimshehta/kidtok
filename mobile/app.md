@@ -246,6 +246,33 @@ when we move past Expo Go.
 
 ---
 
+
+## 🎨 Brand parity with Flutter app
+
+Verified against `KidTok-feature-localization/lib/core/theme/theme_colors.dart`:
+
+| Token | Flutter | Mobile (this app) | Match |
+|---|---|---|---|
+| `primary` | `#03BBE5` | `#03BBE5` | ✅ |
+| `primarySemiDark` | `#0F75CE` | `#0F75CE` | ✅ |
+| `primaryDark` | `#07375B` | `#07375B` | ✅ |
+| `primaryLight` | `#CCE6FA` | `#CCE6FA` | ✅ |
+| `secondary` (pink) | `#F96286` | `#F96286` | ✅ |
+| `complementary` (orange) | `#F78F1E` | `#F78F1E` | ✅ |
+| `gold` (for coins) | `#C6862B` | `#C6862B` | ✅ |
+| `success` | `#43A047` | `#43A047` | ✅ |
+| `error` | `#E44E35` | `#E44E35` | ✅ |
+| `warning` | `#FFB429` | `#FFB429` | ✅ |
+| Font | Cairo | Cairo (bundled .ttf) | ✅ |
+| App icon | `assets/images/logo.png` | Same file copied | ✅ |
+| Splash screen | Logo with `#03BBE5` bg | Same | ✅ |
+
+Hero gradient (used on landing + onboarding):
+```
+['#03BBE5', '#0F75CE', '#F96286']
+```
+Matches the Flutter `gradient` + `darkGradient` blends.
+
 ## 📊 Progress
 
 ```

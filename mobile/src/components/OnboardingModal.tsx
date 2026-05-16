@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Modal, View, Text, Pressable } from 'react-native'
+import { Modal, View, Text, Pressable, Image } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
@@ -7,7 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient'
 import { Ionicons } from '@expo/vector-icons'
 
 import { useAuth } from '@/stores/auth'
-import { colors, spacing, fontSize, radius } from '@/lib/theme'
+import { colors, spacing, fontSize, radius, gradients } from '@/lib/theme'
 
 const ONBOARDING_KEY = 'kidtok_onboarding_v1'
 
@@ -48,19 +48,14 @@ export default function OnboardingModal() {
           }}
         >
           <LinearGradient
-            colors={[colors.primary, '#0891b2', colors.secondary]}
+            colors={gradients.hero}
             style={{ paddingVertical: spacing.xl, paddingHorizontal: spacing.lg, alignItems: 'center' }}
           >
-            <View
-              style={{
-                width: 80, height: 80, borderRadius: 24,
-                backgroundColor: 'rgba(255,255,255,0.25)',
-                alignItems: 'center', justifyContent: 'center',
-                marginBottom: spacing.md,
-              }}
-            >
-              <Ionicons name="sparkles" size={40} color={colors.white} />
-            </View>
+            <Image
+              source={require('../../assets/images/logo.png')}
+              style={{ width: 80, height: 80, marginBottom: spacing.sm }}
+              resizeMode="contain"
+            />
             <Text style={{ color: colors.white, fontSize: fontSize['2xl'], fontWeight: '900' }}>
               {t('onboarding.welcome')}
             </Text>

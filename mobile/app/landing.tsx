@@ -1,11 +1,11 @@
-import { View, Text, Pressable, ScrollView, useColorScheme } from 'react-native'
+import { View, Text, Pressable, ScrollView, Image } from 'react-native'
 import { useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import { LinearGradient } from 'expo-linear-gradient'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 
-import { colors, spacing, radius, fontSize } from '@/lib/theme'
+import { colors, spacing, radius, fontSize, gradients } from '@/lib/theme'
 
 export default function Landing() {
   const { t } = useTranslation()
@@ -13,28 +13,19 @@ export default function Landing() {
 
   return (
     <LinearGradient
-      colors={[colors.primary, '#0891b2', colors.secondary]}
+      colors={gradients.hero}
       style={{ flex: 1 }}
     >
       <SafeAreaView style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={{ flexGrow: 1, padding: spacing.lg }}>
           {/* Logo + Hero */}
           <View style={{ alignItems: 'center', marginTop: spacing.xxl, marginBottom: spacing.xxl }}>
-            <View
-              style={{
-                width: 96, height: 96,
-                borderRadius: radius.xl,
-                backgroundColor: 'rgba(255,255,255,0.25)',
-                alignItems: 'center', justifyContent: 'center',
-                marginBottom: spacing.lg,
-              }}
-            >
-              <Ionicons name="play-circle" size={72} color={colors.white} />
-            </View>
-            <Text style={{ color: colors.white, fontSize: fontSize['4xl'], fontWeight: '900' }}>
-              {t('landing.title')}
-            </Text>
-            <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: fontSize.lg, textAlign: 'center', marginTop: spacing.sm }}>
+            <Image
+              source={require('../assets/images/logo.png')}
+              style={{ width: 140, height: 140, marginBottom: spacing.md }}
+              resizeMode="contain"
+            />
+            <Text style={{ color: colors.white, fontSize: fontSize.lg, textAlign: 'center', marginTop: spacing.sm, opacity: 0.9 }}>
               {t('landing.subtitle')}
             </Text>
           </View>
