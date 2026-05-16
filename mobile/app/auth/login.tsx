@@ -94,6 +94,13 @@ export default function Login() {
           )}
         </Pressable>
 
+        {/* Forgot password */}
+        <Link href="/auth/forgot-password" asChild>
+          <Pressable style={{ marginTop: spacing.md, alignItems: 'center' }}>
+            <Text style={{ color: colors.primary, fontWeight: '600' }}>{t('auth.forgotPassword')}</Text>
+          </Pressable>
+        </Link>
+
         {/* Bottom link */}
         <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: spacing.xl, gap: spacing.xs }}>
           <Text style={{ color: colors.grey600 }}>{t('auth.noAccount')}</Text>

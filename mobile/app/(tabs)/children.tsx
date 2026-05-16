@@ -1,6 +1,7 @@
 import { View, Text, ScrollView, Pressable, ActivityIndicator } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useTranslation } from 'react-i18next'
+import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useQuery } from '@tanstack/react-query'
 
@@ -18,6 +19,7 @@ interface Child {
 
 export default function ChildrenScreen() {
   const { t } = useTranslation()
+  const router = useRouter()
   const userId = useAuth((s) => s.user?.id)
 
   const { data: children = [], isLoading } = useQuery({
@@ -35,17 +37,19 @@ export default function ChildrenScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.white }}>
-      <ScrollView contentContainerStyle={{ padding: spacing.lg }}>
+      <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 100 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.lg }}>
           <Text style={{ fontSize: fontSize['2xl'], fontWeight: '900', color: colors.grey900 }}>
             {t('tabs.children')}
           </Text>
           <Pressable
-            style={{
+            onPress={() => router.push('/children/new')}
+            style={({ pressed }) => ({
               width: 44, height: 44, borderRadius: 22,
               backgroundColor: colors.primary,
               alignItems: 'center', justifyContent: 'center',
-            }}
+              opacity: pressed ? 0.85 : 1,
+            })}
           >
             <Ionicons name="add" size={26} color={colors.white} />
           </Pressable>
@@ -71,12 +75,25 @@ export default function ChildrenScreen() {
             <Text style={{ fontSize: fontSize.sm, color: colors.grey600, marginTop: spacing.xs, textAlign: 'center' }}>
               أضف طفلك الأول لتبدأ
             </Text>
+            <Pressable
+              onPress={() => router.push('/children/new')}
+              style={{
+                marginTop: spacing.lg,
+                backgroundColor: colors.primary,
+                paddingHorizontal: spacing.lg,
+                paddingVertical: spacing.sm + 4,
+                borderRadius: radius.pill,
+              }}
+            >
+              <Text style={{ color: colors.white, fontWeight: '700' }}>+ إضافة طفل</Text>
+            </Pressable>
           </View>
         ) : (
           <View style={{ gap: spacing.md }}>
             {children.map((child) => (
               <Pressable
                 key={child.id}
+                onPress={() => router.push(`/children/${child.id}`)}
                 style={({ pressed }) => ({
                   flexDirection: 'row',
                   alignItems: 'center',

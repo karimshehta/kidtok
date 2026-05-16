@@ -38,105 +38,93 @@ Functions, and database schema. The mobile-specific differences are:
 - [x] tsconfig with `@/*` alias
 
 ### Core libs
-- [x] **Supabase client** (`src/lib/supabase.ts`)
-  - Uses `AsyncStorage` for session persistence
-  - Reads `SUPABASE_URL` + `SUPABASE_ANON_KEY` from `app.json` extra
-  - Safe fallback so the app boots even when env is missing
-- [x] **i18n** (`src/lib/i18n.ts`)
-  - Arabic + English (RTL handled at I18nManager level)
-  - Persisted in AsyncStorage (`kidtok_lang_v1`)
-  - Auto-detects device language on first launch via `expo-localization`
-- [x] **Theme** (`src/lib/theme.ts`)
-  - Same brand colors as web: primary `#03BBE5`, secondary `#F96286`
-  - Shared spacing, radius, fontSize tokens
-- [x] **Auth store** (`src/stores/auth.ts`) using Zustand
-  - `signIn`, `signUp`, `signOut`, `init`
-  - Listens to `onAuthStateChange`
+- [x] **Supabase client** with AsyncStorage session persistence
+- [x] **i18n** (AR + EN, RTL via I18nManager)
+- [x] **Theme** matching the web brand
+- [x] **Auth store** (Zustand) with signIn / signUp / signOut
 
-### Screens implemented
-- [x] **Landing** (`app/landing.tsx`)
-  - Gradient hero (primary → cyan → secondary)
-  - 3 feature cards
-  - Get Started + I have an account CTAs
-- [x] **Login** (`app/auth/login.tsx`)
-  - Email + password fields with icons
-  - Show/hide password toggle
-  - Toast on success/error
-  - Link to signup
-- [x] **Signup** (`app/auth/signup.tsx`)
-  - Name + email + password
-  - Same toast feedback pattern
-  - Link to login
-- [x] **Feed** (`app/(tabs)/feed.tsx`)
-  - Vertical TikTok-style snap-scrolling FlatList
-  - YouTube iframe embed for `source='youtube'` videos
-  - Right-side action buttons (heart, comment, share, bookmark)
-  - Bottom gradient overlay with title + channel name
-  - Pull-to-refresh
-  - Empty state with refresh button
-- [x] **Search** (`app/(tabs)/search.tsx`)
-  - Search input UI
-  - Empty state (live search wiring is next)
-- [x] **Children** (`app/(tabs)/children.tsx`)
-  - List of children with avatar + age
-  - Empty state
-  - Add button in header
-  - Reads from `children` table via TanStack Query
-- [x] **Profile** (`app/(tabs)/profile.tsx`)
-  - Avatar + name + email header
-  - Subscription status card
-  - Coin balance card (`my_coin_balance` RPC)
-  - Language switcher
-  - Logout with confirm dialog
-
-### Navigation
-- [x] Bottom tab bar with 4 tabs (Feed, Search, Children, Profile)
-- [x] Tab icons (filled when focused, outline otherwise)
-- [x] Auth-guarded `(tabs)` group — redirects to landing when signed out
-- [x] Stack navigation for auth flow with slide animation
+### Screens (Phase 1A)
+- [x] **Landing** with gradient hero + features + CTAs
+- [x] **Login** / **Signup** with toast feedback
+- [x] **Bottom tabs**: Feed / Search / Children / Profile
+- [x] **Feed** TikTok-style vertical snap with YouTube iframes
+- [x] **Children list** with empty state + add button
+- [x] **Profile** with subscription + coin balance + language switcher
 
 ---
 
-## 🚧 Pending — Phase 1B (Feature parity)
+## ✅ Done (Phase 1B — Feature parity, current)
 
-### High priority — needed before public testing
-- [ ] **Forgot/Reset password** screens (mirror web `/forgot-password`)
+### Auth
+- [x] **Forgot password** screen (Supabase resetPasswordForEmail)
+- [x] **Email verification flow** (handled by Supabase)
+
+### Children
+- [x] **Add Child** screen with gender + name + age picker
+- [x] **Child Detail** screen with playlists list
+- [x] **Create Playlist** modal (in child detail)
+- [x] Action pills for Child Mode + Statistics (UI ready, full screens in P1C)
+
+### Playlists
+- [x] **Playlist Detail** screen with videos list
+- [x] Remove video from playlist
+- [x] **Add Video** screen with YouTube search
+- [x] Calls `youtube-search` Edge Function
+- [x] Upserts videos into DB + creates playlist_videos entry
+- [x] **Playlist Feed** (TikTok-style vertical player for the whole playlist)
+
+### Search
+- [x] Full YouTube search in Search tab
+- [x] Results rendered as thumbnails + title + channel
+- [x] Empty state with brand-themed UI
+
+### Subscription + Coin redemption
+- [x] **Subscription Plans** screen with TikTok-style gradient cards
+- [x] Coin balance card at top
+- [x] **Payment method selector** modal (card / wallet)
+- [x] **Wallet phone input** modal with +20 prefix normalization
+- [x] **Paymob WebView** in-app browser
+- [x] Detects success URL params + closes + shows success toast
+- [x] **Coin redemption** via `my_redeem_subscription_with_coins` RPC
+- [x] Disabled state when balance is insufficient
+
+### Profile
+- [x] **Profile Edit** screen (name, phone, bio)
+- [x] Avatar placeholder with camera badge (upload in P1C)
+- [x] Wired Profile → Subscription navigation
+
+### Onboarding
+- [x] **First-launch popup** (Watch Ad / Login / Skip)
+- [x] Stored in AsyncStorage so it appears once
+
+---
+
+## 🚧 Pending — Phase 1C
+
+### Higher priority
+- [ ] **Avatar upload** via `expo-image-picker` + Supabase Storage
 - [ ] **Google Sign-In** — Expo AuthSession + Supabase OAuth
-- [ ] **Add Child** modal/screen (form with name, age, gender, interests)
-- [ ] **Child Detail** screen with playlists list
-- [ ] **Playlist Detail** screen with videos list
-- [ ] **Playlist Feed** — vertical snap player for a specific playlist
-- [ ] **Add YouTube video to playlist** flow
-- [ ] **YouTube search** wired to `youtube-search` Edge Function
-- [ ] **Search results** (videos + creators tabs)
-- [ ] **Creator profile** screen (avatar, bio, stats, video grid)
-- [ ] **Subscription plans** screen with Paymob WebView flow
-- [ ] **Subscription management** screen
-- [ ] **Onboarding popup** on first launch (Watch ad / Login / Skip)
+- [ ] **Subscription management** screen (current sub, payment history, cancel)
 - [ ] **Rewarded ads** via AdMob (replaces web AdSense for coin rewards)
-- [ ] **Coin redemption** for subscription discount
-- [ ] **Profile edit** + avatar upload via `expo-image-picker`
+  - Note: requires EAS dev build, doesn't work in Expo Go
+  - For now, the Onboarding "Watch Ad" button is a placeholder
+- [ ] **Statistics** screen with charts (recharts equivalent → `react-native-svg`)
 - [ ] **Child Mode** kiosk (Android immersive, iOS status hidden)
-- [ ] **Statistics** screen with chart (need RN chart lib)
+- [ ] **App version check** + force-update screen on launch
 
 ### Medium priority
+- [ ] **Creator profile** screen (avatar, bio, stats, video grid)
 - [ ] **Social actions** wired up (like, dislike, comment, follow)
 - [ ] **Comments bottom sheet**
 - [ ] **Following feed tab**
-- [ ] **Creator upload** with `expo-image-picker` video + 30s trim
-  - Web uses FFmpeg.wasm. Mobile uses `react-native-compressor` (native)
-  - Same `/creator-upload-url` Edge Function works for both
+- [ ] **Creator upload** with `expo-image-picker` + native trim
 - [ ] **Push notifications** via `expo-notifications`
-  - Save token to `push_tokens` table (already in schema)
-- [ ] **App version check** on launch via `app-config` Edge Function
-  - Force-update screen if current version below `min_version`
-  - Maintenance mode screen if `maintenance_mode = true`
 
 ### Phase 2 (after public beta)
 - [ ] **Admin dashboard** (consider web-only)
 - [ ] **Creator analytics**
-- [ ] **Gift system** with in-app purchases (StoreKit / Google Play Billing)
-- [ ] **Deep links** for sharing videos
+- [ ] **Gift system** with IAP (StoreKit / Google Play Billing)
+- [ ] **Deep links** for sharing
 - [ ] **Apple Sign-In** (required for App Store)
 
 ---
@@ -246,21 +234,25 @@ Phase 1A — Foundation .................. ✅ 100%
   ├─ Profile + Coins ..................... ✅
   └─ i18n (AR/EN + RTL) .................. ✅
 
-Phase 1B — Feature parity .............. 🚧 0%
+Phase 1B — Feature parity .............. ✅ 75%
+  ├─ Forgot password ..................... ✅
+  ├─ Add Child screen .................... ✅
+  ├─ Child Detail + Playlists ............ ✅
+  ├─ Playlist Detail ..................... ✅
+  ├─ Playlist Feed (TikTok player) ....... ✅
+  ├─ YouTube search + Add to playlist .... ✅
+  ├─ Search tab (YouTube live) ........... ✅
+  ├─ Subscription plans .................. ✅
+  ├─ Paymob WebView (card + wallet) ...... ✅
+  ├─ Coin redemption ..................... ✅
+  ├─ Profile Edit ........................ ✅
+  ├─ Onboarding popup .................... ✅
   ├─ Google Sign-In ...................... ⏳
-  ├─ Forgot password ..................... ⏳
-  ├─ Add child + playlists ............... ⏳
-  ├─ YouTube add + search ................ ⏳
-  ├─ Subscription + Paymob ............... ⏳
-  ├─ Coin redemption ..................... ⏳
-  ├─ Rewarded ads (AdMob) ................ ⏳
-  ├─ Social actions ...................... ⏳
-  ├─ Creator upload ...................... ⏳
-  ├─ Profile edit + avatar ............... ⏳
-  ├─ Statistics .......................... ⏳
-  ├─ Child Mode .......................... ⏳
-  ├─ Push notifications .................. ⏳
-  └─ App version check + force update .... ⏳
+  ├─ Avatar upload ....................... ⏳
+  ├─ Statistics + chart .................. ⏳
+  ├─ Child Mode kiosk .................... ⏳
+  ├─ App version check ................... ⏳
+  └─ Rewarded ads (AdMob) ................ ⏳
 
 Phase 2 — Production hardening ......... ⏳ 0%
 ```

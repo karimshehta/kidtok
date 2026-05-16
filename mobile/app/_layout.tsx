@@ -10,6 +10,7 @@ import Toast from 'react-native-toast-message'
 import { initI18n } from '@/lib/i18n'
 import { useAuth } from '@/stores/auth'
 import { colors } from '@/lib/theme'
+import OnboardingModal from '@/components/OnboardingModal'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -52,6 +53,7 @@ export default function RootLayout() {
             <Stack.Screen name="auth/signup" />
             <Stack.Screen name="(tabs)" />
           </Stack>
+          <OnboardingModal />
           <Toast />
         </QueryClientProvider>
       </SafeAreaProvider>
