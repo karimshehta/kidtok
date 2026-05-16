@@ -13,11 +13,11 @@ export function useMyVideoInteraction(videoId: string) {
     queryFn: async (): Promise<VideoInteraction> => {
       const { data } = await supabase
         .from('video_interactions')
-        .select('interaction_type')
+        .select('type')
         .eq('video_id', videoId)
         .eq('user_id', userId)
         .maybeSingle()
-      return (data?.interaction_type as VideoInteraction) || null
+      return (data?.type as VideoInteraction) || null
     },
   })
 }
@@ -32,25 +32,25 @@ export function useToggleVideoInteraction() {
 
       const { data: existing } = await supabase
         .from('video_interactions')
-        .select('id, interaction_type')
+        .select('id, type')
         .eq('video_id', videoId)
         .eq('user_id', userId)
         .maybeSingle()
 
       if (existing) {
-        if (existing.interaction_type === type) {
+        if (existing.type === type) {
           // remove (toggle off)
           await supabase.from('video_interactions').delete().eq('id', existing.id)
           return null
         } else {
-          await supabase.from('video_interactions').update({ interaction_type: type }).eq('id', existing.id)
+          await supabase.from('video_interactions').update({ type }).eq('id', existing.id)
           return type
         }
       } else {
         await supabase.from('video_interactions').insert({
           user_id: userId,
           video_id: videoId,
-          interaction_type: type,
+          type,
         })
         return type
       }
@@ -72,7 +72,7 @@ export function useIsFollowing(creatorId: string) {
       const { data } = await supabase
         .from('creator_follows')
         .select('id')
-        .eq('creator_id', creatorId)
+        .eq('following_id', creatorId)
         .eq('follower_id', userId)
         .maybeSingle()
       return !!data
@@ -90,14 +90,14 @@ export function useToggleFollow() {
       const { data: existing } = await supabase
         .from('creator_follows')
         .select('id')
-        .eq('creator_id', creatorId)
+        .eq('following_id', creatorId)
         .eq('follower_id', userId)
         .maybeSingle()
       if (existing) {
         await supabase.from('creator_follows').delete().eq('id', existing.id)
         return false
       } else {
-        await supabase.from('creator_follows').insert({ creator_id: creatorId, follower_id: userId })
+        await supabase.from('creator_follows').insert({ following_id: creatorId, follower_id: userId })
         return true
       }
     },
@@ -116,7 +116,7 @@ export function useComments(videoId: string) {
     queryFn: async () => {
       const { data } = await supabase
         .from('video_comments')
-        .select('id, comment, created_at, profiles(name, avatar_url)')
+        .select('id, content, created_at, profiles(name, avatar_url)')
         .eq('video_id', videoId)
         .eq('is_deleted', false)
         .order('created_at', { ascending: false })
@@ -136,7 +136,7 @@ export function useAddComment() {
       const { error } = await supabase.from('video_comments').insert({
         video_id: videoId,
         user_id: userId,
-        comment,
+        content: comment,
       })
       if (error) throw error
     },

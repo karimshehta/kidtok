@@ -7,6 +7,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import Toast from 'react-native-toast-message'
 
 import { supabase } from '@/lib/supabase'
+import ChildAvatar from '@/components/ChildAvatar'
 import { colors, spacing, fontSize, radius } from '@/lib/theme'
 
 interface Playlist {
@@ -29,7 +30,11 @@ export default function ChildDetailScreen() {
   const { data: child } = useQuery({
     queryKey: ['child', id],
     queryFn: async () => {
-      const { data } = await supabase.from('children').select('*').eq('id', id).single()
+      const { data } = await supabase
+        .from('children')
+        .select('id, name, gender, image_url, age:ages(name_ar, name_en)')
+        .eq('id', id)
+        .single()
       return data
     },
   })
@@ -49,6 +54,7 @@ export default function ChildDetailScreen() {
       }))
     },
   })
+  const childAge = Array.isArray(child?.age) ? child.age[0] : child?.age
 
   const handleCreatePlaylist = async () => {
     if (!playlistName.trim()) return
@@ -76,26 +82,14 @@ export default function ChildDetailScreen() {
         <Pressable onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={28} color={colors.grey900} />
         </Pressable>
-        <View
-          style={{
-            width: 44, height: 44, borderRadius: 22,
-            backgroundColor: child?.gender === 'girl' ? `${colors.secondary}20` : `${colors.primary}20`,
-            alignItems: 'center', justifyContent: 'center',
-          }}
-        >
-          <Ionicons
-            name={child?.gender === 'girl' ? 'female' : 'male'}
-            size={22}
-            color={child?.gender === 'girl' ? colors.secondary : colors.primary}
-          />
-        </View>
+        <ChildAvatar name={child?.name || 'KidTok'} imageUrl={child?.image_url} gender={child?.gender} size="md" />
         <View style={{ flex: 1 }}>
           <Text style={{ fontSize: fontSize.lg, fontWeight: '900', color: colors.grey900 }}>
             {child?.name || '...'}
           </Text>
-          {child?.age && (
+          {childAge?.name_ar && (
             <Text style={{ fontSize: fontSize.sm, color: colors.grey600 }}>
-              {child.age} سنوات
+              {childAge.name_ar}
             </Text>
           )}
         </View>

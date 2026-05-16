@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "621987493887",
+    "project_id": "qtm-5be82",
+    "storage_bucket": "qtm-5be82.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:621987493887:android:bcae9b4998c796df55d9ca",
+        "android_client_info": {
+          "package_name": "com.kidtok.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDXxgEO40BnUXWMb_Vdb5E75C5C9hD9-Jk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:621987493887:android:5966d2ea4e12465055d9ca",
+        "android_client_info": {
+          "package_name": "qtm.quicktransfermoney"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDXxgEO40BnUXWMb_Vdb5E75C5C9hD9-Jk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

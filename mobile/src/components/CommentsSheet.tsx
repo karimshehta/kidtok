@@ -109,7 +109,7 @@ export default function CommentsSheet({
                           {profile?.name || 'مستخدم'}
                         </Text>
                         <Text style={{ fontSize: fontSize.sm, color: colors.grey900, marginTop: 2 }}>
-                          {item.comment}
+                          {(item as any).content}
                         </Text>
                       </View>
                     </View>

@@ -16,9 +16,20 @@ interface Plan {
   name_ar: string
   name_en: string
   description_ar: string | null
+  description_en: string | null
   price: number
+  old_price: number | null
+  currency: string | null
   duration_days: number
   plan_type: 'free' | 'paid'
+  max_children: number | null
+  max_playlists: number | null
+  max_videos_per_playlist: number | null
+  has_insights: boolean
+  has_ads: boolean
+  has_games: boolean
+  has_free_courses: boolean
+  daily_time_minutes: number | null
 }
 
 export default function SubscriptionScreen() {
@@ -279,6 +290,7 @@ function PlanCard({ plan, idx, coinBalance, onSubscribe, onRedeem }: {
   const isMonthly = plan.duration_days <= 31
   const coinsNeeded = isMonthly ? 100 : 200
   const canRedeem = coinBalance >= coinsNeeded
+  const features = getPlanFeatures(plan)
 
   return (
     <LinearGradient colors={gradient} style={{ borderRadius: radius.xl, padding: spacing.lg }}>
@@ -298,6 +310,19 @@ function PlanCard({ plan, idx, coinBalance, onSubscribe, onRedeem }: {
             ج.م / {isMonthly ? 'شهر' : 'سنة'}
           </Text>
         )}
+      </View>
+
+      <View style={{ gap: spacing.sm, marginTop: spacing.md }}>
+        {features.map((feature) => (
+          <View key={feature} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+            <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name="checkmark" size={16} color={colors.white} />
+            </View>
+            <Text style={{ flex: 1, color: colors.white, fontSize: fontSize.sm, fontWeight: '700' }}>
+              {feature}
+            </Text>
+          </View>
+        ))}
       </View>
 
       {!isFree && (
@@ -338,6 +363,20 @@ function PlanCard({ plan, idx, coinBalance, onSubscribe, onRedeem }: {
       )}
     </LinearGradient>
   )
+}
+
+function getPlanFeatures(plan: Plan): string[] {
+  const features: string[] = []
+  if (!plan.has_ads) features.push('بدون إعلانات')
+  if (plan.max_children) features.push(`${plan.max_children} طفل`)
+  if (plan.max_playlists) features.push(`${plan.max_playlists} قائمة تشغيل`)
+  if (plan.max_videos_per_playlist) features.push(`${plan.max_videos_per_playlist} فيديو لكل قائمة`)
+  if (plan.has_insights) features.push('تقارير ومتابعة المشاهدة')
+  if (plan.has_games) features.push('ألعاب تعليمية')
+  if (plan.has_free_courses) features.push('كورسات مجانية')
+  if (plan.daily_time_minutes) features.push(`${plan.daily_time_minutes} دقيقة يوميا`)
+  if (features.length === 0) features.push('مزايا KidTok الأساسية')
+  return features
 }
 
 function MethodOption({ icon, label, onPress, disabled }: { icon: any; label: string; onPress: () => void; disabled?: boolean }) {

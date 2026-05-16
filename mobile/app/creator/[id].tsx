@@ -38,12 +38,13 @@ export default function CreatorProfileScreen() {
       const { count: followers } = await supabase
         .from('creator_follows')
         .select('*', { count: 'exact', head: true })
-        .eq('creator_id', id)
+        .eq('following_id', id)
       // videos count + total likes
       const { data: videos } = await supabase
         .from('videos')
         .select('id, like_count')
-        .eq('uploaded_by', id)
+        .eq('creator_id', id)
+        .eq('source', 'creator')
         .eq('is_active', true)
       const videoCount = videos?.length || 0
       const totalLikes = (videos || []).reduce((a, v: any) => a + (v.like_count || 0), 0)
@@ -57,7 +58,8 @@ export default function CreatorProfileScreen() {
       const { data } = await supabase
         .from('videos')
         .select('id, title, thumbnail_url, like_count, view_count')
-        .eq('uploaded_by', id)
+        .eq('creator_id', id)
+        .eq('source', 'creator')
         .eq('is_active', true)
         .order('created_at', { ascending: false })
         .limit(30)

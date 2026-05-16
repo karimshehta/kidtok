@@ -1,5 +1,55 @@
 # KidTok Mobile App — Build Tracker
 
+## Update - 2026-05-16
+
+### Fixed in this pass
+- [x] Aligned Expo SDK 55 dependencies, including React Native 0.83.6, Reanimated 4.2.1, and the required `react-native-worklets` 0.7.4 package.
+- [x] Added missing `expo-screen-orientation` dependency used by Child Mode.
+- [x] Fixed Android EAS build blockers caused by missing Hermes/Reanimated dependencies.
+- [x] Updated the mobile Feed query to match the web Feed rule: active videos where `is_suggested = true` or `source = creator`.
+- [x] Removed the non-existent `cloudflare_uid` column from mobile `videos` selects.
+- [x] Fixed Following feed and creator follow logic to use `creator_follows.following_id`.
+- [x] Fixed likes/dislikes to use `video_interactions.type`.
+- [x] Fixed comments to use `video_comments.content`.
+- [x] Added Cloudflare Stream playback in the mobile Feed through `react-native-webview`.
+- [x] Fixed Creator Profile video/stat queries to use `videos.creator_id` and `source = creator`.
+- [x] Reworked mobile Feed playback to use full-screen WebView embeds for YouTube/Cloudflare instead of the half-height YouTube player.
+- [x] Added Feed -> Add to child playlist flow, matching the web modal: pick child, then pick playlist, then insert into `playlist_videos`.
+- [x] Fixed Add Child to use `children.age_id` with selectable rows from the `ages` lookup table instead of writing to a non-existent `age` column.
+- [x] Fixed Children tab to read `age:ages(name_ar, name_en)` and show the child's age label.
+- [x] Fixed Children tab to select `image_url` instead of the non-existent `avatar_url`, which made newly created children appear as an empty list.
+- [x] Made Add Child update the local React Query cache immediately after insert, then navigate back to the Children tab.
+- [x] Expanded subscription cards to show plan features such as children count, playlists, videos per playlist, insights, games, ads, courses, and daily time.
+- [x] Replaced the half-height YouTube player with a fullscreen WebView reel surface and KidTok poster fallback.
+- [x] Re-reviewed the web Feed and PlaylistFeed implementations and mirrored their fullscreen `youtube-nocookie` embed URLs on mobile WebView.
+- [x] Added the same web child avatar fallbacks to mobile using the web `boy_avatar.svg` and `girl_avatar.svg` rendered as native PNG assets.
+- [x] Added a mobile `ChildAvatar` component with the same priority as web: uploaded image, gender avatar, then deterministic gradient initial.
+- [x] Updated Children, Child Detail, and Feed Add-to-Playlist child rows to use the shared mobile avatar component.
+- [x] Added interests selection to Add Child, matching the web `ChildForm` flow and writing to `child_interests`.
+- [x] Migrated creator camera preview from deprecated `expo-av` to `expo-video` and removed `expo-av` from dependencies.
+- [x] Removed `react-native-youtube-iframe`; Feed and Playlist reels now use the same WebView iframe strategy as the web app.
+
+### Findings
+- The mobile app was showing empty Feed states because its query was older than the web schema and selected `cloudflare_uid`, which is not a column in `videos`.
+- Add Child was failing because the mobile screen inserted `age`, but the Supabase schema stores `age_id` linked to the `ages` table.
+- Created children did not appear because the Children list queried `children.avatar_url`; the current schema uses `children.image_url`.
+- The mobile Feed used a raw YouTube HTML embed inside WebView, which can trigger YouTube's "open in YouTube" restriction on native mobile WebViews.
+- YouTube can still show its own "Watch on YouTube" overlay for some videos/channels inside native WebView. The mobile app now blocks external YouTube navigation and keeps a fullscreen KidTok poster/overlay, but total removal of YouTube branding is not guaranteed unless the source is Cloudflare/creator video.
+- The web Children page includes edit/delete child actions in the card menu; mobile still needs that exact menu to be a full mirror.
+- The web Feed interleaves ad cards from the ad configuration; mobile still needs the AdMob equivalent once a dev build is used.
+- The mobile subscription screen was only showing price/description, while the web builds feature bullets from the subscription plan limits.
+- Some Arabic UI strings in the mobile source are mojibake, for example `ظ„ط§...`, so the app will not visually match the web until the strings are re-encoded or replaced from the web i18n file.
+- `expo-av` camera preview usage has been removed. If audio-only features are added later, use `expo-audio`.
+
+### Recommended before the next Expo/native build
+- [ ] Revoke the GitHub token that was pasted in chat and create a fresh one if needed.
+- [ ] Replace mojibake Arabic strings in mobile screens with proper Arabic strings from the web app.
+- [ ] Add the exact web Children card action menu on mobile: Child Mode, playlists, statistics, edit, delete.
+- [ ] Add mobile edit child support with age and interests, matching the web modal.
+- [ ] Add AdMob feed interleaving equivalent to the web AdSense feed cards after EAS dev build.
+- [ ] Run a real-device smoke test: login, Feed, Following, Creator profile, comments, likes, child list, playlist playback.
+- [ ] Confirm Cloudflare creator video thumbnails contain a Stream UID or expose a direct `cloudflare_uid`/embed URL through the DB/API.
+
 > **Goal:** A native iOS + Android mobile app that mirrors the KidTok web app
 > exactly (same backend, same features, same brand) using Expo + React Native.
 >
