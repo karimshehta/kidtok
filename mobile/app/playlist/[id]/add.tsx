@@ -177,26 +177,42 @@ export default function AddVideoScreen() {
                   backgroundColor: colors.grey50,
                   borderRadius: radius.lg,
                   overflow: 'hidden',
-                  borderWidth: 1, borderColor: colors.grey100,
+                  borderWidth: 1,
+                  borderColor: colors.grey100,
                 }}
               >
-                <View style={{ width: 120, height: 80, backgroundColor: colors.black }}>
-                  <Image source={{ uri: v.thumbnail_url || v.thumbnail }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                {/* Thumbnail */}
+                <View style={{ width: 120, height: 90, backgroundColor: colors.black }}>
+                  <Image
+                    source={{ uri: v.thumbnail_url || v.thumbnail }}
+                    style={{ width: '100%', height: '100%' }}
+                    resizeMode="cover"
+                  />
                 </View>
-                <View style={{ flex: 1, padding: spacing.sm, gap: 6 }}>
-                  <Text style={{ fontSize: fontSize.sm, fontWeight: '700', color: colors.grey900 }} numberOfLines={2}>
+
+                {/* Info + Add button */}
+                <View style={{ flex: 1, padding: spacing.sm, gap: 4, justifyContent: 'space-between' }}>
+                  <Text
+                    style={{ fontSize: fontSize.sm, fontWeight: '700', color: colors.grey900 }}
+                    numberOfLines={2}
+                  >
                     {v.title}
                   </Text>
-                  <Text style={{ fontSize: fontSize.xs, color: colors.grey600 }} numberOfLines={1}>
+
+                  <Text
+                    style={{ fontSize: fontSize.xs, color: colors.grey600 }}
+                    numberOfLines={1}
+                  >
                     {v.channel_name || v.channel}
                   </Text>
+
                   <Pressable
                     onPress={() => handleAdd(v)}
                     disabled={adding === (v.youtube_id || v.video_id)}
                     style={{
                       backgroundColor: colors.primary,
-                      paddingHorizontal: spacing.sm + 4,
-                      paddingVertical: 6,
+                      paddingHorizontal: spacing.sm,
+                      paddingVertical: 5,
                       borderRadius: radius.pill,
                       flexDirection: 'row',
                       alignItems: 'center',
@@ -209,14 +225,13 @@ export default function AddVideoScreen() {
                       <ActivityIndicator size="small" color={colors.white} />
                     ) : (
                       <>
-                        <Ionicons name="add" size={16} color={colors.white} />
-                        <Text style={{ color: colors.white, fontSize: fontSize.xs, fontWeight: '700' }}>
+                        <Ionicons name="add" size={14} color={colors.white} />
+                        <Text style={{ color: colors.white, fontSize: 12, fontWeight: '700' }}>
                           إضافة
-                          </Text>
-                        </>
-                      )}
-                    </Pressable>
-                  </View>
+                        </Text>
+                      </>
+                    )}
+                  </Pressable>
                 </View>
               </View>
             ))}
