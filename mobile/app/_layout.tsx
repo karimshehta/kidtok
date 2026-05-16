@@ -13,6 +13,7 @@ import { useAuth } from '@/stores/auth'
 import { colors } from '@/lib/theme'
 import OnboardingModal from '@/components/OnboardingModal'
 import { useAppVersionCheck } from '@/hooks/useAppVersionCheck'
+import { usePushNotifications } from '@/hooks/usePushNotifications'
 import { ForceUpdateScreen, MaintenanceScreen } from '@/components/SystemScreens'
 
 // Set Cairo as default font for ALL Text + TextInput components
@@ -39,6 +40,7 @@ const queryClient = new QueryClient({
 
 function AppShell() {
   const versionCheck = useAppVersionCheck()
+  usePushNotifications()
 
   if (!versionCheck.ready) {
     return (

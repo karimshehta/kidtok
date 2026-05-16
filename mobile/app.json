@@ -32,7 +32,8 @@
         ],
         "NSCameraUsageDescription": "\u064a\u0633\u062a\u062e\u062f\u0645 \u0627\u0644\u062a\u0637\u0628\u064a\u0642 \u0627\u0644\u0643\u0627\u0645\u064a\u0631\u0627 \u0644\u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u0641\u064a\u062f\u064a\u0648\u0647\u0627\u062a.",
         "NSMicrophoneUsageDescription": "\u064a\u0633\u062a\u062e\u062f\u0645 \u0627\u0644\u062a\u0637\u0628\u064a\u0642 \u0627\u0644\u0645\u064a\u0643\u0631\u0648\u0641\u0648\u0646 \u0644\u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u0635\u0648\u062a \u0645\u0639 \u0627\u0644\u0641\u064a\u062f\u064a\u0648.",
-        "NSPhotoLibraryAddUsageDescription": "\u064a\u062d\u062a\u0627\u062c \u0627\u0644\u062a\u0637\u0628\u064a\u0642 \u0625\u0644\u0649 \u0627\u0644\u0625\u0630\u0646 \u0644\u062d\u0641\u0638 \u0627\u0644\u0641\u064a\u062f\u064a\u0648\u0647\u0627\u062a."
+        "NSPhotoLibraryAddUsageDescription": "\u064a\u062d\u062a\u0627\u062c \u0627\u0644\u062a\u0637\u0628\u064a\u0642 \u0625\u0644\u0649 \u0627\u0644\u0625\u0630\u0646 \u0644\u062d\u0641\u0638 \u0627\u0644\u0641\u064a\u062f\u064a\u0648\u0647\u0627\u062a.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -78,7 +79,8 @@
       "permissions": [
         "CAMERA",
         "RECORD_AUDIO"
-      ]
+      ],
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -95,6 +97,15 @@
           "microphonePermission": "\u064a\u0633\u062a\u062e\u062f\u0645 \u0627\u0644\u062a\u0637\u0628\u064a\u0642 \u0627\u0644\u0645\u064a\u0643\u0631\u0648\u0641\u0648\u0646 \u0644\u062a\u0633\u062c\u064a\u0644 \u0627\u0644\u0635\u0648\u062a \u0645\u0639 \u0627\u0644\u0641\u064a\u062f\u064a\u0648.",
           "recordAudioAndroid": true
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#03BBE5",
+          "defaultChannel": "default",
+          "sounds": []
+        }
       ]
     ],
     "experiments": {
@@ -102,7 +113,12 @@
     },
     "extra": {
       "SUPABASE_URL": "https://ngjpmfldzoijtfyxopjw.supabase.co",
-      "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5nanBtZmxkem9panRmeXhvcGp3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg1MzQzNjMsImV4cCI6MjA5NDExMDM2M30.St75N5VZR-eeWi8HvhelcAY144c6u6yJdGdzCyt44gA"
-    }
+      "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5nanBtZmxkem9panRmeXhvcGp3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg1MzQzNjMsImV4cCI6MjA5NDExMDM2M30.St75N5VZR-eeWi8HvhelcAY144c6u6yJdGdzCyt44gA",
+      "eas": {
+        "projectId": "REPLACE_WITH_EAS_PROJECT_ID_AFTER_eas_init"
+      }
+    },
+    "owner": "karimshehta",
+    "runtimeVersion": "1.0.0"
   }
 }

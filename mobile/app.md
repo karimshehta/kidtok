@@ -254,6 +254,32 @@ when we move past Expo Go.
 ---
 
 
+
+### Push Notifications (NEW)
+- [x] **SDK upgraded to Expo SDK 55** (React 19, RN 0.81.4)
+- [x] **expo-notifications** + **expo-device** added
+- [x] `usePushNotifications` hook in src/hooks/
+  - Requests permission, gets Expo push token
+  - Calls `upsert_push_token` RPC with platform + language
+  - Handles tap-to-open with deep_link payload
+  - Re-runs when language changes so token stays in sync
+- [x] **Migration 20260515000002** creates:
+  - `push_tokens` table (user_id, expo_token, platform, language, etc.)
+  - `notification_history` table (with AR + EN title/body)
+  - RLS: users manage own tokens, admins see all + send
+- [x] **Edge Function `send-push`** receives admin requests, sends via
+  Expo Push API in batches of 100, picks AR or EN per recipient based
+  on their `language` column
+- [x] **Admin Web Page** at `/admin/notifications`:
+  - Bilingual compose (AR required, EN optional with fallback)
+  - 6 audience targets: All / Arabic / English / Subscribed / Free / Creators
+  - Stats cards: total devices, AR count, EN count
+  - History feed with status + sent count
+- [x] **EAS config** (`eas.json`) with development/preview/production profiles
+- [x] **Notifications plugin** in app.json with icon + channel
+- [x] **App.json updated** for SDK 55, with notification + camera plugins
+- [x] **Setup guide** in `docs/push-notifications-setup.md`
+
 ## 🎨 Brand parity with Flutter app
 
 Verified against `KidTok-feature-localization/lib/core/theme/theme_colors.dart`:

@@ -468,6 +468,7 @@ const ar = {
       reports: 'البلاغات',
       appVersion: 'إصدار التطبيق',
       security: 'الأمان والسجل',
+      notifications: 'الإشعارات',
       backToApp: 'العودة للتطبيق',
     },
     dashboard: {
@@ -1049,6 +1050,7 @@ const en: typeof ar = {
       reports: 'Reports',
       appVersion: 'App Version',
       security: 'Security & Audit',
+      notifications: 'Notifications',
       backToApp: 'Back to app',
     },
     dashboard: {
