@@ -107,13 +107,13 @@ export default function ChildDetailScreen() {
           icon="play-circle"
           label="وضع الطفل"
           color={colors.primary}
-          onPress={() => Toast.show({ type: 'info', text1: 'وضع الطفل - قريباً' })}
+          onPress={() => router.push(`/children/${id}/kid-mode`)}
         />
         <ActionPill
           icon="stats-chart"
           label="إحصائيات"
           color={colors.secondary}
-          onPress={() => Toast.show({ type: 'info', text1: 'الإحصائيات - قريباً' })}
+          onPress={() => router.push(`/children/${id}/statistics`)}
         />
       </View>
 

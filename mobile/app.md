@@ -116,26 +116,33 @@ Functions, and database schema. The mobile-specific differences are:
 
 ---
 
-## 🚧 Pending — Phase 1C
+### Phase 1C — Native features
+- [x] **Avatar upload** with `expo-image-picker` + Supabase Storage
+- [x] **Subscription Management** screen (active sub card, days left bar, history, cancel)
+- [x] **Statistics** screen with 7-day bar chart + top videos + summary cards
+- [x] **Child Mode kiosk** (gradient UI, daily time remaining, password-locked exit)
+- [x] **App version check** on launch via `app-config` Edge Function
+- [x] **Force-update screen** if below min_version
+- [x] **Maintenance mode screen** if maintenance_mode = true
+- [x] **Social actions on Feed**: like / dislike with toggle, optimistic UI
+- [x] **Comments bottom sheet** (list + input + send via `useAddComment`)
+- [x] **For You / Following tabs** on Feed
+- [x] **Creator Profile** screen (TikTok-style: gradient hero, stats, 3-col grid, Follow button)
+- [x] **Following Feed** (filters videos by uploaded_by IN (followed creator ids))
 
-### Higher priority
-- [ ] **Avatar upload** via `expo-image-picker` + Supabase Storage
-- [ ] **Google Sign-In** — Expo AuthSession + Supabase OAuth
-- [ ] **Subscription management** screen (current sub, payment history, cancel)
-- [ ] **Rewarded ads** via AdMob (replaces web AdSense for coin rewards)
-  - Note: requires EAS dev build, doesn't work in Expo Go
-  - For now, the Onboarding "Watch Ad" button is a placeholder
-- [ ] **Statistics** screen with charts (recharts equivalent → `react-native-svg`)
-- [ ] **Child Mode** kiosk (Android immersive, iOS status hidden)
-- [ ] **App version check** + force-update screen on launch
+## 🚧 Pending — Phase 1D / 2
 
-### Medium priority
-- [ ] **Creator profile** screen (avatar, bio, stats, video grid)
-- [ ] **Social actions** wired up (like, dislike, comment, follow)
-- [ ] **Comments bottom sheet**
-- [ ] **Following feed tab**
-- [ ] **Creator upload** with `expo-image-picker` + native trim
+### Needs EAS dev build (won't work in Expo Go)
+- [ ] **Rewarded ads** via AdMob (currently shows the onboarding "Watch Ad" button as placeholder)
+- [ ] **Google Sign-In** — Expo AuthSession + Supabase OAuth (requires dev build)
 - [ ] **Push notifications** via `expo-notifications`
+- [ ] **Creator upload** with `react-native-compressor` (native video trim)
+
+### Phase 2 (post-launch)
+- [ ] **Gift system** with IAP (StoreKit / Google Play Billing)
+- [ ] **Deep link to specific video** (e.g. kidtok://video/xxx)
+- [ ] **Offline mode** for downloaded playlists
+- [ ] **Apple Sign-In** (required for App Store submission)
 
 ### Phase 2 (after public beta)
 - [ ] **Admin dashboard** (consider web-only)
@@ -243,35 +250,25 @@ when we move past Expo Go.
 
 ```
 Phase 1A — Foundation .................. ✅ 100%
-  ├─ Project setup ....................... ✅
-  ├─ Auth (email + password) ............. ✅
-  ├─ Bottom tabs ......................... ✅
-  ├─ Feed (read-only) .................... ✅
-  ├─ Children list ....................... ✅
-  ├─ Profile + Coins ..................... ✅
-  └─ i18n (AR/EN + RTL) .................. ✅
+Phase 1B — Feature parity .............. ✅ 100%
+  └─ All web features mirrored
 
-Phase 1B — Feature parity .............. ✅ 75%
-  ├─ Forgot password ..................... ✅
-  ├─ Add Child screen .................... ✅
-  ├─ Child Detail + Playlists ............ ✅
-  ├─ Playlist Detail ..................... ✅
-  ├─ Playlist Feed (TikTok player) ....... ✅
-  ├─ YouTube search + Add to playlist .... ✅
-  ├─ Search tab (YouTube live) ........... ✅
-  ├─ Subscription plans .................. ✅
-  ├─ Paymob WebView (card + wallet) ...... ✅
-  ├─ Coin redemption ..................... ✅
-  ├─ Profile Edit ........................ ✅
-  ├─ Onboarding popup .................... ✅
-  ├─ Google Sign-In ...................... ⏳
-  ├─ Avatar upload ....................... ⏳
-  ├─ Statistics + chart .................. ⏳
-  ├─ Child Mode kiosk .................... ⏳
-  ├─ App version check ................... ⏳
-  └─ Rewarded ads (AdMob) ................ ⏳
+Phase 1C — Native features ............. ✅ 90%
+  ├─ Avatar upload ....................... ✅
+  ├─ Subscription management ............. ✅
+  ├─ Statistics + chart .................. ✅
+  ├─ Child Mode kiosk .................... ✅
+  ├─ App version check + force update .... ✅
+  ├─ Social actions (like/dislike) ....... ✅
+  ├─ Comments bottom sheet ............... ✅
+  ├─ Following feed tab .................. ✅
+  ├─ Creator profile ..................... ✅
+  ├─ Deep Links / Universal Links ........ ✅
+  ├─ Rewarded ads (AdMob) ................ ⏳ (needs EAS build)
+  ├─ Google Sign-In ...................... ⏳ (needs EAS build)
+  └─ Push notifications .................. ⏳ (needs EAS build)
 
-Phase 2 — Production hardening ......... ⏳ 0%
+Phase 2 — Production ................... ⏳ 0%
 ```
 
 ---

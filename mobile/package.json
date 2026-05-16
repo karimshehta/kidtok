@@ -39,7 +39,9 @@
     "react-native-url-polyfill": "^2.0.0",
     "react-native-webview": "13.8.6",
     "react-native-youtube-iframe": "^2.3.0",
-    "zustand": "^4.5.5"
+    "zustand": "^4.5.5",
+    "expo-image-picker": "~15.0.7",
+    "expo-haptics": "~13.0.1"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",

@@ -134,7 +134,12 @@ export default function ProfileScreen() {
 
         {/* Menu items */}
         <View style={{ gap: spacing.xs }}>
-          <MenuItem icon="diamond-outline" label={t('profile.subscription')} onPress={() => router.push('/subscription')} />
+          <MenuItem
+            icon="diamond-outline"
+            label={t('profile.subscription')}
+            value={mySub ? t('profile.active') : t('profile.free')}
+            onPress={() => router.push(mySub ? '/subscription/manage' : '/subscription')}
+          />
           <MenuItem icon="person-outline" label={t('profile.editProfile')} onPress={() => router.push('/profile/edit')} />
           <MenuItem
             icon="language-outline"
