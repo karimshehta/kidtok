@@ -140,7 +140,7 @@ export default function FeedScreen() {
             <Ionicons name={muted ? 'volume-mute' : 'volume-high'} size={20} color={colors.white} />
           </Pressable>
         </View>
-      </View>
+      </Animated.View>
 
       {isLoading ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
