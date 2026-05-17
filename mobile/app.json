@@ -108,8 +108,7 @@
           "defaultChannel": "default",
           "sounds": []
         }
-      ],
-      "expo-auth-session"
+      ]
     ],
     "experiments": {
       "typedRoutes": true
