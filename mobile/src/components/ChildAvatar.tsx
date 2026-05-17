@@ -61,7 +61,7 @@ export default function ChildAvatar({ name, imageUrl, gender, size = 'md' }: Pro
           overflow: 'hidden',
         }}
       >
-        <Image source={source} style={{ width: '86%', height: '86%' }} resizeMode="contain" />
+        <Image source={source} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
       </View>
     )
   }

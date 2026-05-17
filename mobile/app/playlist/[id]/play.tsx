@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   View, Text, Dimensions, FlatList, Pressable, ActivityIndicator, Image,
 } from 'react-native'
@@ -14,6 +14,7 @@ import { getYouTubeThumbnail } from '@/lib/youtube'
 import { colors, spacing, fontSize } from '@/lib/theme'
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window')
+const KIDTOK_ORIGIN = 'https://kidtok.vercel.app'
 
 interface FeedItem {
   id: string
@@ -119,20 +120,31 @@ function PlaylistReelVideo({
   muted: boolean
   poster: string
 }) {
+  const webViewRef = useRef<any>(null)
+
+  const syncYouTubeAudio = () => {
+    webViewRef.current?.injectJavaScript(getYouTubeAudioCommand(muted))
+  }
+
+  useEffect(() => {
+    if (isActive) syncYouTubeAudio()
+  }, [muted, isActive])
+
   return (
     <View style={{ flex: 1, backgroundColor: colors.black, overflow: 'hidden' }}>
       <Image
         source={{ uri: poster }}
-        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: isActive ? 0.35 : 1 }}
+        style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, width: '100%', height: '100%', opacity: isActive ? 0.35 : 1 }}
         resizeMode="cover"
         blurRadius={isActive ? 18 : 0}
       />
       {isActive ? (
         <WebView
+          ref={webViewRef}
           originWhitelist={['*']}
-          source={{ html: getYouTubeEmbedHtml(videoId, muted) }}
+          source={{ html: getYouTubeEmbedHtml(videoId), baseUrl: KIDTOK_ORIGIN }}
           style={{ flex: 1, backgroundColor: 'transparent' }}
-          containerStyle={{ position: 'absolute', inset: 0, backgroundColor: 'transparent' }}
+          containerStyle={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'transparent' }}
           allowsInlineMediaPlayback
           allowsFullscreenVideo={false}
           mediaPlaybackRequiresUserAction={false}
@@ -140,13 +152,18 @@ function PlaylistReelVideo({
           domStorageEnabled
           scrollEnabled={false}
           setSupportMultipleWindows={false}
+          androidLayerType="hardware"
+          cacheEnabled
+          thirdPartyCookiesEnabled
+          userAgent="Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+          onLoadEnd={syncYouTubeAudio}
           onShouldStartLoadWithRequest={(request) => {
             const url = request.url.toLowerCase()
             return !url.includes('/watch') && !url.includes('youtube.com/redirect')
           }}
         />
       ) : (
-        <View style={{ position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center' }}>
+        <View style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center' }}>
           <View style={{ width: 70, height: 70, borderRadius: 35, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' }}>
             <Ionicons name="play" size={34} color={colors.white} style={{ marginLeft: 4 }} />
           </View>
@@ -156,8 +173,26 @@ function PlaylistReelVideo({
   )
 }
 
-function getYouTubeEmbedHtml(videoId: string, muted: boolean) {
-  const src = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&mute=${muted ? 1 : 0}&controls=0&modestbranding=1&playsinline=1&rel=0&loop=1&playlist=${videoId}`
+function getYouTubeAudioCommand(muted: boolean) {
+  const command = muted ? 'mute' : 'unMute'
+  return `
+(function(){
+  function sendAudioCommand(){
+    var player = document.getElementById('kidtok-player');
+    if (player && player.contentWindow) {
+      player.contentWindow.postMessage(JSON.stringify({event:'command',func:'${command}',args:[]}), '*');
+    }
+  }
+  sendAudioCommand();
+  setTimeout(sendAudioCommand, 250);
+  setTimeout(sendAudioCommand, 800);
+})();
+true;
+`
+}
+
+function getYouTubeEmbedHtml(videoId: string) {
+  const src = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&mute=1&controls=0&modestbranding=1&playsinline=1&rel=0&loop=1&playlist=${videoId}&enablejsapi=1&origin=${encodeURIComponent(KIDTOK_ORIGIN)}`
   return `<!doctype html>
 <html>
 <head>
@@ -168,7 +203,7 @@ iframe{position:absolute;left:50%;top:50%;width:177.78vh;height:100vh;min-width:
 </style>
 </head>
 <body>
-<iframe src="${src}" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>
+<iframe id="kidtok-player" src="${src}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="origin-when-cross-origin" allowfullscreen></iframe>
 </body>
 </html>`
 }

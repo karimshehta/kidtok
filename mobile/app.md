@@ -1,5 +1,25 @@
 # KidTok Mobile App — Build Tracker
 
+## Update - 2026-05-17
+
+### Fixed in this pass
+- [x] Kept the YouTube WebView HTML stable when toggling sound in Feed, then used the YouTube iframe API to mute/unmute without reloading the video.
+- [x] Applied the same no-reload mute/unmute behavior to Playlist Feed playback.
+- [x] Rebuilt Add Child age selection as a dropdown backed by the `ages` lookup table.
+- [x] Rebuilt Add Child interests as an expandable picker with image tiles, selected checkmarks, and local image fallbacks that match the Flutter-style visual treatment.
+- [x] Replaced the mojibake Arabic labels/toasts on Add Child with proper Arabic/English labels.
+- [x] Fixed the bundled boy/girl avatar PNGs so the avatar artwork is centered instead of stuck in the corner.
+
+### Findings
+- The previous sound toggle changed the iframe URL (`mute=0/1`), so the WebView treated it as a new video page and restarted playback from the beginning.
+- Some video slowness can still come from YouTube inside native WebView or network conditions, but the app no longer causes a reload when the user taps the sound button.
+- Add Child was reading labels from the backend, but the mobile UI also had hardcoded Arabic mojibake. The new screen guards against corrupted labels and falls back to clean labels.
+
+### Recommended next
+- [ ] Replace the remaining mojibake Arabic strings across Feed, Children, Playlist, Subscription, and modals with the web i18n text.
+- [ ] Add real `interests.image_url` values in Supabase for exact production interest artwork; mobile now has bundled fallbacks when the backend image is empty.
+- [ ] Consider preloading the next reel WebView if YouTube playback still feels slower than web on the same network/device.
+
 ## Update - 2026-05-16
 
 ### Fixed in this pass
@@ -26,20 +46,21 @@
 - [x] Added a mobile `ChildAvatar` component with the same priority as web: uploaded image, gender avatar, then deterministic gradient initial.
 - [x] Updated Children, Child Detail, and Feed Add-to-Playlist child rows to use the shared mobile avatar component.
 - [x] Added interests selection to Add Child, matching the web `ChildForm` flow and writing to `child_interests`.
-- [x] Migrated creator camera preview from deprecated `expo-av` to `expo-video` and removed `expo-av` from dependencies.
+- [x] Restored creator camera preview to `expo-av` so `npx expo start` / Expo Go works without an EAS dev build.
 - [x] Removed `react-native-youtube-iframe`; Feed and Playlist reels now use the same WebView iframe strategy as the web app.
+- [x] Added a real KidTok origin/base URL to mobile YouTube WebViews to avoid YouTube iframe API origin/referrer failures in native WebView.
 
 ### Findings
 - The mobile app was showing empty Feed states because its query was older than the web schema and selected `cloudflare_uid`, which is not a column in `videos`.
 - Add Child was failing because the mobile screen inserted `age`, but the Supabase schema stores `age_id` linked to the `ages` table.
 - Created children did not appear because the Children list queried `children.avatar_url`; the current schema uses `children.image_url`.
-- The mobile Feed used a raw YouTube HTML embed inside WebView, which can trigger YouTube's "open in YouTube" restriction on native mobile WebViews.
-- YouTube can still show its own "Watch on YouTube" overlay for some videos/channels inside native WebView. The mobile app now blocks external YouTube navigation and keeps a fullscreen KidTok poster/overlay, but total removal of YouTube branding is not guaranteed unless the source is Cloudflare/creator video.
+- The mobile Feed used a raw YouTube HTML embed without a real page origin, which can trigger YouTube iframe error 153 or a "Watch on YouTube" overlay inside native WebView.
+- The mobile YouTube embeds now load with `https://kidtok.vercel.app` as their base origin and pass the same origin into the iframe URL. Some YouTube-owned branding may still appear for restricted videos, but the app no longer offers an outbound YouTube fallback.
 - The web Children page includes edit/delete child actions in the card menu; mobile still needs that exact menu to be a full mirror.
 - The web Feed interleaves ad cards from the ad configuration; mobile still needs the AdMob equivalent once a dev build is used.
 - The mobile subscription screen was only showing price/description, while the web builds feature bullets from the subscription plan limits.
 - Some Arabic UI strings in the mobile source are mojibake, for example `ظ„ط§...`, so the app will not visually match the web until the strings are re-encoded or replaced from the web i18n file.
-- `expo-av` camera preview usage has been removed. If audio-only features are added later, use `expo-audio`.
+- `expo-video` was removed because it crashes in Expo Go unless a new dev/native build contains the `ExpoVideo` native module. The `expo-av` deprecation warning is acceptable for the current no-build `expo start` workflow.
 
 ### Recommended before the next Expo/native build
 - [ ] Revoke the GitHub token that was pasted in chat and create a fresh one if needed.
@@ -70,7 +91,7 @@ Functions, and database schema. The mobile-specific differences are:
 | Google AdSense rewarded ads | Google AdMob rewarded ads (Expo plugin) |
 | `window.location.href` redirect | `expo-web-browser` in-app browser |
 | `localStorage` | `AsyncStorage` |
-| `<video>` / YouTube iframe | `react-native-youtube-iframe` + `expo-av` |
+| `<video>` / YouTube iframe | `react-native-webview` reels + `expo-av` preview |
 | File input + FFmpeg.wasm | `expo-image-picker` + `react-native-compressor` |
 | `requestFullscreen()` | Android: immersive system bars / iOS: status bar hidden |
 | Browser push (web push) | `expo-notifications` |

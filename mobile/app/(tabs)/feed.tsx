@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   View,
   Text,
@@ -29,6 +29,7 @@ import { getYouTubeThumbnail } from '@/lib/youtube'
 import { colors, spacing, fontSize, radius } from '@/lib/theme'
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window')
+const KIDTOK_ORIGIN = 'https://kidtok.vercel.app'
 
 type FeedTab = 'foryou' | 'following'
 
@@ -259,14 +260,15 @@ function VideoItem({
         <ReelWebVideo
           isActive={isActive}
           poster={poster}
-          html={getYouTubeEmbedHtml(video.youtube_id, muted)}
-          videoId={video.youtube_id}
+          html={getYouTubeEmbedHtml(video.youtube_id)}
+          muted={muted}
         />
       ) : cloudflareUid ? (
         <ReelWebVideo
           isActive={isActive}
           poster={poster}
           uri={`https://iframe.cloudflarestream.com/${cloudflareUid}?autoplay=true&muted=${muted ? 'true' : 'false'}&controls=false&loop=true`}
+          muted={muted}
         />
       ) : (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
@@ -315,32 +317,24 @@ function ReelWebVideo({
   poster,
   html,
   uri,
-  videoId,
+  muted,
 }: {
   isActive: boolean
   poster: string | null
   html?: string
   uri?: string
-  videoId?: string
+  muted: boolean
 }) {
-  const [hasError, setHasError] = useState(false)
+  const webViewRef = useRef<any>(null)
 
-  const openInYouTube = () => {
-    if (videoId) {
-      const { Linking } = require('react-native')
-      Linking.openURL(`https://www.youtube.com/watch?v=${videoId}`)
-    }
+  const syncYouTubeAudio = () => {
+    if (!html) return
+    webViewRef.current?.injectJavaScript(getYouTubeAudioCommand(muted))
   }
 
-  const handleMessage = (event: any) => {
-    try {
-      const data = JSON.parse(event.nativeEvent.data)
-      // YouTube IFrame API error codes: 2=bad param, 5=HTML5 error, 100=not found, 101/150=embed not allowed
-      if (data.type === 'yt_error' || data.type === 'error') {
-        setHasError(true)
-      }
-    } catch {}
-  }
+  useEffect(() => {
+    if (isActive && html) syncYouTubeAudio()
+  }, [muted, isActive, html])
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.black, overflow: 'hidden' }}>
@@ -348,42 +342,20 @@ function ReelWebVideo({
       {poster && (
         <Image
           source={{ uri: poster }}
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: isActive && !hasError ? 0.35 : 1 }}
+          style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, width: '100%', height: '100%', opacity: isActive ? 0.35 : 1 }}
           resizeMode="cover"
-          blurRadius={isActive && !hasError ? 18 : 0}
+          blurRadius={isActive ? 18 : 0}
         />
       )}
 
-      {/* Video error fallback */}
-      {isActive && hasError ? (
-        <View style={{ position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-          <Pressable
-            onPress={openInYouTube}
-            style={{
-              backgroundColor: '#FF0000',
-              paddingHorizontal: 24, paddingVertical: 14,
-              borderRadius: 999,
-              flexDirection: 'row', alignItems: 'center', gap: 10,
-            }}
-          >
-            <Ionicons name="logo-youtube" size={26} color="#fff" />
-            <Text style={{ color: '#fff', fontWeight: '800', fontSize: 16 }}>
-              شاهد على YouTube
-            </Text>
-          </Pressable>
-          <Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 12, marginTop: 12, textAlign: 'center' }}>
-            هذا الفيديو لا يدعم التشغيل المضمّن
-          </Text>
-        </View>
-      ) : null}
-
       {/* WebView player */}
-      {isActive && !hasError && (html || uri) ? (
+      {isActive && (html || uri) ? (
         <WebView
+          ref={webViewRef}
           originWhitelist={['*']}
-          source={html ? { html } : { uri: uri! }}
+          source={html ? { html, baseUrl: KIDTOK_ORIGIN } : { uri: uri! }}
           style={{ flex: 1, backgroundColor: 'transparent' }}
-          containerStyle={{ position: 'absolute', inset: 0, backgroundColor: 'transparent' }}
+          containerStyle={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'transparent' }}
           allowsInlineMediaPlayback
           allowsFullscreenVideo={false}
           mediaPlaybackRequiresUserAction={false}
@@ -391,10 +363,11 @@ function ReelWebVideo({
           domStorageEnabled
           scrollEnabled={false}
           setSupportMultipleWindows={false}
+          androidLayerType="hardware"
           cacheEnabled
           thirdPartyCookiesEnabled
           userAgent="Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
-          onMessage={handleMessage}
+          onLoadEnd={syncYouTubeAudio}
           onShouldStartLoadWithRequest={(request) => {
             const url = request.url.toLowerCase()
             if (url.includes('youtube.com/watch') || url.includes('youtube.com/redirect')) {
@@ -404,7 +377,7 @@ function ReelWebVideo({
           }}
         />
       ) : !isActive ? (
-        <View style={{ position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center' }}>
+        <View style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center' }}>
           <View style={{ width: 78, height: 78, borderRadius: 39, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' }}>
             <Ionicons name="play" size={38} color={colors.white} style={{ marginLeft: 4 }} />
           </View>
@@ -414,9 +387,26 @@ function ReelWebVideo({
   )
 }
 
-function getYouTubeEmbedHtml(videoId: string, muted: boolean) {
-  // Use YouTube IFrame API so we can catch Error 153 and other errors
-  // and communicate them back to React Native via postMessage
+function getYouTubeAudioCommand(muted: boolean) {
+  const command = muted ? 'mute' : 'unMute'
+  return `
+(function(){
+  function sendAudioCommand(){
+    var player = document.getElementById('kidtok-player');
+    if (player && player.contentWindow) {
+      player.contentWindow.postMessage(JSON.stringify({event:'command',func:'${command}',args:[]}), '*');
+    }
+  }
+  sendAudioCommand();
+  setTimeout(sendAudioCommand, 250);
+  setTimeout(sendAudioCommand, 800);
+})();
+true;
+`
+}
+
+function getYouTubeEmbedHtml(videoId: string) {
+  const src = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&mute=1&controls=0&modestbranding=1&playsinline=1&rel=0&loop=1&playlist=${videoId}&enablejsapi=1&origin=${encodeURIComponent(KIDTOK_ORIGIN)}`
   return `<!doctype html>
 <html>
 <head>
@@ -424,43 +414,11 @@ function getYouTubeEmbedHtml(videoId: string, muted: boolean) {
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{width:100%;height:100%;background:#000;overflow:hidden}
-#player{position:absolute;left:50%;top:50%;width:177.78vh;height:100vh;min-width:100vw;min-height:56.25vw;transform:translate(-50%,-50%)}
+iframe{position:absolute;left:50%;top:50%;width:177.78vh;height:100vh;min-width:100vw;min-height:56.25vw;transform:translate(-50%,-50%);border:0}
 </style>
 </head>
 <body>
-<div id="player"></div>
-<script>
-  var tag = document.createElement('script');
-  tag.src = 'https://www.youtube.com/iframe_api';
-  document.head.appendChild(tag);
-
-  function onYouTubeIframeAPIReady() {
-    new YT.Player('player', {
-      videoId: '${videoId}',
-      playerVars: {
-        autoplay: 1,
-        mute: ${muted ? 1 : 0},
-        controls: 0,
-        playsinline: 1,
-        rel: 0,
-        loop: 1,
-        playlist: '${videoId}',
-        modestbranding: 1,
-        iv_load_policy: 3,
-        fs: 0
-      },
-      events: {
-        onReady: function(e) { e.target.playVideo(); },
-        onError: function(e) {
-          // Error codes: 2=bad param, 5=html5 error, 100=not found, 101/150=embed not allowed
-          if (window.ReactNativeWebView) {
-            window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'yt_error', code: e.data }));
-          }
-        }
-      }
-    });
-  }
-</script>
+<iframe id="kidtok-player" src="${src}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="origin-when-cross-origin" allowfullscreen></iframe>
 </body>
 </html>`
 }

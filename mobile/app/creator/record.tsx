@@ -6,19 +6,7 @@ import { useRouter } from 'expo-router'
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera'
 import { Ionicons } from '@expo/vector-icons'
 import { LinearGradient } from 'expo-linear-gradient'
-// expo-video is a native module — safe-load so it doesn't crash Expo Go
-// In a dev/production build it loads normally and VideoView works.
-// In Expo Go it silently fails and the preview shows a placeholder instead.
-let VideoView: any = null
-let useVideoPlayer: any = (() => () => null)
-try {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const ev = require('expo-video')
-  VideoView = ev.VideoView
-  useVideoPlayer = ev.useVideoPlayer
-} catch {
-  // expo-video native module not available (Expo Go)
-}
+import { ResizeMode, Video } from 'expo-av'
 import Toast from 'react-native-toast-message'
 
 import { supabase } from '@/lib/supabase'
@@ -42,10 +30,6 @@ export default function CameraRecordScreen() {
   const [elapsed, setElapsed] = useState(0)
   const [videoUri, setVideoUri] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
-  const previewPlayer = useVideoPlayer(videoUri ? { uri: videoUri } : null, (player) => {
-    player.loop = true
-    player.play()
-  })
 
   // Tick timer while recording
   useEffect(() => {
@@ -187,27 +171,14 @@ export default function CameraRecordScreen() {
     return (
       <View style={{ flex: 1, backgroundColor: colors.black }}>
         <StatusBar hidden />
-        {VideoView ? (
-          <VideoView
-            player={previewPlayer}
-            style={{ flex: 1 }}
-            contentFit="cover"
-            nativeControls={false}
-          />
-        ) : (
-          <View style={{ flex: 1, backgroundColor: '#0a0a0a', alignItems: 'center', justifyContent: 'center' }}>
-            <Ionicons name="videocam" size={80} color={colors.primary} />
-            <Text style={{ color: colors.white, fontSize: fontSize.lg, fontWeight: '900', marginTop: spacing.md }}>
-              تم التسجيل ✓
-            </Text>
-            <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: fontSize.sm, marginTop: spacing.sm }}>
-              {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')} ثانية
-            </Text>
-            <Text style={{ color: 'rgba(255,255,255,0.35)', fontSize: fontSize.xs, marginTop: spacing.xs }}>
-              معاينة الفيديو تحتاج dev build
-            </Text>
-          </View>
-        )}
+        <Video
+          source={{ uri: videoUri }}
+          style={{ flex: 1 }}
+          resizeMode={ResizeMode.COVER}
+          shouldPlay
+          isLooping
+          useNativeControls={false}
+        />
 
         {/* Top: close */}
         <Pressable
