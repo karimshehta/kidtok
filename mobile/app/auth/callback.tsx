@@ -10,7 +10,7 @@ import { colors, spacing, fontSize, radius } from '@/lib/theme'
 
 export default function AuthCallback() {
   const router = useRouter()
-  const params = useLocalSearchParams<{ access_token?: string; refresh_token?: string; error?: string }>()
+  const params = useLocalSearchParams<{ access_token?: string; refresh_token?: string; code?: string; error?: string; error_description?: string }>()
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
   const [message, setMessage] = useState('')
 
@@ -25,6 +25,16 @@ export default function AuthCallback() {
 
         // Supabase puts tokens in URL params for the magic-link/confirmation flow.
         // expo-router exposes them via useLocalSearchParams.
+        // ── PKCE code exchange (Google OAuth + email magic link) ─────
+        if (params.code) {
+          const { error } = await supabase.auth.exchangeCodeForSession(String(params.code))
+          if (error) throw error
+          setStatus('success')
+          setTimeout(() => router.replace('/(tabs)/feed'), 1200)
+          return
+        }
+
+        // ── Implicit tokens (email confirmation) ───────────────────────
         if (params.access_token && params.refresh_token) {
           const { error } = await supabase.auth.setSession({
             access_token: String(params.access_token),
@@ -36,9 +46,8 @@ export default function AuthCallback() {
           return
         }
 
-        // No tokens — maybe the link was already used. Send to login.
         setStatus('error')
-        setMessage('الرابط منتهي أو غير صالح')
+        setMessage(params.error_description || params.error || 'الرابط منتهي أو غير صالح')
       } catch (err) {
         setStatus('error')
         setMessage((err as Error).message)

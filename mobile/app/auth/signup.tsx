@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons'
 import Toast from 'react-native-toast-message'
 
 import { colors, spacing, radius, fontSize } from '@/lib/theme'
+import GoogleSignInButton from '@/components/GoogleSignInButton'
 import { useAuth } from '@/stores/auth'
 import { getAuthRedirectUrl } from '@/lib/links'
 
@@ -92,6 +93,15 @@ export default function Signup() {
             </Text>
           )}
         </Pressable>
+
+        {/* Divider */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: spacing.lg, gap: spacing.sm }}>
+          <View style={{ flex: 1, height: 1, backgroundColor: colors.grey100 }} />
+          <Text style={{ color: colors.grey400, fontSize: fontSize.xs, fontWeight: '600' }}>أو</Text>
+          <View style={{ flex: 1, height: 1, backgroundColor: colors.grey100 }} />
+        </View>
+
+        <GoogleSignInButton mode="signup" onSuccess={() => router.replace('/(tabs)/feed')} />
 
         <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: spacing.xl, gap: spacing.xs }}>
           <Text style={{ color: colors.grey600 }}>{t('auth.haveAccount')}</Text>
