@@ -21,6 +21,20 @@ create table if not exists public.push_tokens (
   unique (expo_token)
 );
 
+-- Add language column if it doesn't exist (for existing tables)
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.columns 
+    where table_schema = 'public' 
+      and table_name = 'push_tokens' 
+      and column_name = 'language'
+  ) then
+    alter table public.push_tokens 
+      add column language text not null default 'ar' check (language in ('ar', 'en'));
+  end if;
+end $$;
+
 create index if not exists push_tokens_user_id_idx on public.push_tokens (user_id);
 create index if not exists push_tokens_lang_active_idx on public.push_tokens (language, is_active);
 
