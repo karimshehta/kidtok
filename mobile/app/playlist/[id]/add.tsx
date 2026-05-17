@@ -32,6 +32,7 @@ export default function AddVideoScreen() {
   const [results, setResults] = useState<YTResult[]>([])
   const [searching, setSearching] = useState(false)
   const [adding, setAdding] = useState<string | null>(null)
+  const [addedIds, setAddedIds] = useState<Set<string>>(new Set())
 
   const search = useCallback(async () => {
     if (!query.trim()) return
@@ -51,7 +52,9 @@ export default function AddVideoScreen() {
   }, [query])
 
   const handleAdd = async (video: YTResult) => {
-    setAdding(video.youtube_id || video.video_id || "")
+    const videoKey = video.youtube_id || video.video_id || ""
+    if (addedIds.has(videoKey)) return   // already added — prevent double
+    setAdding(videoKey)
     try {
       // Upsert video into videos table
       const { data: existingVideo } = await supabase
@@ -99,7 +102,10 @@ export default function AddVideoScreen() {
       })
       if (pvError && !pvError.message.includes('duplicate')) throw pvError
 
+      setAddedIds(prev => { const s = new Set(prev); s.add(videoKey); return s })
+      // Fix 2: invalidate playlist count on parent screen
       await qc.invalidateQueries({ queryKey: ['playlist-videos', playlistId] })
+      await qc.invalidateQueries({ queryKey: ['playlists'] })
       Toast.show({ type: 'success', text1: 'تم إضافة الفيديو ✓' })
     } catch (err) {
       Toast.show({ type: 'error', text1: (err as Error).message })
@@ -206,32 +212,43 @@ export default function AddVideoScreen() {
                     {v.channel_name || v.channel}
                   </Text>
 
-                  <Pressable
-                    onPress={() => handleAdd(v)}
-                    disabled={adding === (v.youtube_id || v.video_id)}
-                    style={{
-                      backgroundColor: colors.primary,
-                      paddingHorizontal: spacing.sm,
-                      paddingVertical: 5,
-                      borderRadius: radius.pill,
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 4,
-                      alignSelf: 'flex-start',
-                    }}
-                  >
-                    {adding === (v.youtube_id || v.video_id) ? (
-                      <ActivityIndicator size="small" color={colors.white} />
-                    ) : (
-                      <>
-                        <Ionicons name="add" size={14} color={colors.white} />
-                        <Text style={{ color: colors.white, fontSize: 12, fontWeight: '700' }}>
-                          إضافة
-                        </Text>
-                      </>
-                    )}
-                  </Pressable>
+                  {(() => {
+                    const vKey = v.youtube_id || v.video_id || ''
+                    const isAdded = addedIds.has(vKey)
+                    const isAdding = adding === vKey
+                    return (
+                      <Pressable
+                        onPress={() => handleAdd(v)}
+                        disabled={isAdding || isAdded}
+                        style={{
+                          backgroundColor: isAdded ? colors.green : colors.primary,
+                          paddingHorizontal: spacing.sm,
+                          paddingVertical: 5,
+                          borderRadius: radius.pill,
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 4,
+                          alignSelf: 'flex-start',
+                          opacity: isAdded ? 0.9 : 1,
+                        }}
+                      >
+                        {isAdding ? (
+                          <ActivityIndicator size="small" color={colors.white} />
+                        ) : isAdded ? (
+                          <>
+                            <Ionicons name="checkmark" size={14} color={colors.white} />
+                            <Text style={{ color: colors.white, fontSize: 12, fontWeight: '700' }}>تمت الإضافة</Text>
+                          </>
+                        ) : (
+                          <>
+                            <Ionicons name="add" size={14} color={colors.white} />
+                            <Text style={{ color: colors.white, fontSize: 12, fontWeight: '700' }}>إضافة</Text>
+                          </>
+                        )}
+                      </Pressable>
+                    )
+                  })()}
                 </View>
               </View>
             ))}

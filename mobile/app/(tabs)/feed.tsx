@@ -1,17 +1,17 @@
-import { useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import {
   View,
   Text,
   Dimensions,
-  FlatList,
   Pressable,
   ActivityIndicator,
-  RefreshControl,
   Modal,
   Image,
   ScrollView,
+  PanResponder,
+  Animated,
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useRouter } from 'expo-router'
@@ -22,11 +22,11 @@ import { WebView } from 'react-native-webview'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/stores/auth'
 import { useMyVideoInteraction, useToggleVideoInteraction } from '@/hooks/useSocial'
-import { useIsCreator } from '@/hooks/useMyRole'
 import CommentsSheet from '@/components/CommentsSheet'
 import ChildAvatar from '@/components/ChildAvatar'
 import { getYouTubeThumbnail } from '@/lib/youtube'
 import { colors, spacing, fontSize, radius } from '@/lib/theme'
+import { onHeaderPageChange } from '@/lib/headerScroll'
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window')
 const KIDTOK_ORIGIN = 'https://kidtok.vercel.app'
@@ -47,20 +47,33 @@ interface FeedVideo {
   dislike_count: number
   view_count: number
   comment_count: number
+  is_story: boolean | null
 }
 
-const FEED_SELECT = 'id, title, source, youtube_id, thumbnail_url, channel_name, channel_id, creator_id, creator_video_id, like_count, dislike_count, view_count, comment_count'
+const FEED_SELECT =
+  'id, title, source, youtube_id, thumbnail_url, channel_name, channel_id, creator_id, creator_video_id, like_count, dislike_count, view_count, comment_count, is_story'
 
+// ─── FeedScreen ───────────────────────────────────────────────────────────────
 export default function FeedScreen() {
   const [tab, setTab] = useState<FeedTab>('foryou')
   const [activeIndex, setActiveIndex] = useState(0)
+  const headerOpacity = useRef(new Animated.Value(1)).current
+
+  // Hide header when not on first video
+  useEffect(() => {
+    Animated.timing(headerOpacity, {
+      toValue: activeIndex === 0 ? 1 : 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start()
+  }, [activeIndex])
   const [muted, setMuted] = useState(true)
   const [commentsForVideo, setCommentsForVideo] = useState<string | null>(null)
   const [playlistVideo, setPlaylistVideo] = useState<FeedVideo | null>(null)
+  const [containerHeight, setContainerHeight] = useState(SCREEN_HEIGHT)
   const userId = useAuth((s) => s.user?.id)
-  const isCreator = useIsCreator()
   const router = useRouter()
-  const itemHeight = SCREEN_HEIGHT
+  const insets = useSafeAreaInsets()
 
   const { data: videos = [], isLoading, refetch, isFetching } = useQuery({
     queryKey: ['feed', tab, userId],
@@ -71,10 +84,8 @@ export default function FeedScreen() {
           .select('following_id')
           .eq('follower_id', userId)
         if (followsError) throw followsError
-
         const ids = (follows || []).map((f: any) => f.following_id)
         if (ids.length === 0) return []
-
         const { data, error } = await supabase
           .from('videos')
           .select(FEED_SELECT)
@@ -86,7 +97,6 @@ export default function FeedScreen() {
         if (error) throw error
         return (data || []) as FeedVideo[]
       }
-
       const { data, error } = await supabase
         .from('videos')
         .select(FEED_SELECT)
@@ -99,16 +109,20 @@ export default function FeedScreen() {
     },
   })
 
-  const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
-    if (viewableItems.length > 0) setActiveIndex(viewableItems[0].index || 0)
-  }).current
-
-  const viewabilityConfig = useRef({ viewAreaCoveragePercentThreshold: 70 }).current
+  const handleOpenComments = useCallback((id: string) => setCommentsForVideo(id), [])
+  const handleOpenPlaylist = useCallback((v: FeedVideo) => setPlaylistVideo(v), [])
+  const handleToggleMuted = useCallback(() => setMuted((v) => !v), [])
+  const handleTabForYou = useCallback(() => { setTab('foryou'); setActiveIndex(0) }, [])
+  const handleTabFollowing = useCallback(() => { setTab('following'); setActiveIndex(0) }, [])
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.black }}>
-      <SafeAreaView style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 50 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.md, paddingTop: spacing.sm }}>
+    <View
+      style={{ flex: 1, backgroundColor: colors.black }}
+      onLayout={(e) => setContainerHeight(e.nativeEvent.layout.height)}
+    >
+      {/* Top overlay — pointerEvents none عشان الـ swipe يشتغل تحته */}
+      <Animated.View style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 50, opacity: headerOpacity }} pointerEvents="box-none">
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.md, paddingTop: insets.top + spacing.sm }} pointerEvents="box-none">
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <Image source={require('../../assets/images/logo.png')} style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: colors.white }} />
             <Text style={{ color: colors.white, fontSize: fontSize.lg, fontWeight: '900', textShadowColor: 'rgba(0,0,0,0.45)', textShadowRadius: 4 }}>
@@ -116,17 +130,17 @@ export default function FeedScreen() {
             </Text>
           </View>
           <View style={{ flexDirection: 'row', gap: spacing.xs, backgroundColor: 'rgba(255,255,255,0.16)', borderRadius: radius.pill, padding: 3 }}>
-          <TabBtn label="لك" active={tab === 'foryou'} onPress={() => setTab('foryou')} />
-          <TabBtn label="أتابع" active={tab === 'following'} onPress={() => setTab('following')} />
+            <TabBtn label="لك" active={tab === 'foryou'} onPress={handleTabForYou} />
+            <TabBtn label="أتابع" active={tab === 'following'} onPress={handleTabFollowing} />
           </View>
           <Pressable
-            onPress={() => setMuted((value) => !value)}
+            onPress={handleToggleMuted}
             style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.16)', alignItems: 'center', justifyContent: 'center' }}
           >
             <Ionicons name={muted ? 'volume-mute' : 'volume-high'} size={20} color={colors.white} />
           </Pressable>
         </View>
-      </SafeAreaView>
+      </View>
 
       {isLoading ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
@@ -146,31 +160,20 @@ export default function FeedScreen() {
           </Pressable>
         </SafeAreaView>
       ) : (
-        <FlatList
-          data={videos}
-          keyExtractor={(v) => v.id}
-          pagingEnabled
-          showsVerticalScrollIndicator={false}
-          snapToInterval={itemHeight}
-          decelerationRate="fast"
-          renderItem={({ item, index }) => (
-            <VideoItem
-              video={item}
-              isActive={index === activeIndex}
-              height={itemHeight}
-              muted={muted}
-              onOpenComments={() => setCommentsForVideo(item.id)}
-              onAddToPlaylist={() => setPlaylistVideo(item)}
-            />
-          )}
-          onViewableItemsChanged={onViewableItemsChanged}
-          viewabilityConfig={viewabilityConfig}
-          refreshControl={<RefreshControl tintColor={colors.white} refreshing={isFetching} onRefresh={refetch} />}
+        <SwipeFeed
+          key={tab}
+          videos={videos}
+          containerHeight={containerHeight}
+          muted={muted}
+          activeIndex={activeIndex}
+          onIndexChange={(i) => { setActiveIndex(i); onHeaderPageChange(i) }}
+          onOpenComments={handleOpenComments}
+          onAddToPlaylist={handleOpenPlaylist}
         />
       )}
 
-      {isCreator && (
-        <Pressable
+      {/* Record button - everyone can create */}
+      <Pressable
           onPress={() => router.push('/creator/record')}
           style={({ pressed }) => ({
             position: 'absolute',
@@ -183,141 +186,281 @@ export default function FeedScreen() {
             alignItems: 'center',
             justifyContent: 'center',
             elevation: 8,
+            zIndex: 40,
             transform: [{ scale: pressed ? 0.92 : 1 }],
           })}
         >
           <Ionicons name="videocam" size={28} color={colors.white} />
         </Pressable>
-      )}
 
       {commentsForVideo && (
-        <CommentsSheet
-          videoId={commentsForVideo}
-          visible={!!commentsForVideo}
-          onClose={() => setCommentsForVideo(null)}
-        />
+        <CommentsSheet videoId={commentsForVideo} visible={!!commentsForVideo} onClose={() => setCommentsForVideo(null)} />
       )}
-
-      <AddToPlaylistModal
-        video={playlistVideo}
-        visible={!!playlistVideo}
-        onClose={() => setPlaylistVideo(null)}
-      />
+      <AddToPlaylistModal video={playlistVideo} visible={!!playlistVideo} onClose={() => setPlaylistVideo(null)} />
     </View>
   )
 }
 
-function TabBtn({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+// ─── SwipeFeed ────────────────────────────────────────────────────────────────
+// بدل FlatList: بنحرك Animated.Value واحدة والـ items كلها مثبتة بـ position:absolute
+// ده بيمنع أي WebView من إنه يظهر في الـ item اللي فوقه أو تحته
+function SwipeFeed({
+  videos, containerHeight, muted, activeIndex, onIndexChange, onOpenComments, onAddToPlaylist,
+}: {
+  videos: FeedVideo[]
+  containerHeight: number
+  muted: boolean
+  activeIndex: number
+  onIndexChange: (i: number) => void
+  onOpenComments: (id: string) => void
+  onAddToPlaylist: (v: FeedVideo) => void
+}) {
+  const translateY = useRef(new Animated.Value(0)).current
+  const currentIndexRef = useRef(0)
+  const isAnimating = useRef(false)
+  const totalRef = useRef(videos.length)
+  totalRef.current = videos.length
+
+  useEffect(() => {
+    // reset لما الـ videos تتغير (مثلاً tab switch — SwipeFeed بيتعمل remount بـ key={tab})
+    currentIndexRef.current = 0
+    translateY.setValue(0)
+  }, [])
+
+  const snapTo = useCallback((index: number) => {
+    const clamped = Math.max(0, Math.min(index, totalRef.current - 1))
+    isAnimating.current = true
+    Animated.timing(translateY, {
+      toValue: -clamped * containerHeight,
+      duration: 260,
+      useNativeDriver: true,
+    }).start(() => {
+      isAnimating.current = false
+      currentIndexRef.current = clamped
+      onIndexChange(clamped)
+    })
+  }, [containerHeight, onIndexChange])
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_e, gs) =>
+        !isAnimating.current && Math.abs(gs.dy) > 10 && Math.abs(gs.dy) > Math.abs(gs.dx) * 1.5,
+      onMoveShouldSetPanResponderCapture: (_e, gs) =>
+        !isAnimating.current && Math.abs(gs.dy) > 10 && Math.abs(gs.dy) > Math.abs(gs.dx) * 1.5,
+      onPanResponderMove: (_e, gs) => {
+        const base = -currentIndexRef.current * containerHeight
+        const atStart = currentIndexRef.current === 0 && gs.dy > 0
+        const atEnd = currentIndexRef.current === totalRef.current - 1 && gs.dy < 0
+        const delta = (atStart || atEnd) ? gs.dy * 0.2 : gs.dy
+        translateY.setValue(base + delta)
+      },
+      onPanResponderRelease: (_e, gs) => {
+        const threshold = containerHeight * 0.18
+        if (gs.dy < -threshold || gs.vy < -0.4) {
+          snapTo(currentIndexRef.current + 1)
+        } else if (gs.dy > threshold || gs.vy > 0.4) {
+          snapTo(currentIndexRef.current - 1)
+        } else {
+          isAnimating.current = true
+          Animated.spring(translateY, {
+            toValue: -currentIndexRef.current * containerHeight,
+            useNativeDriver: true,
+            tension: 140,
+            friction: 16,
+          }).start(() => { isAnimating.current = false })
+        }
+      },
+    })
+  ).current
+
+  return (
+    <View style={{ flex: 1, overflow: 'hidden' }} {...panResponder.panHandlers}>
+      {videos.map((video, index) => {
+        // نعمل render بس للـ item الحالي + السابق + التالي
+        const isNearby = Math.abs(index - activeIndex) <= 1
+        return (
+          <Animated.View
+            key={video.id}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: SCREEN_WIDTH,
+              height: containerHeight,
+              // كل item بيتحرك مع نفس الـ translateY ولكن بـ offset ثابت حسب index
+              transform: [{
+                translateY: translateY.interpolate({
+                  inputRange: [-containerHeight * videos.length, containerHeight],
+                  outputRange: [-containerHeight * videos.length + index * containerHeight, containerHeight + index * containerHeight],
+                  extrapolate: 'extend',
+                }),
+              }],
+              overflow: 'hidden',
+            }}
+          >
+            {isNearby ? (
+              <VideoItem
+                video={video}
+                isActive={index === activeIndex}
+                height={containerHeight}
+                muted={muted}
+                onOpenComments={onOpenComments}
+                onAddToPlaylist={onAddToPlaylist}
+              />
+            ) : (
+              // placeholder خفيف للـ items البعيدة
+              <View style={{ flex: 1, backgroundColor: '#000' }}>
+                {video.thumbnail_url ? (
+                  <Image source={{ uri: video.thumbnail_url }} style={{ width: '100%', height: '100%', opacity: 0.4 }} resizeMode="cover" blurRadius={10} />
+                ) : null}
+              </View>
+            )}
+          </Animated.View>
+        )
+      })}
+    </View>
+  )
+}
+
+// ─── TabBtn ───────────────────────────────────────────────────────────────────
+const TabBtn = memo(function TabBtn({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
   return (
     <Pressable onPress={onPress} style={{ paddingHorizontal: spacing.sm + 2, paddingVertical: 6, borderRadius: radius.pill, backgroundColor: active ? colors.white : 'transparent' }}>
-      <Text
-        style={{
-          color: active ? colors.grey900 : 'rgba(255,255,255,0.75)',
-          fontSize: fontSize.xs,
-          fontWeight: active ? '900' : '600',
-          textShadowColor: 'rgba(0,0,0,0.5)',
-          textShadowOffset: { width: 0, height: 1 },
-          textShadowRadius: 4,
-        }}
-      >
+      <Text style={{ color: active ? colors.grey900 : 'rgba(255,255,255,0.75)', fontSize: fontSize.xs, fontWeight: active ? '900' : '600' }}>
         {label}
       </Text>
     </Pressable>
   )
-}
+})
 
-function VideoItem({
-  video,
-  isActive,
-  height,
-  muted,
-  onOpenComments,
-  onAddToPlaylist,
+// ─── VideoItem ────────────────────────────────────────────────────────────────
+const VideoItem = memo(function VideoItem({
+  video, isActive, height, muted, onOpenComments, onAddToPlaylist,
 }: {
   video: FeedVideo
   isActive: boolean
   height: number
   muted: boolean
-  onOpenComments: () => void
-  onAddToPlaylist: () => void
+  onOpenComments: (id: string) => void
+  onAddToPlaylist: (v: FeedVideo) => void
 }) {
+  const insets = useSafeAreaInsets()
   const router = useRouter()
   const { data: myInteraction } = useMyVideoInteraction(video.id)
   const toggleMut = useToggleVideoInteraction()
+  const isStory = !!video.is_story
+
   const cloudflareUid = video.source === 'creator'
     ? video.thumbnail_url?.match(/cloudflarestream\.com\/([^/]+)/)?.[1] || null
     : null
   const poster = video.thumbnail_url || (video.youtube_id ? getYouTubeThumbnail(video.youtube_id, 'max') : null)
 
-  const openCreator = () => {
-    const creatorId = video.creator_id || video.channel_id
-    if (creatorId) router.push(`/creator/${creatorId}`)
+  const openCreator = useCallback(() => {
+    const id = video.creator_id || video.channel_id
+    if (id) router.push(`/creator/${id}`)
+  }, [video.creator_id, video.channel_id])
+
+  const handleLike = useCallback(() => toggleMut.mutate({ videoId: video.id, type: 'like' }), [video.id])
+  const handleDislike = useCallback(() => toggleMut.mutate({ videoId: video.id, type: 'dislike' }), [video.id])
+  const handleComments = useCallback(() => onOpenComments(video.id), [video.id, onOpenComments])
+  const handlePlaylist = useCallback(() => onAddToPlaylist(video), [video, onAddToPlaylist])
+  const handleGift = useCallback(() => Toast.show({ type: 'info', text1: 'الهدايا قريبا' }), [])
+
+  const videoContent = video.source === 'youtube' && video.youtube_id ? (
+    <ReelWebVideo isActive={isActive} poster={poster} html={getYouTubeEmbedHtml(video.youtube_id)} muted={muted} />
+  ) : cloudflareUid ? (
+    <ReelWebVideo
+      isActive={isActive}
+      poster={poster}
+      uri={`https://iframe.cloudflarestream.com/${cloudflareUid}?autoplay=true&muted=${muted ? 'true' : 'false'}&controls=false&loop=true`}
+      muted={muted}
+    />
+  ) : (
+    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#111' }}>
+      <Ionicons name="play-circle" size={80} color={colors.grey400} />
+    </View>
+  )
+
+  // ── Story layout ────────────────────────────────────────────────────────────
+  if (isStory) {
+    return (
+      <View style={{ width: SCREEN_WIDTH, height, backgroundColor: '#000', overflow: 'hidden' }}>
+        {videoContent}
+
+        {/* Gradient أعلى للـ channel info */}
+        <LinearGradient
+          colors={['rgba(0,0,0,0.72)', 'transparent']}
+          style={{ position: 'absolute', top: 0, left: 0, right: 0, paddingTop: insets.top + 52, paddingHorizontal: spacing.lg, paddingBottom: spacing.xl }}
+        >
+          {/* شريط التقدم */}
+          <View style={{ height: 3, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.3)', marginBottom: spacing.md, overflow: 'hidden' }}>
+            <View style={{ height: '100%', width: isActive ? '100%' : '0%', backgroundColor: colors.white, borderRadius: 2 }} />
+          </View>
+          {/* اسم الـ channel */}
+          <Pressable onPress={openCreator} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: colors.white }}>
+              <Ionicons name="person" size={18} color={colors.white} />
+            </View>
+            <View>
+              <Text style={{ color: colors.white, fontWeight: '800', fontSize: fontSize.sm }}>@{video.channel_name || 'KidTok'}</Text>
+              <Text style={{ color: 'rgba(255,255,255,0.65)', fontSize: 11 }}>ستوري</Text>
+            </View>
+          </Pressable>
+        </LinearGradient>
+
+        {/* Gradient أسفل للعنوان والأزرار */}
+        <LinearGradient
+          colors={['transparent', 'rgba(0,0,0,0.82)']}
+          style={{ position: 'absolute', bottom: 0, left: 0, right: 0, paddingBottom: insets.bottom + spacing.lg, paddingTop: spacing.xl * 2, paddingHorizontal: spacing.lg }}
+        >
+          {video.title ? (
+            <Text style={{ color: colors.white, fontSize: fontSize.base, fontWeight: '700', marginBottom: spacing.md }} numberOfLines={3}>
+              {video.title}
+            </Text>
+          ) : null}
+          {/* أزرار أفقية زي IG Stories */}
+          <View style={{ flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' }}>
+            <StoryActionBtn icon={myInteraction === 'like' ? 'heart' : 'heart-outline'} count={video.like_count} active={myInteraction === 'like'} activeColor={colors.secondary} onPress={handleLike} />
+            <StoryActionBtn icon="chatbubble-outline" count={video.comment_count} onPress={handleComments} />
+            <StoryActionBtn icon="add-circle-outline" count={0} onPress={handlePlaylist} />
+            <StoryActionBtn icon="gift-outline" count={0} onPress={handleGift} />
+          </View>
+        </LinearGradient>
+      </View>
+    )
   }
 
+  // ── Normal video layout (TikTok-style) ──────────────────────────────────────
   return (
-    <View style={{ width: SCREEN_WIDTH, height, backgroundColor: colors.black }}>
-      {video.source === 'youtube' && video.youtube_id ? (
-        <ReelWebVideo
-          isActive={isActive}
-          poster={poster}
-          html={getYouTubeEmbedHtml(video.youtube_id)}
-          muted={muted}
-        />
-      ) : cloudflareUid ? (
-        <ReelWebVideo
-          isActive={isActive}
-          poster={poster}
-          uri={`https://iframe.cloudflarestream.com/${cloudflareUid}?autoplay=true&muted=${muted ? 'true' : 'false'}&controls=false&loop=true`}
-          muted={muted}
-        />
-      ) : (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <Ionicons name="play-circle" size={80} color={colors.grey400} />
-        </View>
-      )}
+    <View style={{ width: SCREEN_WIDTH, height, backgroundColor: '#000', overflow: 'hidden' }}>
+      {videoContent}
 
       <LinearGradient
         colors={['transparent', 'rgba(0,0,0,0.88)']}
-        style={{ position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: spacing.lg, paddingTop: spacing.xl, paddingBottom: 90 }}
+        style={{ position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: spacing.lg, paddingTop: spacing.xl, paddingBottom: 16 + insets.bottom }}
       >
         <Pressable onPress={openCreator}>
-          <Text style={{ color: colors.white, fontSize: fontSize.sm, fontWeight: '700' }}>
-            @{video.channel_name || 'KidTok'}
-          </Text>
+          <Text style={{ color: colors.white, fontSize: fontSize.sm, fontWeight: '700' }}>@{video.channel_name || 'KidTok'}</Text>
         </Pressable>
         <Text style={{ color: colors.white, fontSize: fontSize.base, fontWeight: '700', marginTop: 4 }} numberOfLines={2}>
           {video.title || 'KidTok video'}
         </Text>
       </LinearGradient>
 
-      <View style={{ position: 'absolute', right: spacing.md, bottom: 130, gap: spacing.lg, alignItems: 'center' }}>
-        <ActionButton
-          icon={myInteraction === 'like' ? 'heart' : 'heart-outline'}
-          count={video.like_count}
-          active={myInteraction === 'like'}
-          activeColor={colors.secondary}
-          onPress={() => toggleMut.mutate({ videoId: video.id, type: 'like' })}
-        />
-        <ActionButton
-          icon={myInteraction === 'dislike' ? 'thumbs-down' : 'thumbs-down-outline'}
-          count={video.dislike_count}
-          active={myInteraction === 'dislike'}
-          onPress={() => toggleMut.mutate({ videoId: video.id, type: 'dislike' })}
-        />
-        <ActionButton icon="chatbubble" count={video.comment_count} onPress={onOpenComments} />
-        <ActionButton icon="add" count={0} onPress={onAddToPlaylist} />
-        <ActionButton icon="gift" count={0} onPress={() => Toast.show({ type: 'info', text1: 'الهدايا قريبا' })} />
+      <View style={{ position: 'absolute', right: spacing.md, bottom: 90 + insets.bottom, gap: spacing.lg, alignItems: 'center' }}>
+        <ActionButton icon={myInteraction === 'like' ? 'heart' : 'heart-outline'} count={video.like_count} active={myInteraction === 'like'} activeColor={colors.secondary} onPress={handleLike} />
+        <ActionButton icon={myInteraction === 'dislike' ? 'thumbs-down' : 'thumbs-down-outline'} count={video.dislike_count} active={myInteraction === 'dislike'} onPress={handleDislike} />
+        <ActionButton icon="chatbubble" count={video.comment_count} onPress={handleComments} />
+        <ActionButton icon="add" count={0} onPress={handlePlaylist} />
+        <ActionButton icon="gift" count={0} onPress={handleGift} />
       </View>
     </View>
   )
-}
+})
 
-function ReelWebVideo({
-  isActive,
-  poster,
-  html,
-  uri,
-  muted,
+// ─── ReelWebVideo ─────────────────────────────────────────────────────────────
+const ReelWebVideo = memo(function ReelWebVideo({
+  isActive, poster, html, uri, muted,
 }: {
   isActive: boolean
   poster: string | null
@@ -327,35 +470,33 @@ function ReelWebVideo({
 }) {
   const webViewRef = useRef<any>(null)
 
-  const syncYouTubeAudio = () => {
+  const syncYouTubeAudio = useCallback(() => {
     if (!html) return
     webViewRef.current?.injectJavaScript(getYouTubeAudioCommand(muted))
-  }
+  }, [html, muted])
 
   useEffect(() => {
     if (isActive && html) syncYouTubeAudio()
-  }, [muted, isActive, html])
+  }, [muted, isActive, html, syncYouTubeAudio])
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.black, overflow: 'hidden' }}>
-      {/* Poster / thumbnail */}
+    <View style={{ flex: 1, backgroundColor: '#000' }}>
       {poster && (
         <Image
           source={{ uri: poster }}
-          style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, width: '100%', height: '100%', opacity: isActive ? 0.35 : 1 }}
+          style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, opacity: isActive ? 0.3 : 0.9 }}
           resizeMode="cover"
-          blurRadius={isActive ? 18 : 0}
+          blurRadius={isActive ? 20 : 2}
         />
       )}
 
-      {/* WebView player */}
-      {isActive && (html || uri) ? (
+      {/* WebView يتعمل mount بس لما isActive = true — ده الحل الجذري للـ bleeding */}
+      {isActive && (html || uri) && (
         <WebView
           ref={webViewRef}
           originWhitelist={['*']}
           source={html ? { html, baseUrl: KIDTOK_ORIGIN } : { uri: uri! }}
-          style={{ flex: 1, backgroundColor: 'transparent' }}
-          containerStyle={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'transparent' }}
+          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'transparent' }}
           allowsInlineMediaPlayback
           allowsFullscreenVideo={false}
           mediaPlaybackRequiresUserAction={false}
@@ -370,23 +511,24 @@ function ReelWebVideo({
           onLoadEnd={syncYouTubeAudio}
           onShouldStartLoadWithRequest={(request) => {
             const url = request.url.toLowerCase()
-            if (url.includes('youtube.com/watch') || url.includes('youtube.com/redirect')) {
-              return false
-            }
+            if (url.includes('youtube.com/watch') || url.includes('youtube.com/redirect')) return false
             return true
           }}
         />
-      ) : !isActive ? (
+      )}
+
+      {!isActive && (
         <View style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center' }}>
-          <View style={{ width: 78, height: 78, borderRadius: 39, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' }}>
-            <Ionicons name="play" size={38} color={colors.white} style={{ marginLeft: 4 }} />
+          <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name="play" size={34} color={colors.white} style={{ marginLeft: 4 }} />
           </View>
         </View>
-      ) : null}
+      )}
     </View>
   )
-}
+})
 
+// ─── helpers ──────────────────────────────────────────────────────────────────
 function getYouTubeAudioCommand(muted: boolean) {
   const command = muted ? 'mute' : 'unMute'
   return `
@@ -423,25 +565,13 @@ iframe{position:absolute;left:50%;top:50%;width:177.78vh;height:100vh;min-width:
 </html>`
 }
 
-function ActionButton({
-  icon,
-  count,
-  active,
-  activeColor,
-  onPress,
+// ─── ActionButton (عمودي — للـ normal video) ──────────────────────────────────
+const ActionButton = memo(function ActionButton({
+  icon, count, active, activeColor, onPress,
 }: { icon: any; count: number; active?: boolean; activeColor?: string; onPress: () => void }) {
   return (
     <Pressable onPress={onPress} style={{ alignItems: 'center', gap: 4 }}>
-      <View
-        style={{
-          width: 48,
-          height: 48,
-          borderRadius: 24,
-          backgroundColor: 'rgba(255,255,255,0.15)',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
+      <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' }}>
         <Ionicons name={icon} size={26} color={active ? (activeColor || colors.primary) : colors.white} />
       </View>
       {count > 0 && (
@@ -451,13 +581,26 @@ function ActionButton({
       )}
     </Pressable>
   )
-}
+})
 
-function AddToPlaylistModal({
-  video,
-  visible,
-  onClose,
-}: { video: FeedVideo | null; visible: boolean; onClose: () => void }) {
+// ─── StoryActionBtn (أفقي — للـ story) ───────────────────────────────────────
+const StoryActionBtn = memo(function StoryActionBtn({
+  icon, count, active, activeColor, onPress,
+}: { icon: any; count: number; active?: boolean; activeColor?: string; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(255,255,255,0.18)', paddingHorizontal: 14, paddingVertical: 9, borderRadius: radius.pill }}>
+      <Ionicons name={icon} size={20} color={active ? (activeColor || colors.primary) : colors.white} />
+      {count > 0 && (
+        <Text style={{ color: colors.white, fontSize: fontSize.xs, fontWeight: '700' }}>
+          {count > 999 ? `${Math.floor(count / 1000)}K` : count}
+        </Text>
+      )}
+    </Pressable>
+  )
+})
+
+// ─── AddToPlaylistModal ───────────────────────────────────────────────────────
+function AddToPlaylistModal({ video, visible, onClose }: { video: FeedVideo | null; visible: boolean; onClose: () => void }) {
   const userId = useAuth((s) => s.user?.id)
   const qc = useQueryClient()
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null)
@@ -469,10 +612,8 @@ function AddToPlaylistModal({
     enabled: visible && !!userId,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('children')
-        .select('id, name, gender, image_url, age:ages(name_ar, name_en)')
-        .eq('parent_id', userId)
-        .order('created_at', { ascending: false })
+        .from('children').select('id, name, gender, image_url, age:ages(name_ar, name_en)')
+        .eq('parent_id', userId).order('created_at', { ascending: false })
       if (error) throw error
       return data || []
     },
@@ -483,66 +624,31 @@ function AddToPlaylistModal({
     enabled: visible && !!selectedChildId,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('playlists')
-        .select('id, name, playlist_videos(id)')
-        .eq('child_id', selectedChildId)
-        .order('created_at', { ascending: false })
+        .from('playlists').select('id, name, playlist_videos(id)')
+        .eq('child_id', selectedChildId).order('created_at', { ascending: false })
       if (error) throw error
-      return (data || []).map((p: any) => ({
-        id: p.id,
-        name: p.name,
-        video_count: p.playlist_videos?.length || 0,
-      }))
+      return (data || []).map((p: any) => ({ id: p.id, name: p.name, video_count: p.playlist_videos?.length || 0 }))
     },
   })
 
-  const handleClose = () => {
-    setSelectedChildId(null)
-    setAddingId(null)
-    setAddedIds(new Set())
-    onClose()
-  }
+  const handleClose = () => { setSelectedChildId(null); setAddingId(null); setAddedIds(new Set()); onClose() }
 
   const addToPlaylist = async (playlistId: string) => {
     if (!video || addedIds.has(playlistId)) return
     setAddingId(playlistId)
     try {
-      const { data: existing } = await supabase
-        .from('playlist_videos')
-        .select('id')
-        .eq('playlist_id', playlistId)
-        .eq('video_id', video.id)
-        .maybeSingle()
-      if (existing) {
-        setAddedIds((prev) => new Set([...prev, playlistId]))
-        Toast.show({ type: 'info', text1: 'الفيديو موجود بالفعل في القائمة' })
-        return
-      }
-
-      const { data: last } = await supabase
-        .from('playlist_videos')
-        .select('position')
-        .eq('playlist_id', playlistId)
-        .order('position', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-
-      const { error } = await supabase.from('playlist_videos').insert({
-        playlist_id: playlistId,
-        video_id: video.id,
-        position: ((last?.position ?? -1) as number) + 1,
-      })
+      const { data: existing } = await supabase.from('playlist_videos').select('id').eq('playlist_id', playlistId).eq('video_id', video.id).maybeSingle()
+      if (existing) { setAddedIds((p) => new Set([...p, playlistId])); Toast.show({ type: 'info', text1: 'الفيديو موجود بالفعل في القائمة' }); return }
+      const { data: last } = await supabase.from('playlist_videos').select('position').eq('playlist_id', playlistId).order('position', { ascending: false }).limit(1).maybeSingle()
+      const { error } = await supabase.from('playlist_videos').insert({ playlist_id: playlistId, video_id: video.id, position: ((last?.position ?? -1) as number) + 1 })
       if (error) throw error
-
-      setAddedIds((prev) => new Set([...prev, playlistId]))
+      setAddedIds((p) => new Set([...p, playlistId]))
       await qc.invalidateQueries({ queryKey: ['playlist-videos', playlistId] })
       await qc.invalidateQueries({ queryKey: ['playlists'] })
       Toast.show({ type: 'success', text1: 'تمت إضافة الفيديو للقائمة' })
     } catch (err) {
       Toast.show({ type: 'error', text1: (err as Error).message })
-    } finally {
-      setAddingId(null)
-    }
+    } finally { setAddingId(null) }
   }
 
   return (
@@ -551,79 +657,61 @@ function AddToPlaylistModal({
         <View style={{ backgroundColor: colors.white, borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: '82%', overflow: 'hidden' }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.grey100 }}>
             <Text style={{ fontSize: fontSize.lg, fontWeight: '900', color: colors.grey900 }}>إضافة إلى قائمة</Text>
-            <Pressable onPress={handleClose}>
-              <Ionicons name="close" size={28} color={colors.grey900} />
-            </Pressable>
+            <Pressable onPress={handleClose}><Ionicons name="close" size={28} color={colors.grey900} /></Pressable>
           </View>
-
           {video && (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md, backgroundColor: colors.grey50 }}>
-              {video.thumbnail_url ? (
-                <Image source={{ uri: video.thumbnail_url }} style={{ width: 72, height: 42, borderRadius: radius.sm, backgroundColor: colors.grey200 }} />
-              ) : (
-                <View style={{ width: 72, height: 42, borderRadius: radius.sm, backgroundColor: colors.grey200, alignItems: 'center', justifyContent: 'center' }}>
-                  <Ionicons name="film-outline" size={22} color={colors.grey400} />
-                </View>
-              )}
+              {video.thumbnail_url
+                ? <Image source={{ uri: video.thumbnail_url }} style={{ width: 72, height: 42, borderRadius: radius.sm, backgroundColor: colors.grey200 }} />
+                : <View style={{ width: 72, height: 42, borderRadius: radius.sm, backgroundColor: colors.grey200, alignItems: 'center', justifyContent: 'center' }}><Ionicons name="film-outline" size={22} color={colors.grey400} /></View>}
               <View style={{ flex: 1 }}>
                 <Text numberOfLines={1} style={{ fontWeight: '800', color: colors.grey900 }}>{video.title || 'Video'}</Text>
                 <Text numberOfLines={1} style={{ color: colors.grey600, fontSize: fontSize.xs }}>{video.channel_name || 'KidTok'}</Text>
               </View>
             </View>
           )}
-
           <ScrollView contentContainerStyle={{ padding: spacing.md }}>
             {!selectedChildId ? (
               <>
                 <Text style={{ color: colors.grey600, fontWeight: '700', marginBottom: spacing.sm }}>اختار الطفل</Text>
-                {children.length === 0 ? (
-                  <Text style={{ color: colors.grey600, textAlign: 'center', padding: spacing.lg }}>لا يوجد أطفال بعد</Text>
-                ) : children.map((child: any) => (
-                  <Pressable
-                    key={child.id}
-                    onPress={() => setSelectedChildId(child.id)}
-                    style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md, borderRadius: radius.lg, backgroundColor: colors.grey50, marginBottom: spacing.sm }}
-                  >
-                    <ChildAvatar name={child.name || 'KidTok'} imageUrl={child.image_url} gender={child.gender} size="sm" />
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontWeight: '800', color: colors.grey900 }}>{child.name}</Text>
-                      {!!child.age?.name_ar && <Text style={{ color: colors.grey600, fontSize: fontSize.xs }}>{child.age.name_ar}</Text>}
-                    </View>
-                    <Ionicons name="chevron-forward" size={20} color={colors.grey400} />
-                  </Pressable>
-                ))}
+                {children.length === 0
+                  ? <Text style={{ color: colors.grey600, textAlign: 'center', padding: spacing.lg }}>لا يوجد أطفال بعد</Text>
+                  : children.map((child: any) => (
+                    <Pressable key={child.id} onPress={() => setSelectedChildId(child.id)}
+                      style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md, borderRadius: radius.lg, backgroundColor: colors.grey50, marginBottom: spacing.sm }}>
+                      <ChildAvatar name={child.name || 'KidTok'} imageUrl={child.image_url} gender={child.gender} size="sm" />
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontWeight: '800', color: colors.grey900 }}>{child.name}</Text>
+                        {!!child.age?.name_ar && <Text style={{ color: colors.grey600, fontSize: fontSize.xs }}>{child.age.name_ar}</Text>}
+                      </View>
+                      <Ionicons name="chevron-forward" size={20} color={colors.grey400} />
+                    </Pressable>
+                  ))}
               </>
             ) : (
               <>
                 <Pressable onPress={() => setSelectedChildId(null)} style={{ marginBottom: spacing.md }}>
                   <Text style={{ color: colors.primary, fontWeight: '800' }}>رجوع للأطفال</Text>
                 </Pressable>
-                {playlistsLoading ? (
-                  <ActivityIndicator color={colors.primary} />
-                ) : playlists.length === 0 ? (
-                  <Text style={{ color: colors.grey600, textAlign: 'center', padding: spacing.lg }}>لا توجد قوائم تشغيل لهذا الطفل</Text>
-                ) : playlists.map((playlist: any) => {
-                  const added = addedIds.has(playlist.id)
-                  return (
-                    <Pressable
-                      key={playlist.id}
-                      onPress={() => addToPlaylist(playlist.id)}
-                      disabled={added || addingId === playlist.id}
-                      style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md, borderRadius: radius.lg, backgroundColor: added ? `${colors.primary}15` : colors.grey50, marginBottom: spacing.sm }}
-                    >
-                      <Ionicons name={added ? 'checkmark-circle' : 'list'} size={26} color={added ? colors.primary : colors.grey700} />
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontWeight: '800', color: colors.grey900 }}>{playlist.name}</Text>
-                        <Text style={{ color: colors.grey600, fontSize: fontSize.xs }}>{playlist.video_count} فيديو</Text>
-                      </View>
-                      {addingId === playlist.id ? <ActivityIndicator color={colors.primary} /> : <Ionicons name="add" size={22} color={colors.primary} />}
-                    </Pressable>
-                  )
-                })}
+                {playlistsLoading ? <ActivityIndicator color={colors.primary} /> : playlists.length === 0
+                  ? <Text style={{ color: colors.grey600, textAlign: 'center', padding: spacing.lg }}>لا توجد قوائم تشغيل لهذا الطفل</Text>
+                  : playlists.map((playlist: any) => {
+                    const added = addedIds.has(playlist.id)
+                    return (
+                      <Pressable key={playlist.id} onPress={() => addToPlaylist(playlist.id)} disabled={added || addingId === playlist.id}
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md, borderRadius: radius.lg, backgroundColor: added ? `${colors.primary}15` : colors.grey50, marginBottom: spacing.sm }}>
+                        <Ionicons name={added ? 'checkmark-circle' : 'list'} size={26} color={added ? colors.primary : colors.grey700} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontWeight: '800', color: colors.grey900 }}>{playlist.name}</Text>
+                          <Text style={{ color: colors.grey600, fontSize: fontSize.xs }}>{playlist.video_count} فيديو</Text>
+                        </View>
+                        {addingId === playlist.id ? <ActivityIndicator color={colors.primary} /> : <Ionicons name="add" size={22} color={colors.primary} />}
+                      </Pressable>
+                    )
+                  })}
               </>
             )}
           </ScrollView>
-
           <View style={{ padding: spacing.md, borderTopWidth: 1, borderTopColor: colors.grey100 }}>
             <Pressable onPress={handleClose} style={{ backgroundColor: colors.primary, paddingVertical: spacing.md, borderRadius: radius.pill, alignItems: 'center' }}>
               <Text style={{ color: colors.white, fontWeight: '900' }}>تم</Text>

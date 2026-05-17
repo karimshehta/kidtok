@@ -52,7 +52,7 @@ export default function ProfileEditScreen() {
       return
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: 'images' as any,
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.7,
@@ -98,6 +98,7 @@ export default function ProfileEditScreen() {
         .eq('id', userId)
       if (error) throw error
       await qc.invalidateQueries({ queryKey: ['profile'] })
+      await qc.invalidateQueries({ queryKey: ['profile', userId] })
       Toast.show({ type: 'success', text1: 'تم حفظ التعديلات' })
       router.back()
     } catch (err) {

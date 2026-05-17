@@ -1,9 +1,11 @@
-import { View, Text, ScrollView, Pressable, ActivityIndicator } from 'react-native'
+import { View, Text, ScrollView, Pressable, ActivityIndicator, RefreshControl} from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useTranslation } from 'react-i18next'
+import { useFocusEffect } from 'expo-router'
+import { useCallback, useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
-import { useQuery } from '@tanstack/react-query'
 
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/stores/auth'
@@ -24,6 +26,22 @@ export default function ChildrenScreen() {
   const lang = i18n.language as 'ar' | 'en'
   const router = useRouter()
   const userId = useAuth((s) => s.user?.id)
+  const qc = useQueryClient()
+  const [refreshing, setRefreshing] = useState(false)
+
+  const onRefresh = useCallback(async () => {
+    if (!userId) return
+    setRefreshing(true)
+    await qc.refetchQueries({ queryKey: ['children', userId] })
+    setRefreshing(false)
+  }, [userId])
+
+  // Refetch quietly when tab is focused (no flicker — uses placeholder data)
+  useFocusEffect(
+    useCallback(() => {
+      if (userId) qc.refetchQueries({ queryKey: ['children', userId], type: 'active' })
+    }, [userId])
+  )
 
   const { data: children = [], isLoading } = useQuery({
     queryKey: ['children', userId],
@@ -44,7 +62,12 @@ export default function ChildrenScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.white }}>
-      <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 100 }}>
+      <ScrollView
+        contentContainerStyle={{ padding: spacing.lg, paddingBottom: 100 }}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />
+        }
+      >
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.lg }}>
           <Text style={{ fontSize: fontSize['2xl'], fontWeight: '900', color: colors.grey900 }}>
             {t('tabs.children')}

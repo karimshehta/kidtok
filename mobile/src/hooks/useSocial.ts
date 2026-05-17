@@ -114,14 +114,33 @@ export function useComments(videoId: string) {
     queryKey: ['comments', videoId],
     enabled: !!videoId,
     queryFn: async () => {
-      const { data } = await supabase
+      // 1. Fetch comments (no join — video_comments.user_id → auth.users, not profiles)
+      const { data: comments, error } = await supabase
         .from('video_comments')
-        .select('id, content, created_at, profiles(name, avatar_url)')
+        .select('id, user_id, content, created_at')
         .eq('video_id', videoId)
         .eq('is_deleted', false)
-        .order('created_at', { ascending: false })
-        .limit(50)
-      return data || []
+        .order('created_at', { ascending: true })
+        .limit(100)
+      if (error) {
+        console.error('[comments] error:', error.message)
+        return []
+      }
+      if (!comments || comments.length === 0) return []
+
+      // 2. Fetch profiles for each commenter
+      const userIds = [...new Set(comments.map((c) => c.user_id))]
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, name, avatar_url')
+        .in('id', userIds)
+
+      const profileMap = Object.fromEntries((profiles || []).map((p) => [p.id, p]))
+
+      return comments.map((c) => ({
+        ...c,
+        profile: profileMap[c.user_id] || { name: 'مستخدم', avatar_url: null },
+      }))
     },
   })
 }
@@ -136,7 +155,7 @@ export function useAddComment() {
       const { error } = await supabase.from('video_comments').insert({
         video_id: videoId,
         user_id: userId,
-        content: comment,
+        content: comment.trim(),
       })
       if (error) throw error
     },

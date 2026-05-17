@@ -1,9 +1,10 @@
-import { View, Text, ScrollView, Pressable, Alert } from 'react-native'
+import { View, Text, ScrollView, Pressable, Alert, Image, RefreshControl} from 'react-native'
+import { useCallback, useState } from 'react'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useTranslation } from 'react-i18next'
-import { useRouter } from 'expo-router'
+import { useRouter, useFocusEffect } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/stores/auth'
@@ -14,16 +15,42 @@ export default function ProfileScreen() {
   const { t, i18n } = useTranslation()
   const router = useRouter()
   const user = useAuth((s) => s.user)
-  const signOut = useAuth((s) => s.signOut)
 
-  const { data: coinBalance = 0 } = useQuery({
-    queryKey: ['coins', user?.id],
-    enabled: !!user,
-    queryFn: async (): Promise<number> => {
-      const { data } = await supabase.rpc('my_coin_balance')
-      return (data as number) ?? 0
+  const { data: myProfile } = useQuery({
+    queryKey: ['profile', user?.id],
+    enabled: !!user?.id,
+    staleTime: 0,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('name, avatar_url')
+        .eq('id', user!.id)
+        .single()
+      return data
     },
   })
+  const signOut = useAuth((s) => s.signOut)
+
+  const qc = useQueryClient()
+  const [refreshing, setRefreshing] = useState(false)
+
+  const onRefresh = useCallback(async () => {
+    if (!user?.id) return
+    setRefreshing(true)
+    await Promise.all([
+      qc.refetchQueries({ queryKey: ['profile', user.id] }),
+      qc.refetchQueries({ queryKey: ['my-subscription'] }),
+    ])
+    setRefreshing(false)
+  }, [user?.id])
+
+  // Force-refetch profile every time this tab is focused
+  // so the avatar updates immediately after edit
+  useFocusEffect(
+    useCallback(() => {
+      if (user?.id) qc.invalidateQueries({ queryKey: ['profile', user.id] })
+    }, [user?.id])
+  )
 
   const { data: mySub } = useQuery({
     queryKey: ['my-subscription', user?.id],
@@ -59,7 +86,12 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.white }}>
-      <ScrollView contentContainerStyle={{ padding: spacing.lg }}>
+      <ScrollView
+        contentContainerStyle={{ padding: spacing.lg }}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />
+        }
+      >
         {/* Header */}
         <View style={{ alignItems: 'center', marginBottom: spacing.xl }}>
           <View
@@ -68,12 +100,21 @@ export default function ProfileScreen() {
               backgroundColor: colors.primary,
               alignItems: 'center', justifyContent: 'center',
               marginBottom: spacing.md,
+              overflow: 'hidden',
             }}
           >
-            <Ionicons name="person" size={56} color={colors.white} />
+            {myProfile?.avatar_url ? (
+              <Image
+                source={{ uri: myProfile.avatar_url }}
+                style={{ width: '100%', height: '100%' }}
+                resizeMode="cover"
+              />
+            ) : (
+              <Ionicons name="person" size={56} color={colors.white} />
+            )}
           </View>
           <Text style={{ fontSize: fontSize.xl, fontWeight: '900', color: colors.grey900 }}>
-            {user?.user_metadata?.name || user?.user_metadata?.full_name || 'User'}
+            {myProfile?.name || user?.user_metadata?.name || user?.user_metadata?.full_name || 'User'}
           </Text>
           <Text style={{ fontSize: fontSize.sm, color: colors.grey600 }}>{user?.email}</Text>
         </View>
@@ -97,37 +138,6 @@ export default function ProfileScreen() {
             </Text>
             <Text style={{ fontSize: fontSize.lg, fontWeight: '800', color: mySub ? colors.white : colors.grey900 }}>
               {mySub ? t('profile.active') : t('profile.free')}
-            </Text>
-          </View>
-        </View>
-
-        {/* Coin balance */}
-        <View
-          style={{
-            backgroundColor: '#FEF3C7',
-            borderRadius: radius.lg,
-            padding: spacing.md,
-            marginBottom: spacing.md,
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: spacing.md,
-            borderWidth: 1,
-            borderColor: '#FCD34D',
-          }}
-        >
-          <View
-            style={{
-              width: 44, height: 44, borderRadius: 22,
-              backgroundColor: colors.amber400,
-              alignItems: 'center', justifyContent: 'center',
-            }}
-          >
-            <Text style={{ fontSize: 20 }}>🪙</Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: fontSize.sm, color: '#92400E' }}>{t('coins.myCoins')}</Text>
-            <Text style={{ fontSize: fontSize['2xl'], fontWeight: '900', color: '#78350F' }}>
-              {coinBalance.toLocaleString()}
             </Text>
           </View>
         </View>

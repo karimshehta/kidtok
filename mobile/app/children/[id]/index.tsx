@@ -4,6 +4,8 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useFocusEffect } from 'expo-router'
+import { useCallback } from 'react'
 import Toast from 'react-native-toast-message'
 
 import { useTranslation } from 'react-i18next'
@@ -27,6 +29,14 @@ export default function ChildDetailScreen() {
   const { t } = useTranslation()
   const userId = useAuth((s) => s.user?.id)
 
+  // Refetch playlists every time this screen comes into focus
+  // so the video count updates when returning from the add-video screen
+  useFocusEffect(
+    useCallback(() => {
+      qc.invalidateQueries({ queryKey: ['playlists', id] })
+    }, [id])
+  )
+
   const [addOpen, setAddOpen] = useState(false)
   const [playlistName, setPlaylistName] = useState('')
   const [saving, setSaving] = useState(false)
@@ -45,6 +55,8 @@ export default function ChildDetailScreen() {
 
   const { data: playlists = [], isLoading } = useQuery({
     queryKey: ['playlists', id],
+    staleTime: 0,  // always refetch when screen is focused
+    refetchOnWindowFocus: true,
     queryFn: async (): Promise<Playlist[]> => {
       const { data, error } = await supabase
         .from('playlists')

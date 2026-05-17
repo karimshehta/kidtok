@@ -1,13 +1,33 @@
 import { Redirect, Tabs } from 'expo-router'
 import { useTranslation } from 'react-i18next'
+import { useEffect } from 'react'
 import { Ionicons } from '@expo/vector-icons'
+import { useQueryClient } from '@tanstack/react-query'
 
 import { colors } from '@/lib/theme'
 import { useAuth } from '@/stores/auth'
+import { supabase } from '@/lib/supabase'
 
 export default function TabsLayout() {
   const { t } = useTranslation()
   const user = useAuth((s) => s.user)
+  const qc = useQueryClient()
+
+  // Pre-load children as soon as tabs mount so they're ready everywhere
+  useEffect(() => {
+    if (!user?.id) return
+    qc.prefetchQuery({
+      queryKey: ['children', user.id],
+      queryFn: async () => {
+        const { data } = await supabase
+          .from('children')
+          .select('id, name, gender, image_url')
+          .order('created_at', { ascending: false })
+        return data || []
+      },
+      staleTime: 30_000,
+    })
+  }, [user?.id])
 
   if (!user) return <Redirect href="/landing" />
 
