@@ -1,13 +1,15 @@
 /**
  * useAdMob — Interstitial ads for free users
  *
- * ⚠️  Requires a Development Build (EAS / bare workflow).
- *     Will no-op silently in Expo Go.
+ * ⚠️  Requires a new Development Build with react-native-google-mobile-ads.
+ *     Silently no-ops in current build without crashing.
  *
- * Admin controls (app_settings):
- *   ads_interstitial_after_videos  → how many videos before showing ad (default: 5)
- *   admob_android_interstitial     → Android ad unit ID
- *   admob_ios_interstitial         → iOS ad unit ID
+ * WHY ADS DON'T SHOW:
+ * react-native-google-mobile-ads is a NATIVE module — it's NOT in the
+ * current dev build. A new build is needed to activate it.
+ * 
+ * TO ENABLE: rebuild with EAS:
+ *   npx eas build --profile development --platform android
  */
 import { useEffect, useRef, useCallback } from 'react'
 import { Platform } from 'react-native'
@@ -15,12 +17,13 @@ import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { usePlanLimits } from './usePlanLimits'
 
-// Dynamic import — won't crash in Expo Go
-let AdMobModule: any = null
-try {
-  AdMobModule = require('react-native-google-mobile-ads')
-} catch {
-  // Expo Go — silently skip
+// Safe dynamic import — won't crash if native module missing
+function tryLoadAdMob() {
+  try {
+    return require('react-native-google-mobile-ads')
+  } catch {
+    return null
+  }
 }
 
 function useAdSettings() {
@@ -31,17 +34,13 @@ function useAdSettings() {
       const { data } = await supabase
         .from('app_settings')
         .select('key, value')
-        .in('key', [
-          'ads_interstitial_after_videos',
-          'admob_android_interstitial',
-          'admob_ios_interstitial',
-        ])
+        .in('key', ['ads_interstitial_after_videos', 'admob_android_interstitial', 'admob_ios_interstitial'])
       const map: Record<string, string> = {}
       for (const row of data || []) map[row.key] = row.value || ''
       return {
         afterVideos: parseInt(map['ads_interstitial_after_videos'] || '5', 10),
-        androidUnitId: map['admob_android_interstitial'] || '',
-        iosUnitId: map['admob_ios_interstitial'] || '',
+        androidUnitId: map['admob_android_interstitial'] || 'ca-app-pub-9534911590158193/5508176579',
+        iosUnitId: map['admob_ios_interstitial'] || 'ca-app-pub-9534911590158193/8731979368',
       }
     },
   })
@@ -53,72 +52,46 @@ export function useAdMob() {
   const videoCountRef = useRef(0)
   const interstitialRef = useRef<any>(null)
   const isLoadedRef = useRef(false)
+  const AdMobModule = useRef(tryLoadAdMob()).current
 
-  const adUnitId = Platform.OS === 'android'
-    ? adSettings?.androidUnitId
-    : adSettings?.iosUnitId
-
+  const adUnitId = Platform.OS === 'android' ? adSettings?.androidUnitId : adSettings?.iosUnitId
   const afterVideos = adSettings?.afterVideos ?? 5
-  // Only show ads to free users (has_ads = true in their plan)
-  const shouldShowAds = planLimits?.has_ads !== false
+  const shouldShowAds = !!(planLimits?.has_ads !== false && AdMobModule && adUnitId)
 
   const loadAd = useCallback(() => {
     if (!AdMobModule || !adUnitId || !shouldShowAds) return
-
     try {
       const { InterstitialAd, AdEventType } = AdMobModule
-
       const interstitial = InterstitialAd.createForAdRequest(adUnitId, {
         requestNonPersonalizedAdsOnly: false,
       })
-
       const unsubLoaded = interstitial.addAdEventListener(AdEventType.LOADED, () => {
         isLoadedRef.current = true
       })
-
       const unsubClosed = interstitial.addAdEventListener(AdEventType.CLOSED, () => {
         isLoadedRef.current = false
-        // Pre-load next ad
         setTimeout(() => loadAd(), 2000)
       })
-
       interstitial.load()
       interstitialRef.current = interstitial
-
       return () => { unsubLoaded(); unsubClosed() }
-    } catch (e) {
-      // Expo Go — silently skip
-    }
+    } catch {}
   }, [adUnitId, shouldShowAds])
 
-  // Load first ad when settings are ready
   useEffect(() => {
-    if (adUnitId && shouldShowAds) {
-      return loadAd()
-    }
-  }, [adUnitId, shouldShowAds])
+    if (shouldShowAds) return loadAd()
+  }, [shouldShowAds])
 
-  /**
-   * Call this every time the user swipes to the next video.
-   * The hook tracks the count and shows an ad when needed.
-   */
   const onVideoSwiped = useCallback(() => {
     if (!shouldShowAds || afterVideos <= 0) return
-
     videoCountRef.current += 1
-
     if (videoCountRef.current >= afterVideos) {
-      videoCountRef.current = 0  // reset counter
-
+      videoCountRef.current = 0
       if (isLoadedRef.current && interstitialRef.current) {
-        try {
-          interstitialRef.current.show()
-        } catch {
-          // Expo Go or ad not ready
-        }
+        try { interstitialRef.current.show() } catch {}
       }
     }
   }, [shouldShowAds, afterVideos])
 
-  return { onVideoSwiped, shouldShowAds }
+  return { onVideoSwiped, shouldShowAds, adMobAvailable: !!AdMobModule }
 }

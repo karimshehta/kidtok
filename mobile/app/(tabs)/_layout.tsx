@@ -27,10 +27,10 @@ function RecordTabButton() {
       {/* Circle + button */}
       <View
         style={{
-          width: 48,
-          height: 48,
-          borderRadius: 24,
-          backgroundColor: colors.primary,
+          width: 44,
+          height: 44,
+          borderRadius: 22,
+          backgroundColor: colors.secondary,
           alignItems: 'center',
           justifyContent: 'center',
           shadowColor: colors.primary,
@@ -43,7 +43,7 @@ function RecordTabButton() {
       >
         <Ionicons name="add" size={30} color={colors.white} />
       </View>
-      <Text style={{ fontSize: 10, color: colors.grey400, marginTop: 4, fontWeight: '600' }}>
+      <Text style={{ fontSize: 10, color: '#9CA3AF', marginTop: 3, fontWeight: '700', letterSpacing: 0.2 }}>
         سجّل
       </Text>
     </Pressable>
@@ -76,25 +76,31 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.grey400,
+        tabBarActiveTintColor: colors.secondary,
+        tabBarInactiveTintColor: '#9CA3AF',
         tabBarStyle: {
           backgroundColor: colors.white,
-          borderTopWidth: 1,
-          borderTopColor: colors.grey100,
-          height: 64,
-          paddingBottom: 8,
+          borderTopWidth: 0.5,
+          borderTopColor: '#E5E7EB',
+          height: 60,
+          paddingBottom: 6,
           paddingTop: 6,
+          elevation: 12,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: -2 },
+          shadowOpacity: 0.06,
+          shadowRadius: 8,
         },
-        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
+        tabBarLabelStyle: { fontSize: 10, fontWeight: '700', letterSpacing: 0.2 },
+        tabBarIconStyle: { marginBottom: -2 },
       }}
     >
       <Tabs.Screen
         name="feed"
         options={{
           title: t('tabs.feed'),
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'home' : 'home-outline'} size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'home' : 'home-outline'} size={24} color={color} />
           ),
         }}
       />
@@ -102,8 +108,8 @@ export default function TabsLayout() {
         name="search"
         options={{
           title: t('tabs.search'),
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'search' : 'search-outline'} size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'search' : 'search-outline'} size={24} color={color} />
           ),
         }}
       />
@@ -121,8 +127,8 @@ export default function TabsLayout() {
         name="children"
         options={{
           title: t('tabs.children'),
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'people' : 'people-outline'} size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'people' : 'people-outline'} size={24} color={color} />
           ),
         }}
       />
@@ -130,8 +136,8 @@ export default function TabsLayout() {
         name="profile"
         options={{
           title: t('tabs.profile'),
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'person' : 'person-outline'} size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'person-circle' : 'person-circle-outline'} size={24} color={color} />
           ),
         }}
       />

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { View, Text, ScrollView, Pressable, Image, Modal, TextInput, Alert, StatusBar, BackHandler } from 'react-native'
+import { View, Text, ScrollView, Pressable, Image, Modal, Alert, StatusBar, BackHandler } from 'react-native'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { LinearGradient } from 'expo-linear-gradient'
@@ -7,6 +7,8 @@ import { useQuery } from '@tanstack/react-query'
 import * as ScreenOrientation from 'expo-screen-orientation' // optional, won't break if absent
 
 import { supabase } from '@/lib/supabase'
+import { usePinVerify, useHasPin } from '@/hooks/usePinAuth'
+import PinPad from '@/components/PinPad'
 import { colors, spacing, fontSize, radius } from '@/lib/theme'
 
 interface Playlist {
@@ -20,7 +22,8 @@ export default function ChildModeScreen() {
   const { id: childId } = useLocalSearchParams<{ id: string }>()
 
   const [exitOpen, setExitOpen] = useState(false)
-  const [password, setPassword] = useState('')
+  const { verifyPin, verifyBiometric, verifying, error: pinError, setError: setPinError, biometricAvailable } = usePinVerify()
+  const hasPin = useHasPin()
   const [remainingMin, setRemainingMin] = useState<number | null>(null)
 
   const { data: child } = useQuery({
@@ -73,21 +76,29 @@ export default function ChildModeScreen() {
     }
   }, [])
 
-  const tryExit = async () => {
-    // Verify password against current user
-    const { data: u } = await supabase.auth.getUser()
-    if (!u.user?.email) return
-    const { error } = await supabase.auth.signInWithPassword({
-      email: u.user.email,
-      password,
-    })
-    if (error) {
-      Alert.alert('خطأ', 'كلمة المرور غير صحيحة')
-      setPassword('')
+  const tryExitWithPin = async (pin: string) => {
+    const ok = await verifyPin(pin)
+    if (ok) { setExitOpen(false); router.back() }
+  }
+
+  const tryExitWithBiometric = async () => {
+    const ok = await verifyBiometric()
+    if (ok) { setExitOpen(false); router.back() }
+  }
+
+  const handleExitPress = () => {
+    if (hasPin === null) return  // still loading — do nothing
+    if (hasPin === false) {
+      // No PIN set — shouldn't happen (blocked at entry) but handle gracefully
+      Alert.alert(
+        'رمز الأمان مطلوب',
+        'يجب تعيين رمز PIN أولاً',
+        [{ text: 'حسناً', style: 'cancel' }]
+      )
       return
     }
-    setExitOpen(false)
-    router.back()
+    setPinError(null)
+    setExitOpen(true)
   }
 
   const isTimeUp = remainingMin !== null && remainingMin <= 0
@@ -136,7 +147,7 @@ export default function ChildModeScreen() {
           )}
         </View>
         <Pressable
-          onPress={() => setExitOpen(true)}
+          onPress={handleExitPress}
           style={{
             width: 44, height: 44, borderRadius: 22,
             backgroundColor: 'rgba(255,255,255,0.25)',
@@ -221,62 +232,26 @@ export default function ChildModeScreen() {
 
       {/* Exit modal */}
       <Modal visible={exitOpen} animationType="fade" transparent onRequestClose={() => setExitOpen(false)}>
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', alignItems: 'center', justifyContent: 'center', padding: spacing.lg }}>
-          <View style={{ backgroundColor: colors.white, borderRadius: radius.xl, padding: spacing.lg, width: '100%', maxWidth: 360 }}>
-            <View style={{ alignItems: 'center', marginBottom: spacing.md }}>
-              <View
-                style={{
-                  width: 64, height: 64, borderRadius: 32,
-                  backgroundColor: `${colors.primary}15`,
-                  alignItems: 'center', justifyContent: 'center',
-                  marginBottom: spacing.sm,
-                }}
-              >
-                <Ionicons name="lock-closed" size={32} color={colors.primary} />
-              </View>
-              <Text style={{ fontSize: fontSize.lg, fontWeight: '900' }}>الخروج من وضع الطفل</Text>
-              <Text style={{ fontSize: fontSize.sm, color: colors.grey600, marginTop: 4 }}>
-                أدخل كلمة مرور حسابك
-              </Text>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center' }}>
+          <View style={{ backgroundColor: '#fff', borderRadius: 24, paddingHorizontal: 16, paddingBottom: 16, width: '90%', maxWidth: 360 }}>
+            {/* Header */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 16 }}>
+              <Pressable onPress={() => { setExitOpen(false); setPinError(null) }}>
+                <Ionicons name="close" size={24} color={colors.grey700} />
+              </Pressable>
+              <Text style={{ fontWeight: '900', fontSize: fontSize.base, color: colors.grey900 }}>الخروج من وضع الطفل</Text>
+              <View style={{ width: 24 }} />
             </View>
 
-            <TextInput
-              value={password}
-              onChangeText={setPassword}
-              placeholder="كلمة المرور"
-              secureTextEntry
-              autoFocus
-              style={{
-                backgroundColor: colors.grey50,
-                borderRadius: radius.lg,
-                padding: spacing.md,
-                fontSize: fontSize.base,
-                borderWidth: 1, borderColor: colors.grey100,
-                marginBottom: spacing.md,
-              }}
+            <PinPad
+              key={pinError ?? 'idle'}
+              title="أدخل رمز PIN"
+              subtitle="للخروج من وضع الطفل"
+              onComplete={tryExitWithPin}
+              onBiometric={biometricAvailable ? tryExitWithBiometric : undefined}
+              error={pinError}
+              loading={verifying}
             />
-
-            <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-              <Pressable
-                onPress={() => { setExitOpen(false); setPassword('') }}
-                style={{ flex: 1, padding: spacing.md, alignItems: 'center', borderRadius: radius.pill, backgroundColor: colors.grey100 }}
-              >
-                <Text style={{ fontWeight: '800', color: colors.grey700 }}>إلغاء</Text>
-              </Pressable>
-              <Pressable
-                onPress={tryExit}
-                disabled={!password}
-                style={{
-                  flex: 1,
-                  padding: spacing.md,
-                  alignItems: 'center',
-                  borderRadius: radius.pill,
-                  backgroundColor: !password ? colors.grey200 : colors.primary,
-                }}
-              >
-                <Text style={{ fontWeight: '800', color: colors.white }}>خروج</Text>
-              </Pressable>
-            </View>
           </View>
         </View>
       </Modal>

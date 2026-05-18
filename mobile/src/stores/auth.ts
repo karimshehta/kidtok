@@ -22,10 +22,30 @@ export const useAuth = create<AuthState>((set) => ({
   init: async () => {
     set({ loading: true })
     try {
-      const { data } = await supabase.auth.getSession()
+      // Clear stale refresh tokens
+      let sessionData
+      try {
+        const { data, error } = await supabase.auth.getSession()
+        if (error?.message?.includes('Refresh Token') || error?.message?.includes('refresh_token')) {
+          await supabase.auth.signOut()
+          set({ user: null, session: null, loading: false, initialized: true })
+          return
+        }
+        sessionData = data
+      } catch {
+        set({ user: null, session: null, loading: false, initialized: true })
+        return
+      }
+      const { data } = { data: sessionData }
       set({ session: data.session, user: data.session?.user ?? null })
 
-      supabase.auth.onAuthStateChange((_event, session) => {
+      supabase.auth.onAuthStateChange((event, session) => {
+        // Handle token refresh errors
+        if (event === 'TOKEN_REFRESHED' && !session) {
+          supabase.auth.signOut()
+          set({ user: null, session: null })
+          return
+        }
         set({ session, user: session?.user ?? null })
       })
     } finally {

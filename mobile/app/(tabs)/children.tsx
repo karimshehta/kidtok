@@ -9,7 +9,6 @@ import { Ionicons } from '@expo/vector-icons'
 
 import { supabase } from '@/lib/supabase'
 import { usePlanLimits } from '@/hooks/usePlanLimits'
-import { usePlanLimits } from '@/hooks/usePlanLimits'
 import { useAuth } from '@/stores/auth'
 import ChildAvatar from '@/components/ChildAvatar'
 import { colors, spacing, fontSize, radius } from '@/lib/theme'
@@ -30,7 +29,8 @@ export default function ChildrenScreen() {
   const userId = useAuth((s) => s.user?.id)
   const qc = useQueryClient()
   const [refreshing, setRefreshing] = useState(false)
-  const { data: planLimits } = usePlanLimits()
+  const [menuChild, setMenuChild] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
   const { data: planLimits } = usePlanLimits()
 
   const onRefresh = useCallback(async () => {
@@ -64,7 +64,33 @@ export default function ChildrenScreen() {
     },
   })
 
+  const deleteChild = async (childId: string, childName: string) => {
+    Alert.alert(
+      lang === 'ar' ? 'حذف الطفل' : 'Delete Child',
+      lang === 'ar' ? `هل تريد حذف "${childName}" نهائياً؟` : `Delete "${childName}" permanently?`,
+      [
+        { text: lang === 'ar' ? 'إلغاء' : 'Cancel', style: 'cancel' },
+        {
+          text: lang === 'ar' ? 'حذف' : 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setDeleting(true)
+            const { error } = await supabase.from('children').delete().eq('id', childId)
+            if (!error) {
+              qc.invalidateQueries({ queryKey: ['children'] })
+            } else {
+              Alert.alert('خطأ', error.message)
+            }
+            setMenuChild(null)
+            setDeleting(false)
+          },
+        },
+      ]
+    )
+  }
+
   return (
+    <Pressable style={{ flex: 1 }} onPress={() => setMenuChild(null)}>
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.white }}>
       <ScrollView
         contentContainerStyle={{ padding: spacing.lg, paddingBottom: 100 }}
@@ -135,43 +161,62 @@ export default function ChildrenScreen() {
         ) : (
           <View style={{ gap: spacing.md }}>
             {children.map((child) => (
-              <Pressable
+              <View
                 key={child.id}
-                onPress={() => router.push(`/children/${child.id}`)}
-                style={({ pressed }) => ({
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  padding: spacing.md,
-                  backgroundColor: colors.grey50,
-                  borderRadius: radius.lg,
-                  borderWidth: 1,
-                  borderColor: colors.grey100,
-                  opacity: pressed ? 0.7 : 1,
-                  gap: spacing.md,
-                })}
+                style={{ flexDirection: 'row', alignItems: 'center', padding: spacing.md, backgroundColor: colors.grey50, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.grey100, gap: spacing.md }}
               >
-                <ChildAvatar name={child.name} imageUrl={child.image_url} gender={child.gender} size="md" />
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: fontSize.base, fontWeight: '700', color: colors.grey900 }}>
-                    {child.name}
-                  </Text>
-                  {!!child.age?.name_ar && (
-                    <Text style={{ fontSize: fontSize.sm, color: colors.grey600 }}>
-                      {lang === 'ar' ? child.age.name_ar : child.age.name_en}
-                    </Text>
-                  )}
-                  {!!child.interests?.length && (
-                    <Text style={{ fontSize: fontSize.xs, color: colors.grey600, marginTop: 2 }} numberOfLines={1}>
-                      {child.interests.map((interest) => lang === 'ar' ? interest.name_ar : interest.name_en).join(' • ')}
-                    </Text>
-                  )}
-                </View>
-                <Ionicons name="chevron-forward" size={22} color={colors.grey400} />
-              </Pressable>
+                <Pressable style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.md }} onPress={() => router.push(`/children/${child.id}`)}>
+                  <ChildAvatar name={child.name} imageUrl={child.image_url} gender={child.gender} size="md" />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: fontSize.base, fontWeight: '700', color: colors.grey900 }}>{child.name}</Text>
+                    {!!child.age?.name_ar && (
+                      <Text style={{ fontSize: fontSize.sm, color: colors.grey600 }}>
+                        {lang === 'ar' ? child.age.name_ar : child.age.name_en}
+                      </Text>
+                    )}
+                    {!!child.interests?.length && (
+                      <Text style={{ fontSize: fontSize.xs, color: colors.grey600, marginTop: 2 }} numberOfLines={1}>
+                        {child.interests.map((interest: any) => lang === 'ar' ? interest.name_ar : interest.name_en).join(' • ')}
+                      </Text>
+                    )}
+                  </View>
+                </Pressable>
+
+                {/* 3-dot menu */}
+                <Pressable
+                  onPress={() => setMenuChild(menuChild === child.id ? null : child.id)}
+                  style={{ padding: 8 }}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Ionicons name="ellipsis-vertical" size={20} color={colors.grey400} />
+                </Pressable>
+
+                {/* Dropdown menu */}
+                {menuChild === child.id && (
+                  <View style={{ position: 'absolute', right: 12, top: 44, backgroundColor: colors.white, borderRadius: radius.lg, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 8, zIndex: 100, minWidth: 160, borderWidth: 1, borderColor: colors.grey100 }}>
+                    <Pressable
+                      onPress={() => { setMenuChild(null); router.push(`/children/${child.id}/edit` as any) }}
+                      style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md, backgroundColor: pressed ? colors.grey50 : colors.white, borderRadius: radius.lg })}
+                    >
+                      <Ionicons name="pencil-outline" size={18} color={colors.grey700} />
+                      <Text style={{ fontWeight: '600', color: colors.grey900 }}>{lang === 'ar' ? 'تعديل' : 'Edit'}</Text>
+                    </Pressable>
+                    <View style={{ height: 1, backgroundColor: colors.grey100 }} />
+                    <Pressable
+                      onPress={() => { setMenuChild(null); deleteChild(child.id, child.name) }}
+                      style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md, backgroundColor: pressed ? '#FEF2F2' : colors.white, borderRadius: radius.lg })}
+                    >
+                      <Ionicons name="trash-outline" size={18} color={colors.secondary} />
+                      <Text style={{ fontWeight: '600', color: colors.secondary }}>{lang === 'ar' ? 'حذف' : 'Delete'}</Text>
+                    </Pressable>
+                  </View>
+                )}
+              </View>
             ))}
           </View>
         )}
       </ScrollView>
     </SafeAreaView>
+    </Pressable>
   )
 }

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Ionicons } from '@expo/vector-icons'
 import { Stack, usePathname } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
@@ -26,6 +27,7 @@ import { router } from 'expo-router'
 import OnboardingModal from '@/components/OnboardingModal'
 import { useAppVersionCheck } from '@/hooks/useAppVersionCheck'
 import { usePushNotifications } from '@/hooks/usePushNotifications'
+import NotificationsPanel from '@/components/NotificationsPanel'
 import { ForceUpdateScreen, MaintenanceScreen } from '@/components/SystemScreens'
 
 // ─── Global Cairo font ────────────────────────────────────────────────────────
@@ -48,9 +50,10 @@ function setGlobalFont() {
  * على باقي الصفحات: ثابت دايماً.
  * يعرض زر اللغة + رصيد العملات.
  */
-function GlobalHeader({ isFeed, coinBalance }: { isFeed: boolean; coinBalance: number }) {
+function GlobalHeader({ isFeed, coinBalance, unreadCount }: { isFeed: boolean; coinBalance: number; unreadCount: number }) {
   const { i18n } = useTranslation()
   const isRTL = i18n.language === 'ar'
+  const [showPanel, setShowPanel] = useState(false)
 
   const handleToggleLang = async () => {
     await setLanguage(isRTL ? 'en' : 'ar')
@@ -68,72 +71,58 @@ function GlobalHeader({ isFeed, coinBalance }: { isFeed: boolean; coinBalance: n
         borderBottomColor: colors.grey100,
       }}
     >
-      {/* Inner row — always HEADER_BAR_HEIGHT tall, clipped when animating */}
-      <View
-        style={{
-          height: HEADER_BAR_HEIGHT,
-          flexDirection: isRTL ? 'row-reverse' : 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          paddingHorizontal: 16,
-        }}
-      >
-        {/* Language toggle */}
+      {/* Inner row */}
+      <View style={{ height: HEADER_BAR_HEIGHT, flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14 }}>
+
+        {/* LEFT: Language toggle — pink pill */}
         <Pressable
           onPress={handleToggleLang}
           style={({ pressed }) => ({
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 5,
-            backgroundColor: pressed ? colors.primarySemiDark : colors.primary,
-            paddingHorizontal: 12,
-            paddingVertical: 5,
-            borderRadius: 999,
+            paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999,
+            backgroundColor: pressed ? '#d4547a' : colors.secondary,
+            flexDirection: 'row', alignItems: 'center', gap: 4,
           })}
         >
-          <Text style={{ fontSize: 13 }}>🌐</Text>
-          <Text style={{ fontSize: 13, fontWeight: '800', color: colors.white }}>
+          <Ionicons name="language-outline" size={14} color="#fff" />
+          <Text style={{ fontSize: 12, fontWeight: '900', color: '#fff', letterSpacing: 0.5 }}>
             {isRTL ? 'EN' : 'ع'}
           </Text>
         </Pressable>
 
-        <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 8 }}>
-          {/* Upload button */}
+        {/* RIGHT: Bell → Upload → Coins → Daily reward */}
+        <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 6 }}>
+
+          {/* Upload — pink pill */}
           <Pressable
-            onPress={() => router.push('/creator/record')}
-            style={({ pressed }) => ({
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 4,
-              backgroundColor: pressed ? colors.primaryDark : colors.primary,
-              paddingHorizontal: 10,
-              paddingVertical: 5,
-              borderRadius: 999,
-            })}
+            onPress={() => router.push('/creator/upload')}
+            style={({ pressed }) => ({ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: pressed ? '#d4547a' : colors.secondary, flexDirection: 'row', alignItems: 'center', gap: 4 })}
           >
-            <Text style={{ fontSize: 14 }}>📹</Text>
-            <Text style={{ fontSize: 12, fontWeight: '800', color: '#fff' }}>رفع</Text>
+            <Ionicons name="cloud-upload-outline" size={14} color="#fff" />
+            <Text style={{ fontSize: 12, fontWeight: '800', color: '#fff' }}>{isRTL ? 'رفع' : 'Upload'}</Text>
           </Pressable>
 
-          {/* Coin balance badge */}
-          <View
-            style={{
-              flexDirection: isRTL ? 'row-reverse' : 'row',
-              alignItems: 'center',
-              gap: 5,
-              backgroundColor: '#FEF3C7',
-              paddingHorizontal: 10,
-              paddingVertical: 5,
-              borderRadius: 999,
-              borderWidth: 1,
-              borderColor: '#FCD34D',
-            }}
+          {/* Coin balance */}
+          <Pressable
+            onPress={() => router.push('/subscription')}
+            style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 4, backgroundColor: '#FEF3C7', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: '#FCD34D' }}
           >
-            <Text style={{ fontSize: 14 }}>🪙</Text>
-            <Text style={{ fontSize: 13, fontWeight: '800', color: '#78350F' }}>
-              {coinBalance.toLocaleString()}
-            </Text>
-          </View>
+            <Text style={{ fontSize: 13 }}>🪙</Text>
+            <Text style={{ fontSize: 12, fontWeight: '900', color: '#78350F' }}>{coinBalance.toLocaleString()}</Text>
+          </Pressable>
+
+          {/* Bell — far right */}
+          <Pressable
+            onPress={() => setShowPanel(p => !p)}
+            style={{ position: 'relative', width: 34, height: 34, borderRadius: 17, backgroundColor: showPanel ? colors.primary : '#F3F4F6', alignItems: 'center', justifyContent: 'center' }}
+          >
+            <Ionicons name={showPanel ? 'notifications' : 'notifications-outline'} size={19} color={showPanel ? '#fff' : '#374151'} />
+            {unreadCount > 0 && !showPanel && (
+              <View style={{ position: 'absolute', top: -1, right: -1, width: 15, height: 15, borderRadius: 8, backgroundColor: colors.secondary, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: '#fff' }}>
+                <Text style={{ fontSize: 8, fontWeight: '900', color: '#fff' }}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+              </View>
+            )}
+          </Pressable>
+          <NotificationsPanel visible={showPanel} onClose={() => setShowPanel(false)} />
         </View>
       </View>
     </Animated.View>
@@ -165,6 +154,21 @@ function AppShell() {
   }, [isFeed])
 
   // رصيد العملات — يتحدث تلقائياً
+  // Unread notifications count (last 24h)
+  const { data: unreadCount = 0 } = useQuery<number>({
+    queryKey: ['unread-notifs'],
+    staleTime: 30_000,
+    queryFn: async () => {
+      const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+      const { count } = await supabase
+        .from('notification_history')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'sent')
+        .gte('created_at', since)
+      return count || 0
+    },
+  })
+
   const { data: coinBalance = 0 } = useQuery({
     queryKey: ['coins', user?.id],
     enabled: !!user?.id,
@@ -231,7 +235,7 @@ function AppShell() {
           }}
         >
           <View style={{ height: insets.top, backgroundColor: colors.white }} />
-          <GlobalHeader isFeed={false} coinBalance={coinBalance} />
+          <GlobalHeader isFeed={false} coinBalance={coinBalance} unreadCount={unreadCount} />
         </Animated.View>
       )}
     </View>

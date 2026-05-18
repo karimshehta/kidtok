@@ -10,6 +10,7 @@ import Toast from 'react-native-toast-message'
 
 import { useTranslation } from 'react-i18next'
 import { supabase } from '@/lib/supabase'
+import { useHasPin } from '@/hooks/usePinAuth'
 import { usePlanLimits, parsePlanLimitError } from '@/hooks/usePlanLimits'
 import { useAuth } from '@/stores/auth'
 import ChildAvatar from '@/components/ChildAvatar'
@@ -30,6 +31,7 @@ export default function ChildDetailScreen() {
   const { t } = useTranslation()
   const userId = useAuth((s) => s.user?.id)
   const { data: planLimits } = usePlanLimits()
+  const hasPin = useHasPin()
 
   // Refetch playlists every time this screen comes into focus
   // so the video count updates when returning from the add-video screen
@@ -129,7 +131,24 @@ export default function ChildDetailScreen() {
           icon="play-circle"
           label="وضع الطفل"
           color={colors.primary}
-          onPress={() => router.push(`/children/${id}/kid-mode`)}
+          onPress={() => {
+            if (hasPin === false) {
+              Alert.alert(
+                'رمز الأمان مطلوب',
+                'يجب تعيين رمز PIN أولاً حتى يتمكن الطفل من اللعب بأمان ولا يستطيع الخروج بدون إذنك',
+                [
+                  {
+                    text: 'تعيين الرمز الآن',
+                    onPress: () => router.push({ pathname: '/profile/set-pin', params: { returnTo: `/children/${id}/kid-mode` } }),
+                  },
+                  { text: 'إلغاء', style: 'cancel' },
+                ]
+              )
+              return
+            }
+            if (hasPin === null) return  // still loading
+            router.push(`/children/${id}/kid-mode`)
+          }}
         />
         <ActionPill
           icon="stats-chart"

@@ -18,6 +18,7 @@ import { useRouter } from 'expo-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import Toast from 'react-native-toast-message'
 import { WebView } from 'react-native-webview'
+import { useTranslation } from 'react-i18next'
 
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/stores/auth'
@@ -28,7 +29,9 @@ import { getYouTubeThumbnail } from '@/lib/youtube'
 import { colors, spacing, fontSize, radius } from '@/lib/theme'
 import { onHeaderPageChange, headerAnimHeight, HEADER_BAR_HEIGHT } from '@/lib/headerScroll'
 import { usePlanLimits } from '@/hooks/usePlanLimits'
+import { useIsFollowing, useToggleFollow } from '@/hooks/useSocial'
 import { useAdMob } from '@/hooks/useAdMob'
+import DailyRewardModal from '@/components/DailyRewardModal'
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window')
 const KIDTOK_ORIGIN = 'https://kidtok.vercel.app'
@@ -133,8 +136,8 @@ export default function FeedScreen() {
         }}
       >
         <View style={{ flexDirection: 'row', gap: spacing.xs, backgroundColor: 'rgba(0,0,0,0.35)', borderRadius: radius.pill, padding: 3 }}>
-          <TabBtn label="لك" active={tab === 'foryou'} onPress={handleTabForYou} />
-          <TabBtn label="أتابع" active={tab === 'following'} onPress={handleTabFollowing} />
+          <TabBtn label={i18n.language === 'ar' ? 'لك' : 'For You'} active={tab === 'foryou'} onPress={handleTabForYou} />
+          <TabBtn label={i18n.language === 'ar' ? 'أتابع' : 'Following'} active={tab === 'following'} onPress={handleTabFollowing} />
         </View>
       </Animated.View>
 
@@ -144,16 +147,22 @@ export default function FeedScreen() {
         </View>
       ) : videos.length === 0 ? (
         <SafeAreaView style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.lg }}>
-          <Ionicons name="film-outline" size={80} color={colors.grey400} />
-          <Text style={{ color: colors.white, fontSize: fontSize.lg, fontWeight: '700', marginTop: spacing.md }}>
-            {tab === 'following' ? 'لا تتابع أحدا بعد' : 'لا توجد فيديوهات بعد'}
-          </Text>
-          <Pressable
-            onPress={() => refetch()}
-            style={{ marginTop: spacing.lg, backgroundColor: colors.primary, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm + 2, borderRadius: radius.pill }}
-          >
-            <Text style={{ color: colors.white, fontWeight: '700' }}>تحديث</Text>
-          </Pressable>
+          {tab === 'following' ? (
+            <DiscoverUsers />
+          ) : (
+            <>
+              <Ionicons name="film-outline" size={80} color={colors.grey400} />
+              <Text style={{ color: colors.white, fontSize: fontSize.lg, fontWeight: '700', marginTop: spacing.md }}>
+                {i18n.language === 'ar' ? 'لا توجد فيديوهات بعد' : 'No videos yet'}
+              </Text>
+              <Pressable
+                onPress={() => refetch()}
+                style={{ marginTop: spacing.lg, backgroundColor: colors.primary, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm + 2, borderRadius: radius.pill }}
+              >
+                <Text style={{ color: colors.white, fontWeight: '700' }}>{i18n.language === 'ar' ? 'تحديث' : 'Refresh'}</Text>
+              </Pressable>
+            </>
+          )}
         </SafeAreaView>
       ) : (
         <SwipeFeed
@@ -170,7 +179,10 @@ export default function FeedScreen() {
         />
       )}
 
-      {/* Record FAB moved to center tab bar */}
+      {/* Daily reward popup */}
+      <DailyRewardModal />
+
+      {/* Record FAB moved to center tab bar */
 
       {commentsForVideo && (
         <CommentsSheet videoId={commentsForVideo} visible={!!commentsForVideo} onClose={() => setCommentsForVideo(null)} />
@@ -725,5 +737,116 @@ function AddToPlaylistModal({ video, visible, onClose }: { video: FeedVideo | nu
         </View>
       </View>
     </Modal>
+  )
+}
+
+// ── Discover Users — shown when "أتابع" tab is empty ─────────────────────────
+function DiscoverUsers() {
+  const router = useRouter()
+  const { i18n } = useTranslation()
+  const ar = i18n.language === 'ar'
+  const myId = useAuth((s) => s.user?.id)
+
+  const { data: myFollowingIds = [] } = useQuery({
+    queryKey: ['my-following-ids', myId],
+    enabled: !!myId,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('creator_follows')
+        .select('following_id')
+        .eq('follower_id', myId!)
+      return (data || []).map((f: any) => f.following_id)
+    },
+  })
+
+  const { data: topUsers = [] } = useQuery({
+    queryKey: ['top-creators', myId],
+    staleTime: 2 * 60_000,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, name, username, avatar_url, followers_count')
+        .order('followers_count', { ascending: false })
+        .limit(20)  // fetch more, then filter client-side
+      return data || []
+    },
+    select: (data) => data.filter((u: any) => u.id !== myId && !myFollowingIds.includes(u.id)).slice(0, 5),
+  })
+
+  return (
+    <View style={{ alignItems: 'center', width: '100%' }}>
+      <Ionicons name="people-outline" size={64} color={colors.grey400} />
+      <Text style={{ color: colors.white, fontSize: fontSize.lg, fontWeight: '800', marginTop: spacing.md }}>
+        {ar ? 'لا تتابع أحداً بعد' : 'Not following anyone yet'}
+      </Text>
+      <Text style={{ color: colors.grey400, fontSize: fontSize.sm, marginTop: 6, textAlign: 'center' }}>
+        {ar ? 'اتبع منشئي محتوى لتظهر فيديوهاتهم هنا' : 'Follow creators to see their videos here'}
+      </Text>
+
+      {/* Search button */}
+      <Pressable
+        onPress={() => router.push('/(tabs)/search' as any)}
+        style={{ marginTop: spacing.lg, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.secondary, paddingHorizontal: spacing.xl, paddingVertical: spacing.md, borderRadius: radius.pill, elevation: 4, shadowColor: colors.secondary, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 6 }}
+      >
+        <Ionicons name="search" size={16} color={colors.white} />
+        <Text style={{ color: colors.white, fontWeight: '900', fontSize: fontSize.sm }}>{ar ? 'ابحث عن مستخدمين' : 'Find Users'}</Text>
+      </Pressable>
+
+      {/* Top creators */}
+      {topUsers.length > 0 && (
+        <View style={{ width: '100%', marginTop: spacing.xl }}>
+          <Text style={{ color: colors.grey300, fontSize: fontSize.sm, fontWeight: '700', marginBottom: spacing.md, textAlign: 'center' }}>
+            🌟 {ar ? 'الأكثر متابعة' : 'Most Followed'}
+          </Text>
+          {topUsers.map((u: any) => (
+            <TopCreatorRow key={u.id} user={u} />
+          ))}
+        </View>
+      )}
+    </View>
+  )
+}
+
+function TopCreatorRow({ user }: { user: any }) {
+  const router = useRouter()
+  const { i18n } = useTranslation()
+  const ar = i18n.language === 'ar'
+  const myId = useAuth((s) => s.user?.id)
+  const { data: isFollowing } = useIsFollowing(user.id)
+  const toggleFollow = useToggleFollow()
+  if (user.id === myId) return null
+
+  return (
+    <Pressable
+      onPress={() => router.push(`/creator/${user.id}` as any)}
+      style={({ pressed }) => ({
+        flexDirection: 'row', alignItems: 'center', gap: spacing.md,
+        paddingVertical: spacing.sm + 4, paddingHorizontal: spacing.md,
+        backgroundColor: pressed ? 'rgba(255,255,255,0.05)' : 'transparent',
+        borderRadius: radius.lg, marginBottom: 4,
+      })}
+    >
+      <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: colors.primary, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
+        {user.avatar_url
+          ? <Image source={{ uri: user.avatar_url }} style={{ width: '100%', height: '100%' }} />
+          : <Ionicons name="person" size={26} color={colors.white} />
+        }
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={{ color: colors.white, fontWeight: '800' }}>{user.name || (ar ? 'مستخدم' : 'User')}</Text>
+        {user.username && <Text style={{ color: colors.primary, fontSize: fontSize.xs }}>@{user.username}</Text>}
+        <Text style={{ color: colors.grey400, fontSize: fontSize.xs }}>
+          {user.followers_count > 999 ? `${(user.followers_count/1000).toFixed(1)}k` : user.followers_count} {ar ? 'متابع' : 'followers'}
+        </Text>
+      </View>
+      <Pressable
+        onPress={(e) => { e.stopPropagation(); toggleFollow.mutate(user.id) }}
+        style={{ paddingHorizontal: 14, paddingVertical: 7, borderRadius: 999, backgroundColor: isFollowing ? 'rgba(255,255,255,0.15)' : colors.primary }}
+      >
+        <Text style={{ color: colors.white, fontWeight: '800', fontSize: fontSize.sm }}>
+          {isFollowing ? (ar ? 'تتابع ✓' : 'Following ✓') : (ar ? '+ متابعة' : '+ Follow')}
+        </Text>
+      </Pressable>
+    </Pressable>
   )
 }

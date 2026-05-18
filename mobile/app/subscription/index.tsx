@@ -65,11 +65,15 @@ export default function SubscriptionScreen() {
   const startPayment = async (plan: Plan, method: 'card' | 'wallet' | 'apple_pay') => {
     setPaying(true)
     try {
-      const phone = method === 'wallet'
-        ? walletPhone.startsWith('+2') ? walletPhone
-          : walletPhone.startsWith('0') ? `+2${walletPhone}`
-          : `+20${walletPhone}`
-        : undefined
+      // Normalize Egyptian mobile number to E.164 (+2001XXXXXXXX)
+      const normalizePhone = (p: string): string => {
+        const digits = p.replace(/\D/g, '')  // strip non-digits
+        if (digits.startsWith('2')) return `+${digits}`          // 201XXXXXXXX → +201XXXXXXXX
+        if (digits.startsWith('01')) return `+20${digits}`       // 01XXXXXXXX  → +2001XXXXXXXX
+        if (digits.startsWith('1')) return `+201${digits.slice(1)}` // 1XXXXXXXX → +2001XXXXXXXX
+        return `+20${digits}`
+      }
+      const phone = method === 'wallet' ? normalizePhone(walletPhone) : undefined
 
       const { data, error } = await supabase.functions.invoke('subscription-create', {
         body: { plan_id: plan.id, payment_method: method, wallet_phone: phone },
@@ -83,15 +87,30 @@ export default function SubscriptionScreen() {
         throw new Error(msg)
       }
 
-      const url = data?.payment_url || data?.redirect_url
+      // ✅ Extract URL based on payment method:
+      // card/apple_pay → data.payment_url (iframe URL)
+      // wallet         → data.wallet_response.redirect_url (OTP page)
+      const url =
+        data?.payment_url ||
+        data?.wallet_response?.redirect_url ||
+        data?.redirect_url
+
       if (url) {
         setPaymentUrl(url)
         setMethodModal(null)
         setWalletModal(null)
+        if (method === 'wallet') {
+          Toast.show({
+            type: 'info',
+            text1: 'سيصلك رسالة OTP',
+            text2: 'أدخل الرمز في الصفحة التالية',
+          })
+        }
       } else {
         Toast.show({ type: 'success', text1: 'تم إرسال طلب الدفع' })
         setMethodModal(null)
         setWalletModal(null)
+        await qc.invalidateQueries({ queryKey: ['my-subscription'] })
       }
     } catch (err) {
       Toast.show({ type: 'error', text1: 'فشل الدفع', text2: (err as Error).message })
@@ -409,6 +428,7 @@ function MethodOption({ icon, label, onPress, disabled }: { icon: any; label: st
 
 // Lazy-loaded WebView component (only imports when needed)
 function PaymentWebView({ url, onClose }: { url: string; onClose: () => void }) {
+  const qc = useQueryClient()
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { WebView } = require('react-native-webview')
   return (
@@ -417,11 +437,25 @@ function PaymentWebView({ url, onClose }: { url: string; onClose: () => void }) 
       style={{ flex: 1 }}
       onNavigationStateChange={(state: any) => {
         const u: string = state.url || ''
-        if (u.includes('success=true') || u.includes('subscription-success')) {
+        // Paymob callback comes back to our Edge Function URL
+        const isSuccess =
+          u.includes('success=true') ||
+          u.includes('subscription-success') ||
+          (u.includes('subscription-paymob-callback') && u.includes('success=true')) ||
+          (u.includes('paymob') && u.includes('success=true'))
+        const isFail =
+          u.includes('success=false') ||
+          u.includes('error=true')
+        if (isSuccess) {
           setTimeout(() => {
             onClose()
             Toast.show({ type: 'success', text1: 'تم تفعيل الاشتراك! 🎉' })
-          }, 1000)
+          }, 1200)
+        } else if (isFail) {
+          setTimeout(() => {
+            onClose()
+            Toast.show({ type: 'error', text1: 'فشل الدفع', text2: 'يرجى المحاولة مجدداً' })
+          }, 500)
         }
       }}
     />

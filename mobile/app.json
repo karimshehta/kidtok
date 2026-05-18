@@ -10,13 +10,15 @@
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#03BBE5"
+      "backgroundColor": "#FFFFFF"
     },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.kidtok.app",
+      "buildNumber": "1",
       "associatedDomains": [
-        "applinks:kidtok.vercel.app"
+        "applinks:kidtok.vercel.app",
+        "webcredentials:kidtok.vercel.app"
       ],
       "infoPlist": {
         "NSAppTransportSecurity": {
@@ -32,16 +34,32 @@
         ],
         "NSCameraUsageDescription": "يستخدم التطبيق الكاميرا لتسجيل الفيديوهات.",
         "NSMicrophoneUsageDescription": "يستخدم التطبيق الميكروفون لتسجيل الصوت مع الفيديو.",
-        "NSPhotoLibraryAddUsageDescription": "يحتاج التطبيق إلى الإذن لحفظ الفيديوهات.",
-        "ITSAppUsesNonExemptEncryption": false
+        "NSPhotoLibraryUsageDescription": "يحتاج التطبيق للوصول إلى الصور لاختيار الفيديوهات وتغيير الصورة الشخصية.",
+        "NSPhotoLibraryAddUsageDescription": "يحتاج التطبيق إلى الإذن لحفظ الفيديوهات في مكتبة الصور.",
+        "NSFaceIDUsageDescription": "يستخدم التطبيق Face ID للتحقق عند الخروج من وضع الطفل.",
+        "NSUserTrackingUsageDescription": "يستخدم التطبيق بياناتك لعرض إعلانات مناسبة لك ولدعم خدمة KidTok.",
+        "UIBackgroundModes": [
+          "remote-notification",
+          "fetch"
+        ],
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSPrivacyAccessedAPITypes": [
+          {
+            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
+            "NSPrivacyAccessedAPITypeReasons": [
+              "CA92.1"
+            ]
+          }
+        ]
       }
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/icon.png",
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#03BBE5"
       },
       "package": "com.kidtok.app",
+      "versionCode": 1,
       "intentFilters": [
         {
           "action": "VIEW",
@@ -77,12 +95,21 @@
         }
       ],
       "permissions": [
-        "CAMERA",
-        "RECORD_AUDIO",
         "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO"
-      ],
-      "googleServicesFile": "./google-services.json"
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.VIBRATE",
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "com.google.android.gms.permission.AD_ID"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -101,12 +128,26 @@
         }
       ],
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "يحتاج التطبيق للوصول إلى الصور والفيديوهات.",
+          "cameraPermission": "يستخدم التطبيق الكاميرا لالتقاط الصور."
+        }
+      ],
+      [
         "expo-notifications",
         {
           "icon": "./assets/icon.png",
           "color": "#03BBE5",
           "defaultChannel": "default",
-          "sounds": []
+          "sounds": [],
+          "enableBackgroundRemoteNotifications": true
+        }
+      ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": "يستخدم التطبيق الميكروفون لتسجيل الصوت مع الفيديو."
         }
       ],
       [
@@ -117,11 +158,25 @@
           "userTrackingUsageDescription": "يستخدم التطبيق بياناتك لعرض إعلانات مناسبة لك.",
           "skAdNetworkItems": []
         }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "newArchEnabled": false
+          },
+          "ios": {
+            "newArchEnabled": false
+          }
+        }
       ]
     ],
-    "experiments": {
-      "typedRoutes": true
+    "updates": {
+      "url": "https://u.expo.dev/fb2d9f4c-1ee3-4e3f-953b-6373f1665c6d",
+      "fallbackToCacheTimeout": 0
     },
+    "runtimeVersion": "1.0.0",
+    "owner": "karimshehta",
     "extra": {
       "SUPABASE_URL": "https://ngjpmfldzoijtfyxopjw.supabase.co",
       "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5nanBtZmxkem9panRmeXhvcGp3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg1MzQzNjMsImV4cCI6MjA5NDExMDM2M30.St75N5VZR-eeWi8HvhelcAY144c6u6yJdGdzCyt44gA",
@@ -130,10 +185,8 @@
       },
       "router": {}
     },
-    "updates": {
-      "url": "https://u.expo.dev/fb2d9f4c-1ee3-4e3f-953b-6373f1665c6d"
-    },
-    "owner": "karimshehta",
-    "runtimeVersion": "1.0.0"
+    "experiments": {
+      "typedRoutes": true
+    }
   }
 }

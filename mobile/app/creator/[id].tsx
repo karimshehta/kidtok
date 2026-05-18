@@ -26,11 +26,20 @@ export default function CreatorProfileScreen() {
     queryKey: ['creator-profile', id],
     staleTime: 0,  // Always fresh — shows latest avatar + followers
     queryFn: async () => {
-      const { data } = await supabase
+      // Try full query, fall back to basic columns if migrations not applied
+      const { data, error } = await supabase
         .from('profiles')
         .select('id, name, bio, avatar_url, role, username, followers_count, following_count, is_verified')
-        .eq('id', id)
-        .single()
+        .eq('id', id!)
+        .maybeSingle()
+      if (error || !data) {
+        const { data: basic } = await supabase
+          .from('profiles')
+          .select('id, name, bio, avatar_url, role')
+          .eq('id', id!)
+          .maybeSingle()
+        return basic
+      }
       return data
     },
   })

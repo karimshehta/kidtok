@@ -7,6 +7,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useTranslation } from 'react-i18next'
 import { Ionicons } from '@expo/vector-icons'
+import Toast from 'react-native-toast-message'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { LinearGradient } from 'expo-linear-gradient'
 
@@ -19,7 +20,17 @@ import VerifiedBadge from '@/components/VerifiedBadge'
 
 // ── Types ──────────────────────────────────────────────────
 type SearchTab = 'suggested' | 'youtube' | 'users'
-interface YTResult { id: string; title: string; channelTitle: string; thumbnail: string }
+interface YTResult {
+  youtube_id: string
+  video_id?: string
+  title: string
+  thumbnail_url: string
+  thumbnail?: string
+  channel_name: string
+  channel?: string
+  channel_id?: string
+  duration_seconds?: number
+}
 interface Child { id: string; name: string; gender: string | null; image_url: string | null }
 interface Playlist { id: string; name: string; video_count: number }
 interface UserResult { id: string; name: string; username: string | null; avatar_url: string | null; bio: string | null; followers_count: number; is_verified: boolean }
@@ -120,7 +131,7 @@ export default function SearchScreen() {
     try {
       const { data, error } = await supabase.functions.invoke('youtube-search', { body: { query: ytQuery.trim() } })
       if (error) throw error
-      setYtResults(data?.items || [])
+      setYtResults(data?.results || data?.videos || data?.items || [])
     } catch { setYtResults([]) }
     finally { setYtSearching(false) }
   }, [ytQuery])
@@ -152,24 +163,73 @@ export default function SearchScreen() {
     setAddingVideo(true)
     try {
       let videoId: string
+
       if (selectedVideo.ytId) {
-        // YouTube video
-        const { data: vid } = await supabase.from('videos')
-          .upsert({ youtube_id: selectedVideo.ytId, title: selectedVideo.title, thumbnail_url: selectedVideo.thumbnail, channel_name: selectedVideo.channelTitle, source: 'youtube', added_by: userId }, { onConflict: 'youtube_id' })
-          .select('id').single()
-        videoId = vid!.id
-        await supabase.rpc('mark_as_parent_pick', { p_video_id: videoId })
+        // ── YouTube video — same logic as playlist/add.tsx ──
+        const ytId = selectedVideo.ytId
+
+        // Check if already in videos table
+        const { data: existing } = await supabase
+          .from('videos').select('id').eq('youtube_id', ytId).maybeSingle()
+
+        if (existing?.id) {
+          videoId = existing.id
+        } else {
+          // Insert new
+          const { data: inserted, error: insErr } = await supabase
+            .from('videos')
+            .insert({
+              source: 'youtube',
+              youtube_id: ytId,
+              added_by: userId,
+              title: selectedVideo.title || '',
+              thumbnail_url: selectedVideo.thumbnail || '',
+              channel_name: selectedVideo.channelTitle || '',
+              channel_id: '',
+              duration_seconds: 0,
+              is_active: true,
+            })
+            .select('id').single()
+          if (insErr) throw insErr
+          videoId = inserted!.id
+        }
       } else {
+        // Suggested video — already in videos table
         videoId = selectedVideo.id
-        await supabase.rpc('mark_as_parent_pick', { p_video_id: videoId })
       }
-      await supabase.from('playlist_videos').upsert({ playlist_id: playlist.id, video_id: videoId, added_by: userId }, { onConflict: 'playlist_id,video_id' })
+
+      // Get next position (same as playlist/[id]/add.tsx)
+      const { data: lastPv } = await supabase
+        .from('playlist_videos')
+        .select('position')
+        .eq('playlist_id', playlist.id)
+        .order('position', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      const nextPos = (lastPv?.position ?? -1) + 1
+
+      // Add to playlist — NO added_by column, use position
+      const { error: pvErr } = await supabase
+        .from('playlist_videos')
+        .insert({ playlist_id: playlist.id, video_id: videoId, position: nextPos })
+      if (pvErr && !pvErr.message.includes('duplicate')) throw pvErr
+
+      // Mark as parent pick (best effort - ignore if column doesn't exist yet)
+      try {
+        await supabase.rpc('mark_as_parent_pick', { p_video_id: videoId })
+      } catch {}
+
       setAddedIds((prev) => new Set([...prev, `${playlist.id}:${videoId}`]))
       qc.invalidateQueries({ queryKey: ['playlist-videos', playlist.id] })
       qc.invalidateQueries({ queryKey: ['playlists'] })
+      Toast.show({ type: 'success', text1: 'تم إضافة الفيديو ✓' })
       closeModal()
-    } catch (e) { console.error(e) }
-    finally { setAddingVideo(false) }
+    } catch (e: any) {
+      Toast.show({ type: 'error', text1: 'فشل الإضافة', text2: e.message })
+      console.error(e)
+    } finally {
+      setAddingVideo(false)
+    }
   }
 
   const isAdded = (playlistId: string, videoId: string) => addedIds.has(`${playlistId}:${videoId}`)
@@ -178,20 +238,31 @@ export default function SearchScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#F8F9FB' }}>
 
-      {/* ── Tab bar ── */}
-      <View style={{ backgroundColor: colors.white, borderBottomWidth: 1, borderBottomColor: colors.grey100 }}>
-        <View style={{ flexDirection: 'row' }}>
+      {/* ── Search Mode Cards ── */}
+      <View style={{ paddingHorizontal: spacing.lg, paddingVertical: spacing.md, backgroundColor: colors.white }}>
+        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
           {([
-            ['suggested', ar ? 'مقترح لك' : 'Suggested'],
-            ['youtube',   ar ? 'يوتيوب'   : 'YouTube'],
-            ['users',     ar ? 'مستخدمين' : 'Users'],
-          ] as [SearchTab, string][]).map(([key, label]) => (
+            ['suggested', ar ? 'مقترح' : 'For You',  colors.primary,   'sparkles-outline'],
+            ['youtube',   'YouTube',                   colors.secondary,  'logo-youtube'],
+            ['users',     ar ? 'مستخدمين' : 'Users',  colors.primary,   'people-outline'],
+          ] as [SearchTab, string, string, string][]).map(([key, label, color, icon]) => (
             <Pressable
               key={key}
               onPress={() => setTab(key)}
-              style={{ flex: 1, paddingVertical: 14, alignItems: 'center', borderBottomWidth: 2.5, borderBottomColor: tab === key ? colors.primary : 'transparent' }}
+              style={({ pressed }) => ({
+                flex: 1, paddingVertical: 12, borderRadius: radius.xl,
+                backgroundColor: tab === key ? color : '#F9FAFB',
+                alignItems: 'center', gap: 4,
+                borderWidth: tab === key ? 0 : 1, borderColor: '#E5E7EB',
+                elevation: tab === key ? 4 : 0,
+                shadowColor: tab === key ? color : 'transparent',
+                shadowOffset: { width: 0, height: 3 },
+                shadowOpacity: 0.25, shadowRadius: 6,
+                opacity: pressed ? 0.85 : 1,
+              })}
             >
-              <Text style={{ fontWeight: '800', fontSize: fontSize.sm, color: tab === key ? colors.primary : colors.grey400 }}>
+              <Ionicons name={icon as any} size={18} color={tab === key ? '#fff' : '#9CA3AF'} />
+              <Text style={{ fontWeight: '800', fontSize: 11, color: tab === key ? '#fff' : '#9CA3AF' }}>
                 {label}
               </Text>
             </Pressable>
@@ -362,17 +433,20 @@ export default function SearchScreen() {
                 <Text style={{ color: colors.grey400, marginTop: spacing.md }}>{ar ? 'ابحث عن فيديو...' : 'Search for a video...'}</Text>
               </View>
             ) : (
-              ytResults.map((v) => {
+              ytResults.map((v, _idx) => {
                 const alreadyAdded = addedIds.has(v.id)
                 return (
-                  <View key={v.id} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.md, backgroundColor: colors.white, borderRadius: radius.xl, padding: spacing.md, elevation: 1 }}>
-                    <Image source={{ uri: v.thumbnail }} style={{ width: 88, height: 60, borderRadius: radius.md }} resizeMode="cover" />
+                  <View key={v.youtube_id || v.video_id || String(_idx)} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.md, backgroundColor: colors.white, borderRadius: radius.xl, padding: spacing.md, elevation: 1 }}>
+                    <Image source={{ uri: v.thumbnail_url || v.thumbnail }} style={{ width: 88, height: 60, borderRadius: radius.md }} resizeMode="cover" />
                     <View style={{ flex: 1 }}>
                       <Text style={{ fontSize: fontSize.sm, fontWeight: '700', color: colors.grey900 }} numberOfLines={2}>{v.title}</Text>
-                      <Text style={{ fontSize: 11, color: colors.grey400, marginTop: 3 }}>{v.channelTitle}</Text>
+                      <Text style={{ fontSize: 11, color: colors.grey400, marginTop: 3 }}>{v.channel_name || v.channel}</Text>
                     </View>
                     <Pressable
-                      onPress={() => !alreadyAdded && openAddFlow({ id: v.id, ytId: v.id, title: v.title, thumbnail: v.thumbnail, channelTitle: v.channelTitle })}
+                      onPress={() => {
+                      const ytId = v.youtube_id || v.video_id || ''
+                      if (!alreadyAdded) openAddFlow({ id: ytId, ytId, title: v.title, thumbnail: v.thumbnail_url || v.thumbnail, channelTitle: v.channel_name || v.channel || '' })
+                    }}
                       style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, backgroundColor: alreadyAdded ? '#16a34a' : colors.secondary }}
                     >
                       <Ionicons name={alreadyAdded ? 'checkmark' : 'add'} size={14} color={colors.white} />
@@ -559,7 +633,7 @@ export default function SearchScreen() {
                     onPress={() => !added && !addingVideo && addToPlaylist(item)}
                     style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.md, borderRadius: radius.lg, backgroundColor: pressed ? colors.grey50 : colors.white, opacity: added ? 0.6 : 1 })}
                   >
-                    <View style={{ width: 44, height: 44, borderRadius: radius.md, backgroundColor: colors.primaryLight, alignItems: 'center', justifyContent: 'center' }}>
+                    <View style={{ width: 44, height: 44, borderRadius: radius.md, backgroundColor: colors.secondaryContainer, alignItems: 'center', justifyContent: 'center' }}>
                       <Ionicons name="list" size={22} color={colors.primary} />
                     </View>
                     <View style={{ flex: 1 }}>

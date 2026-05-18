@@ -151,6 +151,15 @@ export default function AdminAds() {
               min={0}
               max={20}
             />
+            <Field
+              label="إعلان تخللي بعد كل N فيديو (Interstitial)"
+              hint="كل كم فيديو يظهر الإعلان التخللي للمستخدمين المجانيين؟ (0 = معطّل)"
+              value={form['ads_interstitial_after_videos'] || '5'}
+              onChange={(v) => set('ads_interstitial_after_videos', v)}
+              type="number"
+              min={0}
+              max={50}
+            />
           </div>
 
           {/* Dev mode notice */}
