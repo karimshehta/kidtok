@@ -32,24 +32,8 @@ Deno.serve(async (req) => {
   const user = await requireUser(req)
   if (!user) return errorResponse('Unauthorized', 401, 'UNAUTHORIZED')
 
-  // 2. Verify creator role via profiles table
+  // 2. Get service client (all authenticated users can upload)
   const admin = getServiceClient()
-  const { data: profile, error: profileErr } = await admin
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single()
-
-  if (profileErr || !profile) {
-    return errorResponse('Profile not found', 404, 'PROFILE_NOT_FOUND')
-  }
-  if (!['creator', 'admin'].includes(profile.role)) {
-    return errorResponse(
-      'Only creator or admin accounts can upload videos',
-      403,
-      'NOT_A_CREATOR'
-    )
-  }
 
   // 3. Validate input
   let body: UploadRequest
