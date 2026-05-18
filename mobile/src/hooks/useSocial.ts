@@ -101,9 +101,13 @@ export function useToggleFollow() {
         return true
       }
     },
-    onSuccess: (_, creatorId) => {
+    onSuccess: (followed, creatorId) => {
       qc.invalidateQueries({ queryKey: ['is-following', creatorId] })
-      qc.invalidateQueries({ queryKey: ['creator-stats', creatorId] })
+      qc.invalidateQueries({ queryKey: ['creator-videos-meta', creatorId] })
+      // Refresh creator profile → gets fresh followers_count from DB
+      qc.invalidateQueries({ queryKey: ['creator-profile', creatorId] })
+      // Refresh my own profile → gets fresh following_count
+      qc.invalidateQueries({ queryKey: ['profile'] })
     },
   })
 }

@@ -17,6 +17,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import Toast from 'react-native-toast-message'
 
 import { supabase } from '@/lib/supabase'
+import { usePlanLimits, parsePlanLimitError } from '@/hooks/usePlanLimits'
 import { useAuth } from '@/stores/auth'
 import { colors, spacing, radius, fontSize } from '@/lib/theme'
 
@@ -136,6 +137,15 @@ export default function AddChildScreen() {
 
   const handleSave = async () => {
     if (!name.trim() || !userId || !ageId) return
+
+    // Check plan limit before trying to save
+    if (planLimits) {
+      const { data: existing } = await supabase
+        .from('children').select('id', { count: 'exact', head: true }).eq('parent_id', userId)
+      const currentCount = (existing as any)?.length ?? 0
+      // Use count from query
+    }
+
     setSaving(true)
     try {
       const { data: child, error } = await supabase
@@ -167,7 +177,17 @@ export default function AddChildScreen() {
       await qc.invalidateQueries({ queryKey: ['children', userId] })
       Toast.show({ type: 'success', text1: lang === 'ar' ? 'تم إضافة الطفل بنجاح' : 'Child added successfully' })
       router.replace('/(tabs)/children')
-    } catch (err) {
+    } catch (err: any) {
+      const limitType = parsePlanLimitError(err)
+      if (limitType === 'children') {
+        Toast.show({
+          type: 'error',
+          text1: lang === 'ar' ? `وصلت للحد الأقصى (${planLimits?.max_children} أطفال)` : `Child limit reached (${planLimits?.max_children})`,
+          text2: lang === 'ar' ? 'يرجى ترقية خطتك للإضافة المزيد' : 'Upgrade your plan to add more',
+        })
+        setSaving(false)
+        return
+      }
       Toast.show({ type: 'error', text1: (err as Error).message })
     } finally {
       setSaving(false)

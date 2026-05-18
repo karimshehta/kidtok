@@ -22,6 +22,7 @@ import { headerAnimHeight, HEADER_BAR_HEIGHT, showHeader } from '@/lib/headerScr
 import { useAuth } from '@/stores/auth'
 import { supabase } from '@/lib/supabase'
 import { colors, fontSize } from '@/lib/theme'
+import { router } from 'expo-router'
 import OnboardingModal from '@/components/OnboardingModal'
 import { useAppVersionCheck } from '@/hooks/useAppVersionCheck'
 import { usePushNotifications } from '@/hooks/usePushNotifications'
@@ -96,24 +97,43 @@ function GlobalHeader({ isFeed, coinBalance }: { isFeed: boolean; coinBalance: n
           </Text>
         </Pressable>
 
-        {/* ── Coin balance badge ── */}
-        <View
-          style={{
-            flexDirection: isRTL ? 'row-reverse' : 'row',
-            alignItems: 'center',
-            gap: 5,
-            backgroundColor: '#FEF3C7',
-            paddingHorizontal: 10,
-            paddingVertical: 5,
-            borderRadius: 999,
-            borderWidth: 1,
-            borderColor: '#FCD34D',
-          }}
-        >
-          <Text style={{ fontSize: 14 }}>🪙</Text>
-          <Text style={{ fontSize: 13, fontWeight: '800', color: '#78350F' }}>
-            {coinBalance.toLocaleString()}
-          </Text>
+        <View style={{ flexDirection: isRTL ? 'row-reverse' : 'row', alignItems: 'center', gap: 8 }}>
+          {/* Upload button */}
+          <Pressable
+            onPress={() => router.push('/creator/record')}
+            style={({ pressed }) => ({
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 4,
+              backgroundColor: pressed ? colors.primaryDark : colors.primary,
+              paddingHorizontal: 10,
+              paddingVertical: 5,
+              borderRadius: 999,
+            })}
+          >
+            <Text style={{ fontSize: 14 }}>📹</Text>
+            <Text style={{ fontSize: 12, fontWeight: '800', color: '#fff' }}>رفع</Text>
+          </Pressable>
+
+          {/* Coin balance badge */}
+          <View
+            style={{
+              flexDirection: isRTL ? 'row-reverse' : 'row',
+              alignItems: 'center',
+              gap: 5,
+              backgroundColor: '#FEF3C7',
+              paddingHorizontal: 10,
+              paddingVertical: 5,
+              borderRadius: 999,
+              borderWidth: 1,
+              borderColor: '#FCD34D',
+            }}
+          >
+            <Text style={{ fontSize: 14 }}>🪙</Text>
+            <Text style={{ fontSize: 13, fontWeight: '800', color: '#78350F' }}>
+              {coinBalance.toLocaleString()}
+            </Text>
+          </View>
         </View>
       </View>
     </Animated.View>
@@ -179,15 +199,12 @@ function AppShell() {
     <View style={{ flex: 1, backgroundColor: colors.white }}>
       <StatusBar style={isFeed ? 'light' : 'dark'} />
 
-      {/* على غير الفيد: الهيدر في الـ flow العادي */}
+      {/* على غير الفيد: safe area فقط بدون هيدر */}
       {!isFeed && (
-        <>
-          <View style={{ height: insets.top, backgroundColor: colors.white }} />
-          <GlobalHeader isFeed={false} coinBalance={coinBalance} />
-        </>
+        <View style={{ height: insets.top, backgroundColor: colors.white }} />
       )}
 
-      {/* الـ Stack يأخد الـ flex:1 كامل — على الفيد مفيش حاجة فوقه تأثر على الحجم */}
+      {/* الـ Stack يأخد الـ flex:1 كامل */}
       <View style={{ flex: 1 }}>
         <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right' }} />
         <OnboardingModal />

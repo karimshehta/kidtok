@@ -26,7 +26,9 @@ import CommentsSheet from '@/components/CommentsSheet'
 import ChildAvatar from '@/components/ChildAvatar'
 import { getYouTubeThumbnail } from '@/lib/youtube'
 import { colors, spacing, fontSize, radius } from '@/lib/theme'
-import { onHeaderPageChange } from '@/lib/headerScroll'
+import { onHeaderPageChange, headerAnimHeight, HEADER_BAR_HEIGHT } from '@/lib/headerScroll'
+import { usePlanLimits } from '@/hooks/usePlanLimits'
+import { useAdMob } from '@/hooks/useAdMob'
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window')
 const KIDTOK_ORIGIN = 'https://kidtok.vercel.app'
@@ -51,23 +53,18 @@ interface FeedVideo {
 }
 
 const FEED_SELECT =
-  'id, title, source, youtube_id, thumbnail_url, channel_name, channel_id, creator_id, creator_video_id, like_count, dislike_count, view_count, comment_count, is_story'
+  'id, title, source, youtube_id, thumbnail_url, channel_name, channel_id, creator_id, creator_video_id, like_count, dislike_count, view_count, comment_count, is_story, tags, category'
 
 // ─── FeedScreen ───────────────────────────────────────────────────────────────
 export default function FeedScreen() {
   const [tab, setTab] = useState<FeedTab>('foryou')
   const [activeIndex, setActiveIndex] = useState(0)
-  const headerOpacity = useRef(new Animated.Value(1)).current
 
-  // Hide header when not on first video
-  useEffect(() => {
-    Animated.timing(headerOpacity, {
-      toValue: activeIndex === 0 ? 1 : 0,
-      duration: 200,
-      useNativeDriver: true,
-    }).start()
-  }, [activeIndex])
+  const { i18n } = useTranslation()
   const [muted, setMuted] = useState(true)
+  const { data: planLimits } = usePlanLimits()
+  const showAds = planLimits?.has_ads ?? true
+  const { onVideoSwiped } = useAdMob()
   const [commentsForVideo, setCommentsForVideo] = useState<string | null>(null)
   const [playlistVideo, setPlaylistVideo] = useState<FeedVideo | null>(null)
   const [containerHeight, setContainerHeight] = useState(SCREEN_HEIGHT)
@@ -120,25 +117,24 @@ export default function FeedScreen() {
       style={{ flex: 1, backgroundColor: colors.black }}
       onLayout={(e) => setContainerHeight(e.nativeEvent.layout.height)}
     >
-      {/* Top overlay — pointerEvents none عشان الـ swipe يشتغل تحته */}
-      <Animated.View style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 50, opacity: headerOpacity }} pointerEvents="box-none">
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.md, paddingTop: insets.top + spacing.sm }} pointerEvents="box-none">
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <Image source={require('../../assets/images/logo.png')} style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: colors.white }} />
-            <Text style={{ color: colors.white, fontSize: fontSize.lg, fontWeight: '900', textShadowColor: 'rgba(0,0,0,0.45)', textShadowRadius: 4 }}>
-              KidTok
-            </Text>
-          </View>
-          <View style={{ flexDirection: 'row', gap: spacing.xs, backgroundColor: 'rgba(255,255,255,0.16)', borderRadius: radius.pill, padding: 3 }}>
-            <TabBtn label="لك" active={tab === 'foryou'} onPress={handleTabForYou} />
-            <TabBtn label="أتابع" active={tab === 'following'} onPress={handleTabFollowing} />
-          </View>
-          <Pressable
-            onPress={handleToggleMuted}
-            style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.16)', alignItems: 'center', justifyContent: 'center' }}
-          >
-            <Ionicons name={muted ? 'volume-mute' : 'volume-high'} size={20} color={colors.white} />
-          </Pressable>
+      {/* لك / أتابع — ثابتة دايماً، بتنزل مع GlobalHeader */}
+      <Animated.View
+        pointerEvents="box-none"
+        style={{
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          zIndex: 99,
+          alignItems: 'center',
+          top: headerAnimHeight.interpolate({
+            inputRange: [0, HEADER_BAR_HEIGHT],
+            outputRange: [insets.top + 6, insets.top + HEADER_BAR_HEIGHT + 6],
+          }),
+        }}
+      >
+        <View style={{ flexDirection: 'row', gap: spacing.xs, backgroundColor: 'rgba(0,0,0,0.35)', borderRadius: radius.pill, padding: 3 }}>
+          <TabBtn label="لك" active={tab === 'foryou'} onPress={handleTabForYou} />
+          <TabBtn label="أتابع" active={tab === 'following'} onPress={handleTabFollowing} />
         </View>
       </Animated.View>
 
@@ -169,29 +165,12 @@ export default function FeedScreen() {
           onIndexChange={(i) => { setActiveIndex(i); onHeaderPageChange(i) }}
           onOpenComments={handleOpenComments}
           onAddToPlaylist={handleOpenPlaylist}
+          onToggleMute={handleToggleMuted}
+          onVideoSwiped={onVideoSwiped}
         />
       )}
 
-      {/* Record button - everyone can create */}
-      <Pressable
-          onPress={() => router.push('/creator/record')}
-          style={({ pressed }) => ({
-            position: 'absolute',
-            right: spacing.lg,
-            bottom: 100,
-            width: 56,
-            height: 56,
-            borderRadius: 28,
-            backgroundColor: colors.secondary,
-            alignItems: 'center',
-            justifyContent: 'center',
-            elevation: 8,
-            zIndex: 40,
-            transform: [{ scale: pressed ? 0.92 : 1 }],
-          })}
-        >
-          <Ionicons name="videocam" size={28} color={colors.white} />
-        </Pressable>
+      {/* Record FAB moved to center tab bar */}
 
       {commentsForVideo && (
         <CommentsSheet videoId={commentsForVideo} visible={!!commentsForVideo} onClose={() => setCommentsForVideo(null)} />
@@ -205,7 +184,7 @@ export default function FeedScreen() {
 // بدل FlatList: بنحرك Animated.Value واحدة والـ items كلها مثبتة بـ position:absolute
 // ده بيمنع أي WebView من إنه يظهر في الـ item اللي فوقه أو تحته
 function SwipeFeed({
-  videos, containerHeight, muted, activeIndex, onIndexChange, onOpenComments, onAddToPlaylist,
+  videos, containerHeight, muted, activeIndex, onIndexChange, onOpenComments, onAddToPlaylist, onToggleMute, onVideoSwiped,
 }: {
   videos: FeedVideo[]
   containerHeight: number
@@ -214,6 +193,8 @@ function SwipeFeed({
   onIndexChange: (i: number) => void
   onOpenComments: (id: string) => void
   onAddToPlaylist: (v: FeedVideo) => void
+  onToggleMute: () => void
+  onVideoSwiped: () => void
 }) {
   const translateY = useRef(new Animated.Value(0)).current
   const currentIndexRef = useRef(0)
@@ -277,7 +258,8 @@ function SwipeFeed({
     <View style={{ flex: 1, overflow: 'hidden' }} {...panResponder.panHandlers}>
       {videos.map((video, index) => {
         // نعمل render بس للـ item الحالي + السابق + التالي
-        const isNearby = Math.abs(index - activeIndex) <= 1
+        // Pre-cache 3 upcoming + 1 previous for smooth swipe
+        const isNearby = index >= activeIndex - 1 && index <= activeIndex + 3
         return (
           <Animated.View
             key={video.id}
@@ -306,6 +288,7 @@ function SwipeFeed({
                 muted={muted}
                 onOpenComments={onOpenComments}
                 onAddToPlaylist={onAddToPlaylist}
+                onToggleMute={onToggleMute}
               />
             ) : (
               // placeholder خفيف للـ items البعيدة
@@ -335,7 +318,7 @@ const TabBtn = memo(function TabBtn({ label, active, onPress }: { label: string;
 
 // ─── VideoItem ────────────────────────────────────────────────────────────────
 const VideoItem = memo(function VideoItem({
-  video, isActive, height, muted, onOpenComments, onAddToPlaylist,
+  video, isActive, height, muted, onOpenComments, onAddToPlaylist, onToggleMute,
 }: {
   video: FeedVideo
   isActive: boolean
@@ -343,6 +326,7 @@ const VideoItem = memo(function VideoItem({
   muted: boolean
   onOpenComments: (id: string) => void
   onAddToPlaylist: (v: FeedVideo) => void
+  onToggleMute: () => void
 }) {
   const insets = useSafeAreaInsets()
   const router = useRouter()
@@ -439,12 +423,32 @@ const VideoItem = memo(function VideoItem({
         colors={['transparent', 'rgba(0,0,0,0.88)']}
         style={{ position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: spacing.lg, paddingTop: spacing.xl, paddingBottom: 16 + insets.bottom }}
       >
+        {video.category === 'parent_pick' && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 4, backgroundColor: 'rgba(3,187,229,0.2)', alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, borderWidth: 1, borderColor: 'rgba(3,187,229,0.4)' }}>
+            <View style={{ width: 12, height: 12, borderRadius: 3, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', transform: [{ rotate: '45deg' }] }}>
+              <Ionicons name="star" size={7} color="#fff" style={{ transform: [{ rotate: '-45deg' }] }} />
+            </View>
+            <Text style={{ fontSize: 10, fontWeight: '800', color: colors.primary }}>KidTok Picks</Text>
+          </View>
+        )}
         <Pressable onPress={openCreator}>
-          <Text style={{ color: colors.white, fontSize: fontSize.sm, fontWeight: '700' }}>@{video.channel_name || 'KidTok'}</Text>
+          <Text style={{ color: colors.white, fontSize: fontSize.sm, fontWeight: '700' }}>
+            {video.category === 'parent_pick' ? '🌟 KidTok' : `@${video.channel_name || 'KidTok'}`}
+          </Text>
         </Pressable>
         <Text style={{ color: colors.white, fontSize: fontSize.base, fontWeight: '700', marginTop: 4 }} numberOfLines={2}>
           {video.title || 'KidTok video'}
         </Text>
+        {/* Hashtags */}
+        {video.tags && video.tags.length > 0 && (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+            {video.tags.slice(0, 5).map((tag) => (
+              <Text key={tag} style={{ color: colors.primary, fontSize: fontSize.xs, fontWeight: '700' }}>
+                #{tag}
+              </Text>
+            ))}
+          </View>
+        )}
       </LinearGradient>
 
       <View style={{ position: 'absolute', right: spacing.md, bottom: 90 + insets.bottom, gap: spacing.lg, alignItems: 'center' }}>
@@ -453,6 +457,7 @@ const VideoItem = memo(function VideoItem({
         <ActionButton icon="chatbubble" count={video.comment_count} onPress={handleComments} />
         <ActionButton icon="add" count={0} onPress={handlePlaylist} />
         <ActionButton icon="gift" count={0} onPress={handleGift} />
+        <ActionButton icon={muted ? 'volume-mute' : 'volume-high'} count={0} onPress={onToggleMute} />
       </View>
     </View>
   )

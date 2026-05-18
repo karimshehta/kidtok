@@ -1,4 +1,5 @@
 import { View, Text, ScrollView, Pressable, Image, ActivityIndicator, Dimensions } from 'react-native'
+import { useTranslation } from 'react-i18next'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
@@ -9,46 +10,44 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/stores/auth'
 import { useIsFollowing, useToggleFollow } from '@/hooks/useSocial'
 import { colors, spacing, fontSize, radius } from '@/lib/theme'
+import VerifiedBadge, { KidTokBadge } from '@/components/VerifiedBadge'
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window')
 const GRID_ITEM_W = (SCREEN_WIDTH - spacing.lg * 2 - spacing.xs * 2) / 3
 
 export default function CreatorProfileScreen() {
   const router = useRouter()
+  const { t, i18n } = useTranslation()
   const { id } = useLocalSearchParams<{ id: string }>()
   const myId = useAuth((s) => s.user?.id)
   const isOwnProfile = myId === id
 
   const { data: profile, isLoading } = useQuery({
     queryKey: ['creator-profile', id],
+    staleTime: 0,  // Always fresh — shows latest avatar + followers
     queryFn: async () => {
       const { data } = await supabase
         .from('profiles')
-        .select('id, name, bio, avatar_url, role')
+        .select('id, name, bio, avatar_url, role, username, followers_count, following_count, is_verified')
         .eq('id', id)
         .single()
       return data
     },
   })
 
-  const { data: stats } = useQuery({
-    queryKey: ['creator-stats', id],
+  // Videos count for stats bar
+  const { data: videosMeta } = useQuery({
+    queryKey: ['creator-videos-meta', id],
     queryFn: async () => {
-      // followers count
-      const { count: followers } = await supabase
-        .from('creator_follows')
-        .select('*', { count: 'exact', head: true })
-        .eq('following_id', id)
-      // videos count + total likes
-      const { data: videos } = await supabase
+      const { data } = await supabase
         .from('videos')
         .select('id, like_count')
         .eq('creator_id', id)
         .eq('source', 'creator')
         .eq('is_active', true)
-      const videoCount = videos?.length || 0
-      const totalLikes = (videos || []).reduce((a, v: any) => a + (v.like_count || 0), 0)
-      return { followers: followers || 0, videoCount, totalLikes }
+      const videoCount = data?.length || 0
+      const totalLikes = (data || []).reduce((a: number, v: any) => a + (v.like_count || 0), 0)
+      return { videoCount, totalLikes }
     },
   })
 
@@ -110,9 +109,17 @@ export default function CreatorProfileScreen() {
                 <Ionicons name="person" size={56} color={colors.white} />
               )}
             </View>
-            <Text style={{ color: colors.white, fontSize: fontSize.xl, fontWeight: '900', marginTop: spacing.sm }}>
-              {profile?.name || 'منشئ المحتوى'}
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: spacing.sm }}>
+              <Text style={{ color: colors.white, fontSize: fontSize.xl, fontWeight: '900' }}>
+                {profile?.name || 'منشئ المحتوى'}
+              </Text>
+              {profile?.is_verified && <VerifiedBadge size="lg" />}
+            </View>
+            {profile?.username && (
+              <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: fontSize.sm, fontWeight: '700', marginTop: 2 }}>
+                @{profile.username}
+              </Text>
+            )}
             {profile?.bio && (
               <Text style={{ color: 'rgba(255,255,255,0.9)', fontSize: fontSize.sm, marginTop: 4, textAlign: 'center', paddingHorizontal: spacing.lg }}>
                 {profile.bio}
@@ -122,9 +129,9 @@ export default function CreatorProfileScreen() {
 
           {/* Stats */}
           <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginTop: spacing.lg, paddingHorizontal: spacing.lg }}>
-            <Stat label="فيديوهات" value={stats?.videoCount ?? 0} />
-            <Stat label="متابعون" value={stats?.followers ?? 0} />
-            <Stat label="إعجابات" value={stats?.totalLikes ?? 0} />
+            <Stat label={i18n.language === 'ar' ? 'فيديوهات' : 'Videos'} value={videosMeta?.videoCount ?? 0} />
+            <Stat label={i18n.language === 'ar' ? 'متابعون' : 'Followers'} value={profile?.followers_count ?? 0} />
+            <Stat label={i18n.language === 'ar' ? 'إعجابات' : 'Likes'} value={videosMeta?.totalLikes ?? 0} />
           </View>
 
           {/* Follow/Unfollow button */}
@@ -132,19 +139,36 @@ export default function CreatorProfileScreen() {
             <View style={{ paddingHorizontal: spacing.lg, marginTop: spacing.lg }}>
               <Pressable
                 onPress={() => toggleFollow.mutate(id!)}
+                disabled={toggleFollow.isPending}
                 style={({ pressed }) => ({
-                  backgroundColor: isFollowing ? 'rgba(255,255,255,0.25)' : colors.white,
-                  paddingVertical: spacing.sm + 4,
+                  backgroundColor: isFollowing ? 'rgba(255,255,255,0.15)' : colors.white,
+                  paddingVertical: spacing.sm + 6,
                   borderRadius: radius.pill,
                   alignItems: 'center',
-                  borderWidth: isFollowing ? 1 : 0,
-                  borderColor: 'rgba(255,255,255,0.4)',
-                  opacity: pressed ? 0.85 : 1,
+                  borderWidth: 2,
+                  borderColor: isFollowing ? 'rgba(255,255,255,0.6)' : colors.white,
+                  opacity: (pressed || toggleFollow.isPending) ? 0.8 : 1,
+                  flexDirection: 'row',
+                  justifyContent: 'center',
+                  gap: 6,
                 })}
               >
-                <Text style={{ color: isFollowing ? colors.white : colors.primary, fontWeight: '900' }}>
-                  {isFollowing ? 'تتابع ✓' : '+ متابعة'}
-                </Text>
+                {toggleFollow.isPending ? (
+                  <ActivityIndicator size="small" color={isFollowing ? colors.white : colors.primary} />
+                ) : (
+                  <>
+                    <Ionicons
+                      name={isFollowing ? 'checkmark-circle' : 'person-add'}
+                      size={18}
+                      color={isFollowing ? colors.white : colors.primary}
+                    />
+                    <Text style={{ color: isFollowing ? colors.white : colors.primary, fontWeight: '900', fontSize: fontSize.base }}>
+                      {isFollowing
+                        ? (i18n.language === 'ar' ? 'تتابع' : 'Following')
+                        : (i18n.language === 'ar' ? 'متابعة' : 'Follow')}
+                    </Text>
+                  </>
+                )}
               </Pressable>
             </View>
           )}

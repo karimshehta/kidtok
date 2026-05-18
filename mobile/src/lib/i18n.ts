@@ -11,8 +11,9 @@ const resources = {
         loading: 'جارٍ التحميل...', save: 'حفظ', cancel: 'إلغاء', delete: 'حذف',
         edit: 'تعديل', confirm: 'تأكيد', error: 'حدث خطأ', success: 'تم بنجاح',
         retry: 'إعادة المحاولة', skip: 'تخطي', next: 'التالي', back: 'رجوع',
-        done: 'تم', comingSoon: 'قريباً',
+        done: 'تم', comingSoon: 'قريباً', user: 'مستخدم',
       },
+      lang: { arabic: 'العربية', english: 'English' },
       landing: {
         title: 'KidTok', subtitle: 'محتوى يوتيوب آمن لأطفالك',
         feature1: 'كنترول كامل على ما يشاهده طفلك',
@@ -40,6 +41,30 @@ const resources = {
       profile: {
         editProfile: 'تعديل الحساب', language: 'اللغة', logout: 'تسجيل الخروج',
         subscription: 'الاشتراك', free: 'مجاني', active: 'مفعّل',
+        settings: 'الإعدادات', tapToChangePhoto: 'اضغط لتغيير الصورة',
+      },
+      username: {
+        label: 'اسم المستخدم', placeholder: 'kidtok',
+        hint: 'اختر اسم مميز يعرفك به الجميع',
+        checking: 'جاري التحقق...', available: 'هذا الاسم متاح ✅',
+        taken: 'هذا الاسم مأخوذ ❌', invalid: '3-30 حرف: أحرف إنجليزية، أرقام، شرطة سفلية',
+        takenError: 'هذا الاسم مأخوذ، اختر اسماً آخر', invalidError: 'الاسم غير صالح (3-30 حرف)',
+        addHandle: 'أضف اسم مستخدم @',
+      },
+      search: {
+        videos: '🎬 فيديوهات', users: '👤 مستخدمين',
+        searchYoutube: 'ابحث في YouTube...', searchUsers: 'ابحث بالاسم أو @username',
+        noUsers: 'لا يوجد مستخدمون بهذا الاسم',
+        followers: 'متابع', following: 'أتابع', videos_count: 'فيديو',
+        pickChild: 'اختر طفلاً', noChildren: 'لم تضف أطفالاً بعد',
+        pickPlaylist: 'اختر قائمة', noPlaylists: 'لا توجد قوائم لهذا الطفل',
+        addVideo: 'إضافة', added: '✓ تمت الإضافة', adding: 'جاري الإضافة...',
+        searchError: 'فشل البحث', addSuccess: '✓ أُضيف إلى', newPlaylist: '+ قائمة جديدة',
+      },
+      creator: {
+        myVideos: 'فيديوهاتي', followers: 'متابع', following: 'أتابع',
+        editProfile: 'تعديل الحساب', follow: 'متابعة', unfollow: 'إلغاء المتابعة',
+        noVideos: 'لا توجد فيديوهات بعد', upload: '📹 رفع',
       },
     },
   },
@@ -49,8 +74,9 @@ const resources = {
         loading: 'Loading...', save: 'Save', cancel: 'Cancel', delete: 'Delete',
         edit: 'Edit', confirm: 'Confirm', error: 'An error occurred', success: 'Success',
         retry: 'Retry', skip: 'Skip', next: 'Next', back: 'Back', done: 'Done',
-        comingSoon: 'Coming Soon',
+        comingSoon: 'Coming Soon', user: 'User',
       },
+      lang: { arabic: 'العربية', english: 'English' },
       landing: {
         title: 'KidTok', subtitle: 'Safe YouTube content for your kids',
         feature1: 'Full control over what your child watches',
@@ -76,6 +102,30 @@ const resources = {
       profile: {
         editProfile: 'Edit profile', language: 'Language', logout: 'Logout',
         subscription: 'Subscription', free: 'Free', active: 'Active',
+        settings: 'Settings', tapToChangePhoto: 'Tap to change photo',
+      },
+      username: {
+        label: 'Username', placeholder: 'kidtok',
+        hint: 'Choose a unique name others can find you by',
+        checking: 'Checking...', available: 'Username available ✅',
+        taken: 'Username taken ❌', invalid: '3-30 chars: lowercase, numbers, underscores',
+        takenError: 'Username taken, choose another', invalidError: 'Invalid username (3-30 chars)',
+        addHandle: 'Add @username',
+      },
+      search: {
+        videos: '🎬 Videos', users: '👤 Users',
+        searchYoutube: 'Search YouTube...', searchUsers: 'Search by name or @username',
+        noUsers: 'No users found',
+        followers: 'followers', following: 'following', videos_count: 'videos',
+        pickChild: 'Select a child', noChildren: 'No children added yet',
+        pickPlaylist: 'Select a playlist', noPlaylists: 'No playlists for this child',
+        addVideo: 'Add', added: '✓ Added', adding: 'Adding...',
+        searchError: 'Search failed', addSuccess: '✓ Added to', newPlaylist: '+ New playlist',
+      },
+      creator: {
+        myVideos: 'My Videos', followers: 'followers', following: 'following',
+        editProfile: 'Edit Profile', follow: 'Follow', unfollow: 'Unfollow',
+        noVideos: 'No videos yet', upload: '📹 Upload',
       },
     },
   },
@@ -104,25 +154,11 @@ export async function initI18n() {
   return lang
 }
 
-/**
- * Switch language without restarting the app.
- *
- * - Persists choice for next launch.
- * - Applies I18nManager so that NEXT launch starts with the correct native RTL.
- * - Changes i18n.language immediately → all useTranslation() subscribers re-render
- *   and apply RTL/LTR via i18n.language checks in their own styles.
- *   (No Updates.reloadAsync needed.)
- */
 export async function setLanguage(lang: 'ar' | 'en') {
-  // 1. Persist for next launch
   try { await AsyncStorage.setItem(LANG_KEY, lang) } catch {}
-
-  // 2. Tell I18nManager so the next cold start applies the right system direction
   const shouldBeRTL = lang === 'ar'
   I18nManager.allowRTL(shouldBeRTL)
   I18nManager.forceRTL(shouldBeRTL)
-
-  // 3. Switch language in memory — all useTranslation() components re-render instantly
   await i18n.changeLanguage(lang)
 }
 

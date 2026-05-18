@@ -8,6 +8,8 @@ import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 
 import { supabase } from '@/lib/supabase'
+import { usePlanLimits } from '@/hooks/usePlanLimits'
+import { usePlanLimits } from '@/hooks/usePlanLimits'
 import { useAuth } from '@/stores/auth'
 import ChildAvatar from '@/components/ChildAvatar'
 import { colors, spacing, fontSize, radius } from '@/lib/theme'
@@ -28,6 +30,8 @@ export default function ChildrenScreen() {
   const userId = useAuth((s) => s.user?.id)
   const qc = useQueryClient()
   const [refreshing, setRefreshing] = useState(false)
+  const { data: planLimits } = usePlanLimits()
+  const { data: planLimits } = usePlanLimits()
 
   const onRefresh = useCallback(async () => {
     if (!userId) return
@@ -68,24 +72,28 @@ export default function ChildrenScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />
         }
       >
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.lg }}>
-          <Text style={{ fontSize: fontSize['2xl'], fontWeight: '900', color: colors.grey900 }}>
-            {t('tabs.children')}
-          </Text>
-          <Pressable
-            onPress={() => router.push('/children/new')}
-            style={({ pressed }) => ({
-              width: 44,
-              height: 44,
-              borderRadius: 22,
-              backgroundColor: colors.primary,
-              alignItems: 'center',
-              justifyContent: 'center',
-              opacity: pressed ? 0.85 : 1,
-            })}
-          >
-            <Ionicons name="add" size={26} color={colors.white} />
-          </Pressable>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', marginBottom: spacing.lg }}>
+          {planLimits && children.length >= planLimits.max_children ? (
+            <Pressable
+              onPress={() => router.push('/subscription/plans')}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#FEF3C7', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: '#FCD34D' }}
+            >
+              <Ionicons name="lock-closed" size={14} color="#92400E" />
+              <Text style={{ fontSize: 12, fontWeight: '800', color: '#92400E' }}>{children.length}/{planLimits.max_children}</Text>
+              <Text style={{ fontSize: 11, color: '#92400E' }}>ترقية</Text>
+            </Pressable>
+          ) : (
+            <Pressable
+              onPress={() => router.push('/children/new')}
+              style={({ pressed }) => ({
+                width: 44, height: 44, borderRadius: 22,
+                backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center',
+                opacity: pressed ? 0.85 : 1,
+              })}
+            >
+              <Ionicons name="add" size={26} color={colors.white} />
+            </Pressable>
+          )}
         </View>
 
         {isLoading ? (

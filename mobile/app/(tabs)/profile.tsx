@@ -1,4 +1,4 @@
-import { View, Text, ScrollView, Pressable, Alert, Image, RefreshControl} from 'react-native'
+import { View, Text, ScrollView, Pressable, Alert, Image, RefreshControl, Dimensions } from 'react-native'
 import { useCallback, useState } from 'react'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useTranslation } from 'react-i18next'
@@ -11,10 +11,15 @@ import { useAuth } from '@/stores/auth'
 import { setLanguage } from '@/lib/i18n'
 import { colors, spacing, fontSize, radius } from '@/lib/theme'
 
+const { width: SCREEN_W } = Dimensions.get('window')
+const GRID_SIZE = (SCREEN_W - spacing.lg * 2 - spacing.xs * 2) / 3
+
 export default function ProfileScreen() {
   const { t, i18n } = useTranslation()
   const router = useRouter()
   const user = useAuth((s) => s.user)
+  const qc = useQueryClient()
+  const [refreshing, setRefreshing] = useState(false)
 
   const { data: myProfile } = useQuery({
     queryKey: ['profile', user?.id],
@@ -23,34 +28,54 @@ export default function ProfileScreen() {
     queryFn: async () => {
       const { data } = await supabase
         .from('profiles')
-        .select('name, avatar_url')
+        .select('name, avatar_url, username, bio, followers_count, following_count')
         .eq('id', user!.id)
         .single()
       return data
     },
   })
-  const signOut = useAuth((s) => s.signOut)
 
-  const qc = useQueryClient()
-  const [refreshing, setRefreshing] = useState(false)
+  // My published videos
+  const { data: myVideos = [] } = useQuery({
+    queryKey: ['my-videos', user?.id],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('videos')
+        .select('id, thumbnail_url, title, view_count, like_count')
+        .eq('creator_id', user!.id)
+        .eq('source', 'creator')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(30)
+      return data || []
+    },
+  })
+
+  const signOut = useAuth((s) => s.signOut)
 
   const onRefresh = useCallback(async () => {
     if (!user?.id) return
     setRefreshing(true)
     await Promise.all([
       qc.refetchQueries({ queryKey: ['profile', user.id] }),
+      qc.refetchQueries({ queryKey: ['my-videos', user.id] }),
       qc.refetchQueries({ queryKey: ['my-subscription'] }),
     ])
     setRefreshing(false)
   }, [user?.id])
 
-  // Force-refetch profile every time this tab is focused
-  // so the avatar updates immediately after edit
   useFocusEffect(
     useCallback(() => {
-      if (user?.id) qc.invalidateQueries({ queryKey: ['profile', user.id] })
+      if (user?.id) {
+        qc.invalidateQueries({ queryKey: ['profile', user.id] })
+        qc.invalidateQueries({ queryKey: ['my-videos', user.id] })
+      }
     }, [user?.id])
   )
+
+  const myRole = useAuth((s) => s.user?.role as string | undefined)
+  const isAdmin = myRole === 'admin'
 
   const { data: mySub } = useQuery({
     queryKey: ['my-subscription', user?.id],
@@ -61,131 +86,197 @@ export default function ProfileScreen() {
     },
   })
 
-  const toggleLang = async () => {
-    const newLang = i18n.language === 'ar' ? 'en' : 'ar'
-    await setLanguage(newLang)
-  }
-
   const confirmLogout = () => {
-    Alert.alert(
-      t('profile.logout'),
-      '',
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: t('profile.logout'),
-          style: 'destructive',
-          onPress: async () => {
-            await signOut()
-            router.replace('/landing')
-          },
-        },
-      ]
-    )
+    Alert.alert(t('profile.logout'), '', [
+      { text: t('common.cancel'), style: 'cancel' },
+      {
+        text: t('profile.logout'), style: 'destructive',
+        onPress: async () => { await signOut(); router.replace('/landing') },
+      },
+    ])
   }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.white }}>
       <ScrollView
-        contentContainerStyle={{ padding: spacing.lg }}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />
-        }
+        contentContainerStyle={{ paddingBottom: 100 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}
       >
-        {/* Header */}
-        <View style={{ alignItems: 'center', marginBottom: spacing.xl }}>
-          <View
-            style={{
-              width: 96, height: 96, borderRadius: 48,
-              backgroundColor: colors.primary,
-              alignItems: 'center', justifyContent: 'center',
-              marginBottom: spacing.md,
-              overflow: 'hidden',
-            }}
-          >
+        {/* ── Profile Header ── */}
+        <View style={{ alignItems: 'center', paddingTop: spacing.xl, paddingHorizontal: spacing.lg }}>
+          {/* Avatar */}
+          <View style={{ width: 96, height: 96, borderRadius: 48, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginBottom: spacing.md }}>
             {myProfile?.avatar_url ? (
-              <Image
-                source={{ uri: myProfile.avatar_url }}
-                style={{ width: '100%', height: '100%' }}
-                resizeMode="cover"
-              />
+              <Image source={{ uri: myProfile.avatar_url }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
             ) : (
               <Ionicons name="person" size={56} color={colors.white} />
             )}
           </View>
+
+          {/* Name */}
           <Text style={{ fontSize: fontSize.xl, fontWeight: '900', color: colors.grey900 }}>
-            {myProfile?.name || user?.user_metadata?.name || user?.user_metadata?.full_name || 'User'}
+            {myProfile?.name || t('common.user') || 'User'}
           </Text>
-          <Text style={{ fontSize: fontSize.sm, color: colors.grey600 }}>{user?.email}</Text>
-        </View>
 
-        {/* Subscription card */}
-        <View
-          style={{
-            backgroundColor: mySub ? colors.primary : colors.grey50,
-            borderRadius: radius.lg,
-            padding: spacing.md,
-            marginBottom: spacing.md,
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: spacing.md,
-          }}
-        >
-          <Ionicons name="diamond" size={28} color={mySub ? colors.white : colors.grey400} />
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: fontSize.sm, color: mySub ? 'rgba(255,255,255,0.85)' : colors.grey600 }}>
-              {t('profile.subscription')}
+          {/* @username */}
+          {myProfile?.username ? (
+            <Text style={{ fontSize: fontSize.sm, color: colors.primary, fontWeight: '700', marginTop: 2 }}>
+              @{myProfile.username}
             </Text>
-            <Text style={{ fontSize: fontSize.lg, fontWeight: '800', color: mySub ? colors.white : colors.grey900 }}>
-              {mySub ? t('profile.active') : t('profile.free')}
+          ) : (
+            <Pressable onPress={() => router.push('/profile/edit')}>
+              <Text style={{ fontSize: fontSize.sm, color: colors.grey400, marginTop: 2 }}>
+                أضف اسم مستخدم @
+              </Text>
+            </Pressable>
+          )}
+
+          {/* Bio */}
+          {myProfile?.bio ? (
+            <Text style={{ fontSize: fontSize.sm, color: colors.grey600, marginTop: spacing.xs, textAlign: 'center', paddingHorizontal: spacing.lg }}>
+              {myProfile.bio}
             </Text>
+          ) : null}
+
+          {/* Followers / Following */}
+          <View style={{ flexDirection: 'row', gap: spacing.xl, marginTop: spacing.lg }}>
+            <View style={{ alignItems: 'center' }}>
+              <Text style={{ fontSize: fontSize.xl, fontWeight: '900', color: colors.grey900 }}>
+                {myVideos.length}
+              </Text>
+              <Text style={{ fontSize: fontSize.xs, color: colors.grey500 }}>فيديو</Text>
+            </View>
+            <View style={{ width: 1, backgroundColor: colors.grey100 }} />
+            <Pressable style={{ alignItems: 'center' }} onPress={() => router.push(`/creator/${user?.id}`)}>
+              <Text style={{ fontSize: fontSize.xl, fontWeight: '900', color: colors.grey900 }}>
+                {(myProfile?.followers_count || 0).toLocaleString()}
+              </Text>
+              <Text style={{ fontSize: fontSize.xs, color: colors.grey500 }}>متابع</Text>
+            </Pressable>
+            <View style={{ width: 1, backgroundColor: colors.grey100 }} />
+            <View style={{ alignItems: 'center' }}>
+              <Text style={{ fontSize: fontSize.xl, fontWeight: '900', color: colors.grey900 }}>
+                {(myProfile?.following_count || 0).toLocaleString()}
+              </Text>
+              <Text style={{ fontSize: fontSize.xs, color: colors.grey500 }}>أتابع</Text>
+            </View>
           </View>
+
+          {/* Edit profile button */}
+          <Pressable
+            onPress={() => router.push('/profile/edit')}
+            style={{ marginTop: spacing.md, paddingHorizontal: spacing.xl, paddingVertical: spacing.sm, borderRadius: radius.pill, borderWidth: 1.5, borderColor: colors.grey200 }}
+          >
+            <Text style={{ fontWeight: '700', color: colors.grey700, fontSize: fontSize.sm }}>تعديل الحساب</Text>
+          </Pressable>
         </View>
 
-        {/* Menu items */}
-        <View style={{ gap: spacing.xs }}>
-          <MenuItem
-            icon="diamond-outline"
-            label={t('profile.subscription')}
-            value={mySub ? t('profile.active') : t('profile.free')}
-            onPress={() => router.push(mySub ? '/subscription/manage' : '/subscription')}
-          />
-          <MenuItem icon="person-outline" label={t('profile.editProfile')} onPress={() => router.push('/profile/edit')} />
-          <MenuItem
-            icon="language-outline"
+        {/* ── My Videos Grid ── */}
+        {myVideos.length > 0 && (
+          <View style={{ marginTop: spacing.lg }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.lg, marginBottom: spacing.sm }}>
+              <Ionicons name="grid-outline" size={20} color={colors.grey700} />
+              <Text style={{ fontWeight: '800', color: colors.grey900, fontSize: fontSize.base, marginStart: spacing.xs }}>
+                فيديوهاتي
+              </Text>
+            </View>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: spacing.lg, gap: spacing.xs }}>
+              {myVideos.map((v: any) => (
+                <Pressable
+                  key={v.id}
+                  style={{ width: GRID_SIZE, height: GRID_SIZE * 1.4, borderRadius: radius.md, overflow: 'hidden', backgroundColor: colors.grey100 }}
+                  onPress={() => router.push(`/creator/${user?.id}`)}
+                >
+                  {v.thumbnail_url ? (
+                    <Image source={{ uri: v.thumbnail_url }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                  ) : (
+                    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                      <Ionicons name="film-outline" size={30} color={colors.grey400} />
+                    </View>
+                  )}
+                  {/* View count overlay */}
+                  <View style={{ position: 'absolute', bottom: 4, left: 4, flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                    <Ionicons name="play" size={10} color={colors.white} />
+                    <Text style={{ color: colors.white, fontSize: 10, fontWeight: '700' }}>
+                      {v.view_count > 999 ? `${(v.view_count / 1000).toFixed(1)}k` : v.view_count}
+                    </Text>
+                  </View>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* ── Settings ── */}
+        <View style={{ paddingHorizontal: spacing.lg, marginTop: spacing.xl, gap: spacing.xs }}>
+          <Text style={{ fontSize: fontSize.sm, fontWeight: '700', color: colors.grey500, marginBottom: spacing.xs }}>
+            الإعدادات
+          </Text>
+
+          {mySub && (
+            {isAdmin && (
+            <SettingRow
+              icon="shield-checkmark"
+              label="لوحة الإدارة"
+              color={colors.secondary}
+              onPress={() => router.push('/admin')}
+            />
+          )}
+          <SettingRow icon="diamond" label={t('profile.subscription')} value={t('profile.active')} color={colors.primary} />
+          )}
+
+          {isAdmin && (
+            <SettingRow
+              icon="shield-checkmark"
+              label="لوحة الإدارة"
+              color={colors.secondary}
+              onPress={() => router.push('/admin')}
+            />
+          )}
+          <SettingRow
+            icon="language"
             label={t('profile.language')}
-            value={i18n.language === 'ar' ? 'العربية' : 'English'}
-            onPress={toggleLang}
+            value={i18n.language === 'ar' ? t('lang.arabic') || 'العربية' : t('lang.english') || 'English'}
+            onPress={async () => await setLanguage(i18n.language === 'ar' ? 'en' : 'ar')}
           />
-          <MenuItem icon="log-out-outline" label={t('profile.logout')} onPress={confirmLogout} danger />
+
+          {isAdmin && (
+            <SettingRow
+              icon="shield-checkmark"
+              label="لوحة الإدارة"
+              color={colors.secondary}
+              onPress={() => router.push('/admin')}
+            />
+          )}
+          <SettingRow
+            icon="log-out"
+            label={t('profile.logout')}
+            onPress={confirmLogout}
+            color={colors.secondary}
+          />
         </View>
       </ScrollView>
     </SafeAreaView>
   )
 }
 
-function MenuItem({
-  icon, label, value, onPress, danger,
-}: {
-  icon: any; label: string; value?: string; onPress: () => void; danger?: boolean
-}) {
-  const color = danger ? colors.red : colors.grey900
+function SettingRow({ icon, label, value, onPress, color }: any) {
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => ({
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: spacing.md,
+        flexDirection: 'row', alignItems: 'center',
+        paddingVertical: spacing.md, paddingHorizontal: spacing.md,
         backgroundColor: pressed ? colors.grey50 : colors.white,
-        borderRadius: radius.md,
-        gap: spacing.md,
+        borderRadius: radius.lg, gap: spacing.md,
+        borderWidth: 1, borderColor: colors.grey100,
+        marginBottom: spacing.xs,
       })}
     >
-      <Ionicons name={icon} size={22} color={color} />
-      <Text style={{ flex: 1, fontSize: fontSize.base, fontWeight: '600', color }}>{label}</Text>
-      {value && <Text style={{ fontSize: fontSize.sm, color: colors.grey600 }}>{value}</Text>}
-      <Ionicons name="chevron-forward" size={20} color={colors.grey400} />
+      <Ionicons name={icon} size={20} color={color || colors.grey700} />
+      <Text style={{ flex: 1, fontSize: fontSize.base, color: color || colors.grey900, fontWeight: '600' }}>{label}</Text>
+      {value && <Text style={{ fontSize: fontSize.sm, color: colors.grey400 }}>{value}</Text>}
+      {onPress && <Ionicons name="chevron-forward" size={16} color={colors.grey300} />}
     </Pressable>
   )
 }

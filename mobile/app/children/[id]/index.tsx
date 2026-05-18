@@ -10,6 +10,7 @@ import Toast from 'react-native-toast-message'
 
 import { useTranslation } from 'react-i18next'
 import { supabase } from '@/lib/supabase'
+import { usePlanLimits, parsePlanLimitError } from '@/hooks/usePlanLimits'
 import { useAuth } from '@/stores/auth'
 import ChildAvatar from '@/components/ChildAvatar'
 import { colors, spacing, fontSize, radius } from '@/lib/theme'
@@ -28,6 +29,7 @@ export default function ChildDetailScreen() {
   const qc = useQueryClient()
   const { t } = useTranslation()
   const userId = useAuth((s) => s.user?.id)
+  const { data: planLimits } = usePlanLimits()
 
   // Refetch playlists every time this screen comes into focus
   // so the video count updates when returning from the add-video screen
@@ -86,8 +88,17 @@ export default function ChildDetailScreen() {
       Toast.show({ type: 'success', text1: 'تم إنشاء قائمة التشغيل' })
       setPlaylistName('')
       setAddOpen(false)
-    } catch (err) {
-      Toast.show({ type: 'error', text1: (err as Error).message })
+    } catch (err: any) {
+      const limitType = parsePlanLimitError(err)
+      if (limitType === 'playlists') {
+        Toast.show({
+          type: 'error',
+          text1: `وصلت للحد الأقصى (${planLimits?.max_playlists} قوائم)`,
+          text2: 'يرجى ترقية خطتك للإضافة المزيد',
+        })
+      } else {
+        Toast.show({ type: 'error', text1: (err as Error).message })
+      }
     } finally {
       setSaving(false)
     }
