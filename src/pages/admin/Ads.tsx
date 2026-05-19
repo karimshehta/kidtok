@@ -233,14 +233,25 @@ export default function AdminAds() {
                 form={form}
                 set={set}
               />
-              <Field
-                label="Enable banner in feed"
-                hint="Show banner ad at bottom of feed for free users (parent mode only)"
-                value={form['admob_banner_enabled'] || 'false'}
-                onChange={(v) => set('admob_banner_enabled', v)}
-                type="select"
-                options={[{ value: 'true', label: 'Enabled' }, { value: 'false', label: 'Disabled' }]}
-              />
+              <div className="flex items-center justify-between bg-neutral-50 rounded-xl px-4 py-3 border border-neutral-200">
+                <div>
+                  <p className="text-sm font-medium">Enable banner in feed</p>
+                  <p className="text-xs text-neutral-500">Show banner at bottom of feed for free users (parent mode only)</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => set('admob_banner_enabled', form['admob_banner_enabled'] === 'true' ? 'false' : 'true')}
+                  className={cn(
+                    'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
+                    form['admob_banner_enabled'] === 'true' ? 'bg-primary' : 'bg-neutral-300'
+                  )}
+                >
+                  <span className={cn(
+                    'inline-block h-4 w-4 transform rounded-full bg-white transition-transform',
+                    form['admob_banner_enabled'] === 'true' ? 'translate-x-6' : 'translate-x-1'
+                  )} />
+                </button>
+              </div>
             </div>
           </div>
         </section>
