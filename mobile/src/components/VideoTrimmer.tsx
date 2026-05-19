@@ -1,39 +1,90 @@
 /**
- * VideoTrimmer — WhatsApp-style trim UI
- * No video player needed (works in current build without rebuild)
- * Shows: duration bar + draggable yellow handles + time display
+ * VideoTrimmer — WhatsApp-style video trimmer using expo-video
+ *
+ * Features:
+ * - Live video preview with expo-video
+ * - Draggable start/end yellow handles (PanResponder)
+ * - Max 30 seconds enforced
+ * - Seeks video to current handle position while dragging
+ * - Play/pause preview of selected clip
+ * - Tick marks on selected region
  */
-import { useRef, useState, useCallback } from 'react'
-import { View, Text, Pressable, PanResponder, Animated, Dimensions } from 'react-native'
+import { useRef, useState, useCallback, useEffect } from 'react'
+import {
+  View, Text, Pressable, PanResponder,
+  Animated, Dimensions, ActivityIndicator, StyleSheet,
+} from 'react-native'
+import { useVideoPlayer, VideoView } from 'expo-video'
 import { Ionicons } from '@expo/vector-icons'
 import { colors, spacing, fontSize, radius } from '@/lib/theme'
 
-const MAX_SEC = 30
-const HANDLE_W = 20
-const TRACK_H = 64
-const { width: SCREEN_W } = Dimensions.get('window')
-const TRACK_W = SCREEN_W - spacing.lg * 2 - HANDLE_W * 2
+const MAX_SEC    = 30
+const HANDLE_W   = 20
+const TRACK_H    = 64
+const { width: W } = Dimensions.get('window')
+const TRACK_W    = W - spacing.lg * 2 - HANDLE_W * 2
 
 interface Props {
   uri: string
-  duration: number
+  duration: number        // total video duration in seconds
   onConfirm: (startSec: number, durationSec: number) => void
   onCancel: () => void
 }
 
-function clamp(v: number, lo: number, hi: number) {
-  return Math.max(lo, Math.min(hi, v))
-}
+const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
 
 function fmt(s: number) {
-  return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
+  const m = Math.floor(s / 60)
+  return `${m}:${String(Math.floor(s % 60)).padStart(2, '0')}`
 }
 
 export default function VideoTrimmer({ uri, duration, onConfirm, onCancel }: Props) {
   const [startSec, setStartSec] = useState(0)
-  const [endSec, setEndSec] = useState(Math.min(MAX_SEC, duration))
-  const clipSec = Math.max(1, endSec - startSec)
+  const [endSec,   setEndSec]   = useState(Math.min(MAX_SEC, duration))
+  const [playing,  setPlaying]  = useState(false)
+  const [ready,    setReady]    = useState(false)
 
+  const clipSec = Math.max(0.5, endSec - startSec)
+
+  // ── expo-video player ─────────────────────────────────────────────────────
+  const player = useVideoPlayer({ uri }, (p) => {
+    p.loop    = false
+    p.muted   = false
+    p.currentTime = 0
+  })
+
+  // Stop when playback reaches end of clip
+  useEffect(() => {
+    const sub = player.addListener('timeUpdate', (e) => {
+      if (e.currentTime >= endSec) {
+        player.pause()
+        player.currentTime = startSec
+        setPlaying(false)
+      }
+    })
+    return () => sub.remove()
+  }, [player, startSec, endSec])
+
+  // Ready when player is loaded
+  useEffect(() => {
+    const sub = player.addListener('statusChange', (e) => {
+      if (e.status === 'readyToPlay') setReady(true)
+    })
+    return () => sub.remove()
+  }, [player])
+
+  const togglePlay = () => {
+    if (playing) {
+      player.pause()
+      setPlaying(false)
+    } else {
+      player.currentTime = startSec
+      player.play()
+      setPlaying(true)
+    }
+  }
+
+  // ── Pixel ↔ second conversion ─────────────────────────────────────────────
   const secToPx = (s: number) => (s / duration) * TRACK_W
   const pxToSec = (px: number) => (px / TRACK_W) * duration
 
@@ -42,35 +93,48 @@ export default function VideoTrimmer({ uri, duration, onConfirm, onCancel }: Pro
   const sAnim = useRef(new Animated.Value(sxRef.current)).current
   const eAnim = useRef(new Animated.Value(exRef.current)).current
 
-  // ── Start handle ───────────────────────────────────────────────────────────
+  // ── Start handle ──────────────────────────────────────────────────────────
   const startPan = useRef(PanResponder.create({
     onStartShouldSetPanResponder: () => true,
+    onPanResponderGrant: () => {
+      player.pause()
+      setPlaying(false)
+    },
     onPanResponderMove: (_, g) => {
       const newSec = clamp(
         pxToSec(clamp(sxRef.current + g.dx, 0, exRef.current - HANDLE_W)),
-        Math.max(0, endSec - MAX_SEC), endSec - 1
+        Math.max(0, endSec - MAX_SEC),
+        endSec - 0.5
       )
       sAnim.setValue(secToPx(newSec))
       setStartSec(newSec)
+      player.currentTime = newSec
     },
     onPanResponderRelease: (_, g) => {
       const newSec = clamp(
         pxToSec(clamp(sxRef.current + g.dx, 0, exRef.current - HANDLE_W)),
-        Math.max(0, endSec - MAX_SEC), endSec - 1
+        Math.max(0, endSec - MAX_SEC),
+        endSec - 0.5
       )
       sxRef.current = secToPx(newSec)
       sAnim.setValue(sxRef.current)
       setStartSec(newSec)
+      player.currentTime = newSec
     },
   })).current
 
-  // ── End handle ─────────────────────────────────────────────────────────────
+  // ── End handle ────────────────────────────────────────────────────────────
   const endPan = useRef(PanResponder.create({
     onStartShouldSetPanResponder: () => true,
+    onPanResponderGrant: () => {
+      player.pause()
+      setPlaying(false)
+    },
     onPanResponderMove: (_, g) => {
       const newSec = clamp(
         pxToSec(clamp(exRef.current + g.dx, sxRef.current + HANDLE_W, TRACK_W)),
-        startSec + 1, Math.min(duration, startSec + MAX_SEC)
+        startSec + 0.5,
+        Math.min(duration, startSec + MAX_SEC)
       )
       eAnim.setValue(secToPx(newSec))
       setEndSec(newSec)
@@ -78,7 +142,8 @@ export default function VideoTrimmer({ uri, duration, onConfirm, onCancel }: Pro
     onPanResponderRelease: (_, g) => {
       const newSec = clamp(
         pxToSec(clamp(exRef.current + g.dx, sxRef.current + HANDLE_W, TRACK_W)),
-        startSec + 1, Math.min(duration, startSec + MAX_SEC)
+        startSec + 0.5,
+        Math.min(duration, startSec + MAX_SEC)
       )
       exRef.current = secToPx(newSec)
       eAnim.setValue(exRef.current)
@@ -90,37 +155,55 @@ export default function VideoTrimmer({ uri, duration, onConfirm, onCancel }: Pro
   const rightPct = (endSec   / duration) * 100
 
   return (
-    <View style={{ gap: spacing.lg }}>
+    <View style={{ gap: spacing.md }}>
 
-      {/* Video icon placeholder instead of video player */}
-      <View style={{ backgroundColor: '#111', borderRadius: radius.xl, height: 200, alignItems: 'center', justifyContent: 'center', gap: 12 }}>
-        <Ionicons name="film-outline" size={64} color={colors.grey500} />
-        <Text style={{ color: colors.grey500, fontSize: fontSize.sm }}>
-          الفيديو: {fmt(startSec)} ← {fmt(endSec)}
-        </Text>
-        <Text style={{ color: '#f59e0b', fontSize: fontSize.xs, fontWeight: '700' }}>
-          {Math.round(clipSec)} ثانية مختارة
-        </Text>
+      {/* ── Video preview ── */}
+      <View style={{ height: 260, borderRadius: radius.xl, overflow: 'hidden', backgroundColor: '#000' }}>
+        <VideoView
+          player={player}
+          style={{ width: '100%', height: '100%' }}
+          contentFit="contain"
+          nativeControls={false}
+        />
+
+        {/* Loading spinner */}
+        {!ready && (
+          <View style={{ ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.4)' }}>
+            <ActivityIndicator color={colors.primary} size="large" />
+          </View>
+        )}
+
+        {/* Play/pause tap overlay */}
+        <Pressable
+          onPress={ready ? togglePlay : undefined}
+          style={{ position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center' }}
+        >
+          {!playing && ready && (
+            <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name="play" size={28} color="#fff" />
+            </View>
+          )}
+        </Pressable>
       </View>
 
-      {/* Time labels */}
+      {/* ── Time labels ── */}
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 4 }}>
-        <Text style={{ color: colors.grey400, fontSize: 12 }}>{fmt(startSec)}</Text>
+        <Text style={{ color: colors.grey500, fontSize: 12, fontVariant: ['tabular-nums'] }}>{fmt(startSec)}</Text>
         <Text style={{ color: '#f59e0b', fontSize: 13, fontWeight: '900' }}>
           {Math.round(clipSec)}s / {MAX_SEC}s
         </Text>
-        <Text style={{ color: colors.grey400, fontSize: 12 }}>{fmt(endSec)}</Text>
+        <Text style={{ color: colors.grey500, fontSize: 12, fontVariant: ['tabular-nums'] }}>{fmt(endSec)}</Text>
       </View>
 
-      {/* Track */}
+      {/* ── Timeline track ── */}
       <View style={{ marginHorizontal: spacing.lg }}>
-        <View style={{ height: TRACK_H, borderRadius: radius.lg, backgroundColor: '#2a2a2a', position: 'relative', overflow: 'visible' }}>
+        <View style={{ height: TRACK_H, borderRadius: radius.lg, backgroundColor: '#1F2937', position: 'relative', overflow: 'visible' }}>
 
           {/* Dimmed left */}
           <View style={{
             position: 'absolute', top: 0, bottom: 0, left: 0,
             width: `${leftPct}%`,
-            backgroundColor: 'rgba(0,0,0,0.7)',
+            backgroundColor: 'rgba(0,0,0,0.65)',
             borderTopLeftRadius: radius.lg, borderBottomLeftRadius: radius.lg,
           }} />
 
@@ -128,25 +211,23 @@ export default function VideoTrimmer({ uri, duration, onConfirm, onCancel }: Pro
           <View style={{
             position: 'absolute', top: 0, bottom: 0, right: 0,
             width: `${100 - rightPct}%`,
-            backgroundColor: 'rgba(0,0,0,0.7)',
+            backgroundColor: 'rgba(0,0,0,0.65)',
             borderTopRightRadius: radius.lg, borderBottomRightRadius: radius.lg,
           }} />
 
-          {/* Selected region — gradient-like stripes */}
+          {/* Golden selection border + ticks */}
           <View style={{
             position: 'absolute', top: 0, bottom: 0,
             left: `${leftPct}%`,
             width: `${rightPct - leftPct}%`,
             borderTopWidth: 3, borderBottomWidth: 3, borderColor: '#f59e0b',
           }}>
-            {/* Tick marks */}
-            {Array.from({ length: 8 }).map((_, i) => (
+            {Array.from({ length: 9 }).map((_, i) => (
               <View key={i} style={{
                 position: 'absolute',
-                left: `${(i + 1) * 12.5}%`,
-                top: 8, bottom: 8,
-                width: 1,
-                backgroundColor: 'rgba(255,255,255,0.15)',
+                left: `${(i + 1) * 10}%`,
+                top: 10, bottom: 10, width: 1,
+                backgroundColor: 'rgba(255,255,255,0.12)',
               }} />
             ))}
           </View>
@@ -185,16 +266,16 @@ export default function VideoTrimmer({ uri, duration, onConfirm, onCancel }: Pro
         اسحب الحدود الصفراء لتحديد الجزء المطلوب
       </Text>
 
-      {/* Buttons */}
+      {/* ── Buttons ── */}
       <View style={{ flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.lg }}>
         <Pressable
-          onPress={onCancel}
+          onPress={() => { player.pause(); onCancel() }}
           style={{ flex: 1, paddingVertical: 14, borderRadius: radius.pill, alignItems: 'center', backgroundColor: colors.grey100 }}
         >
           <Text style={{ fontWeight: '700', color: colors.grey700 }}>إلغاء</Text>
         </Pressable>
         <Pressable
-          onPress={() => onConfirm(startSec, clipSec)}
+          onPress={() => { player.pause(); onConfirm(startSec, clipSec) }}
           style={{ flex: 2, paddingVertical: 14, borderRadius: radius.pill, backgroundColor: colors.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}
         >
           <Ionicons name="cut" size={18} color="#fff" />
@@ -203,6 +284,8 @@ export default function VideoTrimmer({ uri, duration, onConfirm, onCancel }: Pro
           </Text>
         </Pressable>
       </View>
+
     </View>
   )
 }
+

@@ -251,6 +251,21 @@ export default function RootLayout() {
     Cairo: require('../assets/fonts/Cairo.ttf'),
   })
 
+  // ── AdMob SDK Init (same as MobileAds.instance.initialize() in Flutter) ──
+  useEffect(() => {
+    try {
+      const mobileAds = require('react-native-google-mobile-ads').default
+      // Configure test device IDs to get test ads during development
+      mobileAds().setRequestConfiguration({
+        testDeviceIdentifiers: ['EMULATOR', 'SIMULATOR'],
+      })
+      mobileAds().initialize().then(() => {
+      })
+    } catch (e) {
+      // Native module not available — ads silently disabled
+    }
+  }, [])
+
   useEffect(() => {
     if (!fontsLoaded) return
     setGlobalFont()
@@ -268,11 +283,7 @@ export default function RootLayout() {
   }, [fontsLoaded, initAuth])
 
   if (!ready || !fontsLoaded) {
-    return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.white }}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
-    )
+    return <View style={{ flex: 1, backgroundColor: '#FFFFFF' }} />
   }
 
   return (

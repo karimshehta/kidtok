@@ -151,15 +151,7 @@ export default function AdminAds() {
               min={0}
               max={20}
             />
-            <Field
-              label="إعلان تخللي بعد كل N فيديو (Interstitial)"
-              hint="كل كم فيديو يظهر الإعلان التخللي للمستخدمين المجانيين؟ (0 = معطّل)"
-              value={form['ads_interstitial_after_videos'] || '5'}
-              onChange={(v) => set('ads_interstitial_after_videos', v)}
-              type="number"
-              min={0}
-              max={50}
-            />
+
           </div>
 
           {/* Dev mode notice */}
@@ -216,6 +208,40 @@ export default function AdminAds() {
               min={5}
               max={1440}
             />
+
+            {/* ─── Interstitial Frequency ─── */}
+            <div className="pt-2 border-t border-neutral-200">
+              <p className="text-xs font-bold text-neutral-500 uppercase tracking-wide mb-2">Feed Interstitial Frequency</p>
+              <Field
+                label="Show interstitial after every N videos"
+                hint="How many videos a free user watches before seeing an interstitial ad (0 = disabled)"
+                value={form['ads_interstitial_after_videos'] || '5'}
+                onChange={(v) => set('ads_interstitial_after_videos', v)}
+                type="number"
+                min={0}
+                max={50}
+              />
+            </div>
+
+            {/* ─── Banner Ads ─── */}
+            <div className="pt-2 border-t border-neutral-200">
+              <p className="text-xs font-bold text-neutral-500 uppercase tracking-wide mb-2">Banner Ads (Feed — Parent Mode Only)</p>
+              <PlatformFields
+                label="Banner Unit IDs"
+                androidKey="admob_android_banner"
+                iosKey="admob_ios_banner"
+                form={form}
+                set={set}
+              />
+              <Field
+                label="Enable banner in feed"
+                hint="Show banner ad at bottom of feed for free users (parent mode only)"
+                value={form['admob_banner_enabled'] || 'false'}
+                onChange={(v) => set('admob_banner_enabled', v)}
+                type="select"
+                options={[{ value: 'true', label: 'Enabled' }, { value: 'false', label: 'Disabled' }]}
+              />
+            </div>
           </div>
         </section>
 

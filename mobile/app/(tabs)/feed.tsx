@@ -182,7 +182,7 @@ export default function FeedScreen() {
       {/* Daily reward popup */}
       <DailyRewardModal />
 
-      {/* Record FAB moved to center tab bar */
+      {/* Record FAB moved to center tab bar */}
 
       {commentsForVideo && (
         <CommentsSheet videoId={commentsForVideo} visible={!!commentsForVideo} onClose={() => setCommentsForVideo(null)} />
@@ -231,6 +231,7 @@ function SwipeFeed({
       isAnimating.current = false
       currentIndexRef.current = clamped
       onIndexChange(clamped)
+      onVideoSwiped()
     })
   }, [containerHeight, onIndexChange])
 

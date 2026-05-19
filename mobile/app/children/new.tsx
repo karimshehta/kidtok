@@ -97,6 +97,8 @@ export default function AddChildScreen() {
   const [interestsOpen, setInterestsOpen] = useState(false)
   const [saving, setSaving] = useState(false)
 
+  const { data: planLimits } = usePlanLimits()
+
   const { data: ages = [], isLoading: agesLoading } = useQuery({
     queryKey: ['ages'],
     queryFn: async (): Promise<AgeOption[]> => {

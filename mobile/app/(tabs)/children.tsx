@@ -1,4 +1,4 @@
-import { View, Text, ScrollView, Pressable, ActivityIndicator, RefreshControl} from 'react-native'
+import { View, Text, ScrollView, Pressable, ActivityIndicator, RefreshControl, Alert } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useTranslation } from 'react-i18next'
 import { useFocusEffect } from 'expo-router'

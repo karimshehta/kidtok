@@ -153,8 +153,8 @@
       [
         "react-native-google-mobile-ads",
         {
-          "androidAppId": "ca-app-pub-9534911590158193~3474975454",
-          "iosAppId": "ca-app-pub-9534911590158193~8731979368",
+          "androidAppId": "ca-app-pub-9534911590158193~7323459115",
+          "iosAppId": "ca-app-pub-9534911590158193~4621290062",
           "userTrackingUsageDescription": "يستخدم التطبيق بياناتك لعرض إعلانات مناسبة لك.",
           "skAdNetworkItems": []
         }
@@ -169,7 +169,8 @@
             "newArchEnabled": false
           }
         }
-      ]
+      ],
+      "expo-video"
     ],
     "updates": {
       "url": "https://u.expo.dev/fb2d9f4c-1ee3-4e3f-953b-6373f1665c6d",
@@ -187,6 +188,7 @@
     },
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "backgroundColor": "#FFFFFF"
   }
 }

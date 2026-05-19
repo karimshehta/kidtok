@@ -6,6 +6,7 @@
 import { useState, useEffect } from 'react'
 import { View, Text, Pressable, Modal, Animated } from 'react-native'
 import { useQueryClient } from '@tanstack/react-query'
+import { useRewardedAd } from '@/hooks/useRewardedAd'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
 import { supabase } from '@/lib/supabase'
@@ -21,6 +22,7 @@ export default function DailyRewardModal() {
   const [visible, setVisible] = useState(false)
   const [claiming, setClaiming] = useState(false)
   const [claimed, setClaimed] = useState(false)
+  const rewardedAd = useRewardedAd()
   const scaleAnim = useState(new Animated.Value(0.8))[0]
   const opacityAnim = useState(new Animated.Value(0))[0]
 
@@ -49,20 +51,27 @@ export default function DailyRewardModal() {
   const claim = async () => {
     setClaiming(true)
     try {
-      // Try to show rewarded ad first (will silently skip if AdMob not in build)
-      try {
-        const AdMob = require('react-native-google-mobile-ads')
-        // Rewarded ad logic here when build includes it
-      } catch {}
-
+      // Show rewarded ad, then claim coins
+      await rewardedAd.show(async () => {
+        // Called when user earns the reward (watched the ad)
+        const { data } = await supabase.rpc('claim_daily_reward')
+        if (data?.success) {
+          setClaimed(true)
+          qc.invalidateQueries({ queryKey: ['coin-balance'] })
+          setTimeout(() => setVisible(false), 2000)
+        }
+      })
+    } catch (err) {
+      // Unexpected error — still attempt to claim
       const { data } = await supabase.rpc('claim_daily_reward')
       if (data?.success) {
         setClaimed(true)
         qc.invalidateQueries({ queryKey: ['coin-balance'] })
         setTimeout(() => setVisible(false), 2000)
       }
-    } catch {}
-    setClaiming(false)
+    } finally {
+      setClaiming(false)
+    }
   }
 
   if (!visible) return null
