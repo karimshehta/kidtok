@@ -4,6 +4,7 @@ import {
   ActivityIndicator, StatusBar, Alert,
 } from 'react-native'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
+import KeyboardScreen from '@/components/KeyboardScreen'
 import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { LinearGradient } from 'expo-linear-gradient'
@@ -131,39 +132,26 @@ export default function UploadScreen() {
     )
   }
 
-  // ── Trim state ─────────────────────────────────────────────────────────────
+  // ── Trim state — fullscreen handled inside VideoTrimmer ───────────────────
   if (step === 'trimming') {
     return (
-      <View style={{ flex: 1, backgroundColor: '#111' }}>
+      <>
         <StatusBar hidden />
-        <SafeAreaView style={{ flex: 1 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', padding: spacing.lg, gap: spacing.md }}>
-            <Pressable onPress={() => router.back()}>
-              <Ionicons name="close" size={26} color="#fff" />
-            </Pressable>
-            <Text style={{ fontSize: fontSize.lg, fontWeight: '900', color: '#fff', flex: 1 }}>
-              اختر جزء الفيديو (max 30s)
-            </Text>
-          </View>
-
-          <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 40 }}>
-            <VideoTrimmer
-              uri={videoUri}
-              duration={totalDuration}
-              onConfirm={handleTrimConfirm}
-              onCancel={() => router.back()}
-            />
-          </ScrollView>
-        </SafeAreaView>
-      </View>
+        <VideoTrimmer
+          uri={videoUri}
+          duration={totalDuration}
+          onConfirm={handleTrimConfirm}
+          onCancel={() => router.back()}
+        />
+      </>
     )
   }
 
   // ── Details state ──────────────────────────────────────────────────────────
   return (
-    <View style={{ flex: 1, backgroundColor: colors.grey900 }}>
+    <KeyboardScreen variant="simple" backgroundColor={colors.grey900} edges={['top']}>
       <StatusBar hidden />
-      <ScrollView contentContainerStyle={{ paddingBottom: 120 }} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={{ paddingBottom: 120 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
         {/* Preview info */}
         <View style={{ margin: spacing.lg, borderRadius: radius.xl, backgroundColor: 'rgba(255,255,255,0.08)', padding: spacing.lg, flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
           <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' }}>
@@ -231,7 +219,7 @@ export default function UploadScreen() {
           </Pressable>
         </View>
       </LinearGradient>
-    </View>
+    </KeyboardScreen>
   )
 }
 

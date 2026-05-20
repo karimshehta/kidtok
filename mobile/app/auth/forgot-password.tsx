@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { View, Text, TextInput, Pressable, ActivityIndicator, ScrollView, Image } from 'react-native'
+import { View, Text, TextInput, Pressable, ActivityIndicator, Image } from 'react-native'
+import KeyboardScreen from '@/components/KeyboardScreen'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
@@ -32,8 +33,8 @@ export default function ForgotPassword() {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.white }}>
-      <ScrollView contentContainerStyle={{ flexGrow: 1, padding: spacing.lg }}>
+    <KeyboardScreen variant="form" backgroundColor={colors.white} contentStyle={{ padding: 24 }}>
+      
         <Pressable onPress={() => router.back()} style={{ marginBottom: spacing.lg, alignSelf: 'flex-start' }}>
           <Ionicons name="arrow-back" size={28} color={colors.grey900} />
         </Pressable>
@@ -130,7 +131,6 @@ export default function ForgotPassword() {
             </Pressable>
           </>
         )}
-      </ScrollView>
-    </SafeAreaView>
+          </KeyboardScreen>
   )
 }

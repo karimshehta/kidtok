@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { View, Text, ScrollView, Pressable, ActivityIndicator, TextInput, Modal, Alert } from 'react-native'
+import KeyboardScreen from '@/components/KeyboardScreen'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
@@ -107,7 +108,7 @@ export default function ChildDetailScreen() {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.white }}>
+    <KeyboardScreen variant="simple" style={{ flex: 1, backgroundColor: colors.white }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', padding: spacing.lg, gap: spacing.md }}>
         <Pressable onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={28} color={colors.grey900} />
@@ -288,7 +289,7 @@ export default function ChildDetailScreen() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </KeyboardScreen>
   )
 }
 

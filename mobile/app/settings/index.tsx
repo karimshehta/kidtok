@@ -1,3 +1,4 @@
+import BannerAd from '@/components/BannerAd'
 import { View, Text, Pressable, Alert } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
@@ -51,7 +52,8 @@ export default function SettingsScreen() {
         <SettingRow icon="diamond-outline"  label={ar ? 'الاشتراك'       : 'Subscription'}    value={mySub ? (ar ? 'نشط ✓' : 'Active ✓') : (ar ? 'ترقية' : 'Upgrade')} color={mySub ? colors.primary : colors.secondary} onPress={() => router.push('/subscription')} />
         <SettingRow icon="log-out-outline"  label={ar ? 'تسجيل الخروج'  : 'Logout'}          onPress={confirmLogout} color={colors.secondary} />
       </View>
-    </SafeAreaView>
+          <BannerAd variant="sticky" />
+      </SafeAreaView>
   )
 }
 

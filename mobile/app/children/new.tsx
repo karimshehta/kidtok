@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native'
 import type { ImageSourcePropType } from 'react-native'
+import KeyboardScreen from '@/components/KeyboardScreen'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
@@ -199,7 +200,7 @@ export default function AddChildScreen() {
   const canSave = !!name.trim() && !!ageId && !saving
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.white }}>
+    <KeyboardScreen variant="form" style={{ flex: 1, backgroundColor: colors.white }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', padding: spacing.lg, gap: spacing.md }}>
         <Pressable onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={28} color={colors.grey900} />
@@ -474,7 +475,7 @@ export default function AddChildScreen() {
           )}
         </Pressable>
       </ScrollView>
-    </SafeAreaView>
+    </KeyboardScreen>
   )
 }
 

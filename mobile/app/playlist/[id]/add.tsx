@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react'
 import { View, Text, TextInput, ScrollView, Pressable, ActivityIndicator, Image } from 'react-native'
+import KeyboardScreen from '@/components/KeyboardScreen'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
@@ -115,7 +116,7 @@ export default function AddVideoScreen() {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.white }}>
+    <KeyboardScreen variant="form" style={{ flex: 1, backgroundColor: colors.white }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', padding: spacing.lg, gap: spacing.md }}>
         <Pressable onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={28} color={colors.grey900} />
@@ -255,6 +256,6 @@ export default function AddVideoScreen() {
           </View>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </KeyboardScreen>
   )
 }

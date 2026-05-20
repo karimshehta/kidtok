@@ -1,3 +1,4 @@
+import BannerAd from '@/components/BannerAd'
 import { View, Text, ScrollView, Pressable, Image, RefreshControl, Dimensions } from 'react-native'
 import { useCallback, useState } from 'react'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -171,7 +172,8 @@ export default function ProfileScreen() {
           </View>
         )}
       </ScrollView>
-    </SafeAreaView>
+          <BannerAd variant="sticky" />
+      </SafeAreaView>
   )
 }
 

@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { View, Text, TextInput, Pressable, ScrollView, ActivityIndicator, Image } from 'react-native'
+import { View, Text, TextInput, Pressable, ActivityIndicator, Image } from 'react-native'
+import KeyboardScreen from '@/components/KeyboardScreen'
 import { Link, useRouter } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -35,8 +36,8 @@ export default function Login() {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.white }}>
-      <ScrollView contentContainerStyle={{ flexGrow: 1, padding: spacing.lg }} keyboardShouldPersistTaps="handled">
+    <KeyboardScreen variant="form" backgroundColor={colors.white} contentStyle={{ padding: 24 }}>
+      
         <Pressable onPress={() => router.back()} style={{ marginBottom: spacing.lg, alignSelf: 'flex-start' }}>
           <Ionicons name="arrow-back" size={28} color={colors.grey900} />
         </Pressable>
@@ -118,8 +119,7 @@ export default function Login() {
             <Text style={{ color: colors.primary, fontWeight: '700' }}>{t('auth.signup')}</Text>
           </Link>
         </View>
-      </ScrollView>
-    </SafeAreaView>
+          </KeyboardScreen>
   )
 }
 

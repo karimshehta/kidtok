@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { View, Text, TextInput, ScrollView, Pressable, ActivityIndicator, Image, Alert } from 'react-native'
+import KeyboardScreen from '@/components/KeyboardScreen'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
@@ -146,9 +147,9 @@ export default function ProfileEditScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center' }}>
+      <KeyboardScreen variant="form" style={{ flex: 1, backgroundColor: colors.white }} contentStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator color={colors.primary} />
-      </SafeAreaView>
+      </KeyboardScreen>
     )
   }
 

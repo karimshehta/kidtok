@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { View, Text, TextInput, Pressable, ScrollView, ActivityIndicator, Alert } from 'react-native'
+import KeyboardScreen from '@/components/KeyboardScreen'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
@@ -69,9 +70,9 @@ export default function EditChildScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+      <KeyboardScreen variant="form">
         <ActivityIndicator color={colors.primary} />
-      </SafeAreaView>
+      </KeyboardScreen>
     )
   }
 

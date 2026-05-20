@@ -112,8 +112,14 @@ async function registerForPushNotificationsAsync(): Promise<string | null> {
     Constants.expoConfig?.extra?.eas?.projectId ||
     (Constants as any).easConfig?.projectId
 
-  const tokenData = await Notifications.getExpoPushTokenAsync(
-    projectId ? { projectId } : undefined
-  )
-  return tokenData.data
+  // Silent fail if FCM not configured (needs google-services.json for Android)
+  try {
+    const tokenData = await Notifications.getExpoPushTokenAsync(
+      projectId ? { projectId } : undefined
+    )
+    return tokenData.data
+  } catch {
+    // FCM/Firebase not set up — push disabled until google-services.json is added
+    return null
+  }
 }

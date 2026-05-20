@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { View, Text, TextInput, Pressable, ScrollView, ActivityIndicator } from 'react-native'
+import KeyboardScreen from '@/components/KeyboardScreen'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
@@ -60,15 +61,15 @@ export default function ResetPassword() {
 
   if (!sessionReady) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center' }}>
+      <KeyboardScreen variant="form" backgroundColor={colors.white} contentStyle={{ padding: 24, flexGrow: 1, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator size="large" color={colors.primary} />
-      </SafeAreaView>
+      </KeyboardScreen>
     )
   }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.white }}>
-      <ScrollView contentContainerStyle={{ flexGrow: 1, padding: spacing.lg }}>
+      
         <Pressable onPress={() => router.replace('/auth/login')} style={{ marginBottom: spacing.lg, alignSelf: 'flex-start' }}>
           <Ionicons name="arrow-back" size={28} color={colors.grey900} />
         </Pressable>

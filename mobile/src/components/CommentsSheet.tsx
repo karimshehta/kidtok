@@ -16,6 +16,7 @@ import Toast from 'react-native-toast-message'
 import { useTranslation } from 'react-i18next'
 
 import { useComments, useAddComment } from '@/hooks/useSocial'
+import BannerAd from '@/components/BannerAd'
 import { colors, spacing, fontSize, radius } from '@/lib/theme'
 
 // ─── Relative time helper ────────────────────────────────────────────────────
@@ -284,6 +285,7 @@ export default function CommentsSheet({
               </Pressable>
             </View>
           </View>
+          <BannerAd variant="inline" />
         </KeyboardAvoidingView>
       </View>
     </Modal>

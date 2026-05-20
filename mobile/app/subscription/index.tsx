@@ -1,5 +1,7 @@
+import BannerAd from '@/components/BannerAd'
 import { useState } from 'react'
 import { View, Text, ScrollView, Pressable, ActivityIndicator, Modal, TextInput } from 'react-native'
+import KeyboardScreen from '@/components/KeyboardScreen'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
@@ -143,7 +145,7 @@ export default function SubscriptionScreen() {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.white }}>
+    <KeyboardScreen variant="simple" style={{ flex: 1, backgroundColor: colors.white }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', padding: spacing.lg, gap: spacing.md }}>
         <Pressable onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={28} color={colors.grey900} />
@@ -290,9 +292,10 @@ export default function SubscriptionScreen() {
             setPaymentUrl(null)
             qc.invalidateQueries({ queryKey: ['my-subscription'] })
           }} />}
-        </SafeAreaView>
+        </KeyboardScreen>
       </Modal>
-    </SafeAreaView>
+          <BannerAd variant="sticky" />
+      </SafeAreaView>
   )
 }
 

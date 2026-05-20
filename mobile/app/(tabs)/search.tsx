@@ -236,7 +236,7 @@ export default function SearchScreen() {
 
   // ── Render ─────────────────────────────────────────────────
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#F8F9FB' }}>
+    <KeyboardScreen variant="simple" style={{ flex: 1, backgroundColor: '#F8F9FB' }}>
 
       {/* ── Search Mode Cards ── */}
       <View style={{ paddingHorizontal: spacing.lg, paddingVertical: spacing.md, backgroundColor: colors.white }}>
@@ -651,7 +651,7 @@ export default function SearchScreen() {
         </View>
       </Modal>
 
-    </SafeAreaView>
+    </KeyboardScreen>
   )
 }
 
