@@ -17,9 +17,9 @@ const PAGE_SIZE = 25
 // Helpers
 // ════════════════════════════════════════════════════════════════════════════
 const ROLE_BADGES: Record<Role, { bg: string; text: string; icon: typeof UserIcon }> = {
-  parent:  { bg: 'bg-blue-100 text-blue-800',     text: 'Parent',  icon: UserIcon },
-  creator: { bg: 'bg-purple-100 text-purple-800', text: 'Creator', icon: Sparkles },
-  admin:   { bg: 'bg-amber-100 text-amber-800',   text: 'Admin',   icon: Shield },
+  parent:  { bg: 'bg-blue-100 text-blue-800',   text: 'User',  icon: UserIcon },
+  creator: { bg: 'bg-blue-100 text-blue-800',   text: 'User',  icon: UserIcon },
+  admin:   { bg: 'bg-amber-100 text-amber-800', text: 'Admin', icon: Shield },
 }
 
 function formatDate(d: string | null): string {
@@ -193,12 +193,11 @@ function UserDetailModal({ user, onClose }: { user: AdminUser | null; onClose: (
 
             <div className="grid grid-cols-2 gap-2">
               <select
-                value={user.role}
+                value={user.role === 'admin' ? 'admin' : 'parent'}
                 onChange={(e) => setRole.mutate({ user_id: user.id, role: e.target.value as Role })}
                 className="rounded-lg border border-neutral-300 px-3 py-2 text-sm"
               >
-                <option value="parent">Parent</option>
-                <option value="creator">Creator</option>
+                <option value="parent">User</option>
                 <option value="admin">Admin</option>
               </select>
               <button
@@ -324,17 +323,15 @@ export default function AdminUsers() {
         </header>
 
         {/* Stats cards */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-          <StatCard icon={UsersIcon}    label="Total"          value={stats?.total ?? 0}          color="blue"    loading={!stats} />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+          <StatCard icon={UsersIcon}    label="Total users"    value={stats?.total ?? 0}          color="blue"    loading={!stats} />
+          <StatCard icon={Shield}       label="Admins"         value={stats?.admins ?? 0}         color="amber"   loading={!stats} />
           <StatCard icon={BadgeCheck}   label="Verified"       value={stats?.verified ?? 0}       color="blue"    loading={!stats} />
-          <StatCard icon={Sparkles}     label="Creators"       value={stats?.creators ?? 0}       color="purple"  loading={!stats} />
           <StatCard icon={Crown}        label="Premium"        value={stats?.premium ?? 0}        color="amber"   loading={!stats} />
           <StatCard icon={Ban}          label="Banned"         value={stats?.banned ?? 0}         color="red"     loading={!stats} />
           <StatCard icon={UserCheck}    label="Active today"   value={stats?.active_today ?? 0}   color="green"   loading={!stats} />
           <StatCard icon={TrendingUp}   label="New this week"  value={stats?.new_this_week ?? 0}  color="green"   loading={!stats} />
           <StatCard icon={Mail}         label="Email confirmed" value={stats?.email_confirmed ?? 0} color="neutral" loading={!stats} />
-          <StatCard icon={UserIcon}     label="Parents"        value={stats?.parents ?? 0}        color="neutral" loading={!stats} />
-          <StatCard icon={Shield}       label="Admins"         value={stats?.admins ?? 0}         color="amber"   loading={!stats} />
         </div>
 
         {/* Search + Filters bar */}
@@ -361,7 +358,7 @@ export default function AdminUsers() {
           {showFilters && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 pt-3">
               <FilterSelect label="Role" value={filters.role || 'all'} onChange={(v) => setFilter({ role: v as any })}
-                options={[['all','All'],['parent','Parents'],['creator','Creators'],['admin','Admins']]} />
+                options={[['all','All users'],['admin','Admins only']]} />
               <FilterSelect label="Verified" value={String(filters.verified ?? '')} onChange={(v) => setFilter({ verified: v === '' ? null : v === 'true' })}
                 options={[['','Any'],['true','Verified ✓'],['false','Unverified']]} />
               <FilterSelect label="Premium" value={String(filters.premium ?? '')} onChange={(v) => setFilter({ premium: v === '' ? null : v === 'true' })}
