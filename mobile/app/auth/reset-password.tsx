@@ -68,7 +68,7 @@ export default function ResetPassword() {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.white }}>
+    <KeyboardScreen variant="form" style={{ flex: 1, backgroundColor: colors.white  }}>
       
         <Pressable onPress={() => router.replace('/auth/login')} style={{ marginBottom: spacing.lg, alignSelf: 'flex-start' }}>
           <Ionicons name="arrow-back" size={28} color={colors.grey900} />
@@ -123,8 +123,8 @@ export default function ResetPassword() {
             </Text>
           )}
         </Pressable>
-      </ScrollView>
-    </SafeAreaView>
+      
+    </KeyboardScreen>
   )
 }
 

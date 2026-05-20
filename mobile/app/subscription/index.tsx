@@ -292,10 +292,10 @@ export default function SubscriptionScreen() {
             setPaymentUrl(null)
             qc.invalidateQueries({ queryKey: ['my-subscription'] })
           }} />}
-        </KeyboardScreen>
+        </SafeAreaView>
       </Modal>
-          <BannerAd variant="sticky" />
-      </SafeAreaView>
+      <BannerAd variant="sticky" />
+    </KeyboardScreen>
   )
 }
 

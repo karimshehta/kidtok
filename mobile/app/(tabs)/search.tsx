@@ -4,6 +4,7 @@ import {
   View, Text, TextInput, ScrollView, Pressable, ActivityIndicator,
   Image, Modal, FlatList, RefreshControl, Animated,
 } from 'react-native'
+import KeyboardScreen from '@/components/KeyboardScreen'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useTranslation } from 'react-i18next'
 import { Ionicons } from '@expo/vector-icons'

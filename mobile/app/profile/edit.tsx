@@ -170,7 +170,7 @@ export default function ProfileEditScreen() {
   }[usernameStatus]
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.white }}>
+    <KeyboardScreen variant="form" style={{ flex: 1, backgroundColor: colors.white  }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', padding: spacing.lg, gap: spacing.md }}>
         <Pressable onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={28} color={colors.grey900} />
@@ -263,7 +263,7 @@ export default function ProfileEditScreen() {
           )}
         </Pressable>
       </ScrollView>
-    </SafeAreaView>
+    </KeyboardScreen>
   )
 }
 

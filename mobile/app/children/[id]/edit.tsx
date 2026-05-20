@@ -77,7 +77,7 @@ export default function EditChildScreen() {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.white }}>
+    <KeyboardScreen variant="form" style={{ flex: 1, backgroundColor: colors.white  }}>
       {/* Header */}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.grey100 }}>
         <Pressable onPress={() => router.back()}>
@@ -154,6 +154,6 @@ export default function EditChildScreen() {
           }
         </Pressable>
       </ScrollView>
-    </SafeAreaView>
+    </KeyboardScreen>
   )
 }
