@@ -34,7 +34,7 @@ jobs:
       - name: Install Supabase CLI
         uses: supabase/setup-cli@v2
         with:
-          version: latest
+          version: 2.6.8
 
       - name: Deploy all functions
         run: |
