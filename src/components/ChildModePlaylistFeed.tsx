@@ -11,6 +11,7 @@ import { formatTime } from '@/hooks/useChildMode'
 import { getYouTubeThumbnail } from '@/lib/youtube'
 import type { Playlist, PlaylistVideo } from '@/types/db'
 import { cn } from '@/lib/utils'
+import CloudflareStreamPlayer from '@/components/CloudflareStreamPlayer'
 
 interface Props {
   playlist: Playlist
