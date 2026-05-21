@@ -13,7 +13,7 @@
  *  - Better performance (no WebView overhead)
  *  - Adaptive bitrate streaming
  */
-import { useEffect, memo } from 'react'
+import { useEffect, memo, useState } from 'react'
 import { View, Image, ActivityIndicator } from 'react-native'
 import { useVideoPlayer, VideoView } from 'expo-video'
 import { Ionicons } from '@expo/vector-icons'
@@ -26,12 +26,28 @@ interface Props {
 }
 
 export default memo(function ReelNativeVideo({ isActive, hlsUrl, poster }: Props) {
+  // Default to 'cover' (assume portrait 9:16), switch to 'contain' for landscape
+  const [contentFit, setContentFit] = useState<'cover' | 'contain'>('cover')
+
   const player = useVideoPlayer({ uri: hlsUrl }, (p) => {
     p.loop = true
     p.muted = false
     p.volume = 1.0
     p.audioMixingMode = 'auto'
   })
+
+  // Detect aspect ratio when video metadata loads
+  useEffect(() => {
+    if (!player) return
+    const sub = player.addListener('sourceLoad', (e: any) => {
+      try {
+        const w = e?.videoSource?.metadata?.width || e?.width
+        const h = e?.videoSource?.metadata?.height || e?.height
+        if (w && h) setContentFit(h >= w ? 'cover' : 'contain')
+      } catch {}
+    })
+    return () => { try { sub.remove() } catch {} }
+  }, [player])
 
   // Diagnostic logging — helps identify if hlsUrl is valid
   useEffect(() => {
@@ -65,7 +81,7 @@ export default memo(function ReelNativeVideo({ isActive, hlsUrl, poster }: Props
         <Image
           source={{ uri: poster }}
           style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, opacity: isActive ? 0.3 : 0.95 }}
-          resizeMode="cover"
+          resizeMode="contain"
           blurRadius={isActive ? 0 : 2}
         />
       )}
@@ -75,7 +91,7 @@ export default memo(function ReelNativeVideo({ isActive, hlsUrl, poster }: Props
         <VideoView
           player={player}
           style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
-          contentFit="cover"
+          contentFit={contentFit}
           nativeControls={false}
         />
       )}

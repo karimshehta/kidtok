@@ -35,6 +35,7 @@ export default function CloudflareStreamPlayer({ uid, hlsUrl, isActive, poster, 
   const videoRef    = useRef<HTMLVideoElement>(null)
   const hlsInstance = useRef<any>(null)
   const [showUnmute, setShowUnmute] = useState(!userHasInteracted)
+  const [isPortrait, setIsPortrait] = useState(true)  // assume portrait until metadata loads
 
   // Build HLS URL — prefer prop, else use standard pattern
   // Cloudflare auto-redirects iframe.cloudflarestream.com to the correct customer endpoint
@@ -137,7 +138,7 @@ export default function CloudflareStreamPlayer({ uid, hlsUrl, isActive, poster, 
   if (!isActive) {
     return (
       <div className={`relative bg-black ${className}`}>
-        {poster && <img src={poster} alt="" className="w-full h-full object-cover opacity-95" />}
+        {poster && <img src={poster} alt="" className="w-full h-full object-contain opacity-95" style={{ backgroundColor: "#000" }} />}
       </div>
     )
   }
@@ -146,12 +147,17 @@ export default function CloudflareStreamPlayer({ uid, hlsUrl, isActive, poster, 
     <div className={`relative bg-black ${className}`}>
       <video
         ref={videoRef}
-        className="absolute inset-0 w-full h-full object-cover"
+        className="absolute inset-0 w-full h-full"
+        style={{ objectFit: isPortrait ? 'cover' : 'contain', backgroundColor: '#000' }}
         poster={poster || undefined}
         playsInline
         loop
         autoPlay
         controls={false}
+        onLoadedMetadata={(e) => {
+          const v = e.currentTarget
+          setIsPortrait(v.videoHeight >= v.videoWidth)
+        }}
       />
 
       {showUnmute && (
