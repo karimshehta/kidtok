@@ -55,12 +55,12 @@ export default function VideoPlayer({
   if (cloudflareUid) {
     // Cloudflare Stream iframe embed handles HLS automatically.
     // The customer code is part of the HLS URL pattern but the iframe URL is at videodelivery.net (works without customer-code too).
-    embedSrc = `https://iframe.cloudflarestream.com/${cloudflareUid}?autoplay=true&controls=true`
+    embedSrc = `https://iframe.cloudflarestream.com/${cloudflareUid}?controls=true&muted=false&preload=metadata`
   } else if (hlsUrl) {
     // Extract the UID from the HLS URL pattern: https://customer-xxx.cloudflarestream.com/{uid}/manifest/video.m3u8
     const m = hlsUrl.match(/cloudflarestream\.com\/([^/]+)/)
     if (m) {
-      embedSrc = `https://iframe.cloudflarestream.com/${m[1]}?autoplay=true&controls=true`
+      embedSrc = `https://iframe.cloudflarestream.com/${m[1]}?controls=true&muted=false&preload=metadata`
     }
   } else if (youtubeId) {
     embedSrc = `https://www.youtube-nocookie.com/embed/${youtubeId}?autoplay=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`
