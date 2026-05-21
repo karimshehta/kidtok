@@ -251,6 +251,35 @@ export default function RootLayout() {
     Cairo: require('../assets/fonts/Cairo.ttf'),
   })
 
+  // ── Configure audio session for media playback ──
+  // Required so video audio plays through media speaker (not earpiece)
+  // and bypasses iOS silent mode for short-form video content
+  useEffect(() => {
+    try {
+      // expo-video / expo-av audio mode
+      const { setAudioModeAsync } = require('expo-audio')
+      setAudioModeAsync({
+        playsInSilentMode: true,
+        allowsRecording: false,
+        shouldPlayInBackground: false,
+        shouldRouteThroughEarpiece: false,
+        interruptionMode: 'doNotMix',
+        interruptionModeAndroid: 'doNotMix',
+      }).catch(() => {})
+    } catch {
+      // Fallback for builds without expo-audio
+      try {
+        const { Audio } = require('expo-av')
+        Audio.setAudioModeAsync({
+          playsInSilentModeIOS: true,
+          allowsRecordingIOS: false,
+          staysActiveInBackground: false,
+          shouldDuckAndroid: true,
+        }).catch(() => {})
+      } catch {}
+    }
+  }, [])
+
   // ── AdMob SDK Init (same as MobileAds.instance.initialize() in Flutter) ──
   useEffect(() => {
     try {

@@ -32,6 +32,7 @@ import { usePlanLimits } from '@/hooks/usePlanLimits'
 import { useIsFollowing, useToggleFollow } from '@/hooks/useSocial'
 import { useAdMob } from '@/hooks/useAdMob'
 import DailyRewardModal from '@/components/DailyRewardModal'
+import ReelNativeVideo from '@/components/ReelNativeVideo'
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window')
 const KIDTOK_ORIGIN = 'https://kidtok.vercel.app'
@@ -44,6 +45,8 @@ interface FeedVideo {
   source: string
   youtube_id: string | null
   thumbnail_url: string | null
+  cloudflare_uid: string | null
+  hls_url: string | null
   channel_name: string | null
   channel_id: string | null
   creator_id: string | null
@@ -56,7 +59,7 @@ interface FeedVideo {
 }
 
 const FEED_SELECT =
-  'id, title, source, youtube_id, thumbnail_url, channel_name, channel_id, creator_id, creator_video_id, like_count, dislike_count, view_count, comment_count, is_story, tags, category'
+  'id, title, source, youtube_id, thumbnail_url, cloudflare_uid, hls_url, channel_name, channel_id, creator_id, creator_video_id, like_count, dislike_count, view_count, comment_count, is_story, tags, category'
 
 // ─── FeedScreen ───────────────────────────────────────────────────────────────
 export default function FeedScreen() {
@@ -64,7 +67,6 @@ export default function FeedScreen() {
   const [activeIndex, setActiveIndex] = useState(0)
 
   const { i18n } = useTranslation()
-  const [muted, setMuted] = useState(true)
   const { data: planLimits } = usePlanLimits()
   const showAds = planLimits?.has_ads ?? true
   const { onVideoSwiped } = useAdMob()
@@ -111,7 +113,6 @@ export default function FeedScreen() {
 
   const handleOpenComments = useCallback((id: string) => setCommentsForVideo(id), [])
   const handleOpenPlaylist = useCallback((v: FeedVideo) => setPlaylistVideo(v), [])
-  const handleToggleMuted = useCallback(() => setMuted((v) => !v), [])
   const handleTabForYou = useCallback(() => { setTab('foryou'); setActiveIndex(0) }, [])
   const handleTabFollowing = useCallback(() => { setTab('following'); setActiveIndex(0) }, [])
 
@@ -169,12 +170,10 @@ export default function FeedScreen() {
           key={tab}
           videos={videos}
           containerHeight={containerHeight}
-          muted={muted}
           activeIndex={activeIndex}
           onIndexChange={(i) => { setActiveIndex(i); onHeaderPageChange(i) }}
           onOpenComments={handleOpenComments}
           onAddToPlaylist={handleOpenPlaylist}
-          onToggleMute={handleToggleMuted}
           onVideoSwiped={onVideoSwiped}
         />
       )}
@@ -196,16 +195,14 @@ export default function FeedScreen() {
 // بدل FlatList: بنحرك Animated.Value واحدة والـ items كلها مثبتة بـ position:absolute
 // ده بيمنع أي WebView من إنه يظهر في الـ item اللي فوقه أو تحته
 function SwipeFeed({
-  videos, containerHeight, muted, activeIndex, onIndexChange, onOpenComments, onAddToPlaylist, onToggleMute, onVideoSwiped,
+  videos, containerHeight, activeIndex, onIndexChange, onOpenComments, onAddToPlaylist, onVideoSwiped,
 }: {
   videos: FeedVideo[]
   containerHeight: number
-  muted: boolean
   activeIndex: number
   onIndexChange: (i: number) => void
   onOpenComments: (id: string) => void
   onAddToPlaylist: (v: FeedVideo) => void
-  onToggleMute: () => void
   onVideoSwiped: () => void
 }) {
   const translateY = useRef(new Animated.Value(0)).current
@@ -298,10 +295,8 @@ function SwipeFeed({
                 video={video}
                 isActive={index === activeIndex}
                 height={containerHeight}
-                muted={muted}
-                onOpenComments={onOpenComments}
+                      onOpenComments={onOpenComments}
                 onAddToPlaylist={onAddToPlaylist}
-                onToggleMute={onToggleMute}
               />
             ) : (
               // placeholder خفيف للـ items البعيدة
@@ -331,15 +326,13 @@ const TabBtn = memo(function TabBtn({ label, active, onPress }: { label: string;
 
 // ─── VideoItem ────────────────────────────────────────────────────────────────
 const VideoItem = memo(function VideoItem({
-  video, isActive, height, muted, onOpenComments, onAddToPlaylist, onToggleMute,
+  video, isActive, height, onOpenComments, onAddToPlaylist,
 }: {
   video: FeedVideo
   isActive: boolean
   height: number
-  muted: boolean
   onOpenComments: (id: string) => void
   onAddToPlaylist: (v: FeedVideo) => void
-  onToggleMute: () => void
 }) {
   const insets = useSafeAreaInsets()
   const router = useRouter()
@@ -347,9 +340,14 @@ const VideoItem = memo(function VideoItem({
   const toggleMut = useToggleVideoInteraction()
   const isStory = !!video.is_story
 
-  const cloudflareUid = video.source === 'creator'
-    ? video.thumbnail_url?.match(/cloudflarestream\.com\/([^/]+)/)?.[1] || null
-    : null
+  // Cloudflare playback: prefer hls_url from DB, derive uid for fallback
+  const cloudflareUid = video.cloudflare_uid
+    || (video.source === 'creator' && video.thumbnail_url?.match(/cloudflarestream\.com\/([^/]+)/)?.[1])
+    || null
+  const hlsUrl = video.hls_url
+    || (cloudflareUid && video.thumbnail_url
+        ? video.thumbnail_url.replace(/\/thumbnails\/.*$/, '/manifest/video.m3u8').replace(/^https?:\/\/videodelivery\.net/, `https://customer-${'kidtok'}.cloudflarestream.com`)
+        : null)
   const poster = video.thumbnail_url || (video.youtube_id ? getYouTubeThumbnail(video.youtube_id, 'max') : null)
 
   const openCreator = useCallback(() => {
@@ -364,13 +362,12 @@ const VideoItem = memo(function VideoItem({
   const handleGift = useCallback(() => Toast.show({ type: 'info', text1: 'الهدايا قريبا' }), [])
 
   const videoContent = video.source === 'youtube' && video.youtube_id ? (
-    <ReelWebVideo isActive={isActive} poster={poster} html={getYouTubeEmbedHtml(video.youtube_id)} muted={muted} />
-  ) : cloudflareUid ? (
-    <ReelWebVideo
+    <ReelWebVideo isActive={isActive} poster={poster} html={getYouTubeEmbedHtml(video.youtube_id)} />
+  ) : hlsUrl ? (
+    <ReelNativeVideo
       isActive={isActive}
+      hlsUrl={hlsUrl}
       poster={poster}
-      uri={`https://iframe.cloudflarestream.com/${cloudflareUid}?autoplay=true&muted=${muted ? 'true' : 'false'}&controls=false&loop=true`}
-      muted={muted}
     />
   ) : (
     <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#111' }}>
@@ -470,7 +467,6 @@ const VideoItem = memo(function VideoItem({
         <ActionButton icon="chatbubble" count={video.comment_count} onPress={handleComments} />
         <ActionButton icon="add" count={0} onPress={handlePlaylist} />
         <ActionButton icon="gift" count={0} onPress={handleGift} />
-        <ActionButton icon={muted ? 'volume-mute' : 'volume-high'} count={0} onPress={onToggleMute} />
       </View>
     </View>
   )
@@ -484,18 +480,17 @@ const ReelWebVideo = memo(function ReelWebVideo({
   poster: string | null
   html?: string
   uri?: string
-  muted: boolean
 }) {
   const webViewRef = useRef<any>(null)
 
   const syncYouTubeAudio = useCallback(() => {
     if (!html) return
-    webViewRef.current?.injectJavaScript(getYouTubeAudioCommand(muted))
-  }, [html, muted])
+    webViewRef.current?.injectJavaScript(getYouTubeAudioCommand(false))
+  }, [html])
 
   useEffect(() => {
     if (isActive && html) syncYouTubeAudio()
-  }, [muted, isActive, html, syncYouTubeAudio])
+  }, [isActive, html, syncYouTubeAudio])
 
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>

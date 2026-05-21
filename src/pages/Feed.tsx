@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Play, Volume2, VolumeX, Sparkles, Plus, Loader2 } from 'lucide-react'
 import AppLayout from '@/components/AppLayout'
+import CloudflareStreamPlayer from '@/components/CloudflareStreamPlayer'
 import { FeedAdCard } from '@/components/AdSlot'
 import AddToPlaylistModal from '@/components/AddToPlaylistModal'
 import VideoSocialActions from '@/components/VideoSocialActions'
@@ -252,9 +253,16 @@ function FeedVideoItem({
       className="relative h-[100dvh] w-full snap-start snap-always flex items-center justify-center"
     >
       <div className="absolute inset-0">
-        {isActive && (youtubeEmbed || cloudflareEmbed) ? (
+        {isActive && cloudflareUid ? (
+          <CloudflareStreamPlayer
+            uid={cloudflareUid}
+            isActive={isActive}
+            poster={video.thumbnail_url}
+            className="absolute inset-0 w-full h-full"
+          />
+        ) : isActive && youtubeEmbed ? (
           <iframe
-            src={youtubeEmbed || cloudflareEmbed!}
+            src={youtubeEmbed}
             title={video.title || ''}
             className="absolute inset-0 w-full h-full"
             frameBorder={0}

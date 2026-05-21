@@ -162,7 +162,7 @@ const ChildVideoItem = forwardRef<
 
   const embedSrc = isActive
     ? cfUid
-      ? `https://iframe.cloudflarestream.com/${cfUid}?autoplay=true&muted=${muted ? 'true' : 'false'}&controls=false&loop=true`
+      ? null /* handled by CloudflareStreamPlayer */
       : ytId
       ? `https://www.youtube-nocookie.com/embed/${ytId}?autoplay=1&mute=${muted ? 1 : 0}&controls=0&modestbranding=1&playsinline=1&rel=0&loop=1&playlist=${ytId}`
       : null
@@ -182,9 +182,15 @@ const ChildVideoItem = forwardRef<
     >
       {/* Video or thumbnail */}
       <div className="absolute inset-0">
-        {embedSrc ? (
+        {isActive && cfUid ? (
+          <CloudflareStreamPlayer
+            uid={cfUid}
+            isActive={isActive}
+            poster={thumb}
+            className="absolute inset-0 w-full h-full"
+          />
+        ) : embedSrc ? (
           <iframe
-            key={`${pv.id}-${isActive}`}
             src={embedSrc}
             title={video.title || ''}
             className="absolute inset-0 w-full h-full"
