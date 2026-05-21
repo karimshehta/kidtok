@@ -29,8 +29,19 @@ export default memo(function ReelNativeVideo({ isActive, hlsUrl, poster }: Props
   const player = useVideoPlayer({ uri: hlsUrl }, (p) => {
     p.loop = true
     p.muted = false
+    p.volume = 1.0
     p.audioMixingMode = 'auto'
   })
+
+  // Diagnostic logging — helps identify if hlsUrl is valid
+  useEffect(() => {
+    if (__DEV__) console.log('[ReelNativeVideo] hlsUrl:', hlsUrl)
+    if (!player) return
+    const sub = player.addListener('statusChange', (e: any) => {
+      if (__DEV__) console.log('[ReelNativeVideo] status:', e.status, 'error:', e.error)
+    })
+    return () => { try { sub.remove() } catch {} }
+  }, [player, hlsUrl])
 
   // Play / pause based on active state (FlatList recycling)
   useEffect(() => {
@@ -38,6 +49,7 @@ export default memo(function ReelNativeVideo({ isActive, hlsUrl, poster }: Props
     try {
       if (isActive) {
         player.muted = false
+        player.volume = 1.0
         player.currentTime = 0
         player.play()
       } else {

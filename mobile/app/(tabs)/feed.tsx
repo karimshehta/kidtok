@@ -344,10 +344,9 @@ const VideoItem = memo(function VideoItem({
   const cloudflareUid = video.cloudflare_uid
     || (video.source === 'creator' && video.thumbnail_url?.match(/cloudflarestream\.com\/([^/]+)/)?.[1])
     || null
+  // Build HLS URL — prefer hls_url from DB, fallback to videodelivery.net (universal)
   const hlsUrl = video.hls_url
-    || (cloudflareUid && video.thumbnail_url
-        ? video.thumbnail_url.replace(/\/thumbnails\/.*$/, '/manifest/video.m3u8').replace(/^https?:\/\/videodelivery\.net/, `https://customer-${'kidtok'}.cloudflarestream.com`)
-        : null)
+    || (cloudflareUid ? `https://videodelivery.net/${cloudflareUid}/manifest/video.m3u8` : null)
   const poster = video.thumbnail_url || (video.youtube_id ? getYouTubeThumbnail(video.youtube_id, 'max') : null)
 
   const openCreator = useCallback(() => {

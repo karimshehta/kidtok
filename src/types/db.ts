@@ -70,6 +70,9 @@ export interface Video {
   comment_count: number
   view_count: number
   created_at: string
+  // Cloudflare Stream (optional)
+  cloudflare_uid?: string | null
+  hls_url?: string | null
   // joined relations (optional)
   age?: { name_ar: string; name_en: string }
   interest?: { name_ar: string; name_en: string }

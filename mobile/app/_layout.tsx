@@ -252,31 +252,25 @@ export default function RootLayout() {
   })
 
   // ── Configure audio session for media playback ──
-  // Required so video audio plays through media speaker (not earpiece)
-  // and bypasses iOS silent mode for short-form video content
+  // Without this, audio routes through call channel (earpiece) and is silent
   useEffect(() => {
     try {
-      // expo-video / expo-av audio mode
-      const { setAudioModeAsync } = require('expo-audio')
-      setAudioModeAsync({
-        playsInSilentMode: true,
-        allowsRecording: false,
-        shouldPlayInBackground: false,
-        shouldRouteThroughEarpiece: false,
-        interruptionMode: 'doNotMix',
-        interruptionModeAndroid: 'doNotMix',
-      }).catch(() => {})
-    } catch {
-      // Fallback for builds without expo-audio
-      try {
-        const { Audio } = require('expo-av')
-        Audio.setAudioModeAsync({
-          playsInSilentModeIOS: true,
-          allowsRecordingIOS: false,
-          staysActiveInBackground: false,
-          shouldDuckAndroid: true,
-        }).catch(() => {})
-      } catch {}
+      const { Audio, InterruptionModeIOS, InterruptionModeAndroid } = require('expo-av')
+      Audio.setAudioModeAsync({
+        playsInSilentModeIOS: true,           // play even when phone is on silent
+        allowsRecordingIOS: false,
+        staysActiveInBackground: false,
+        interruptionModeIOS: InterruptionModeIOS.DoNotMix,
+        interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
+        shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false,    // ← critical: media speaker not earpiece
+      }).then(() => {
+        if (__DEV__) console.log('[Audio] Session configured for media playback')
+      }).catch((e: any) => {
+        if (__DEV__) console.warn('[Audio] Config failed:', e)
+      })
+    } catch (e) {
+      if (__DEV__) console.warn('[Audio] expo-av not available:', e)
     }
   }, [])
 

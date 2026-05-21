@@ -254,7 +254,7 @@ function FeedVideoItem({
     >
       <div className="absolute inset-0">
         {isActive && cloudflareUid ? (
-          <CloudflareStreamPlayer uid={cloudflareUid} hlsUrl={video.hls_url || video.hls || null} isActive={isActive} poster={video.thumbnail_url} className="absolute inset-0 w-full h-full"
+          <CloudflareStreamPlayer uid={cloudflareUid} hlsUrl={video.hls_url || null} isActive={isActive} poster={video.thumbnail_url} className="absolute inset-0 w-full h-full"
           />
         ) : isActive && youtubeEmbed ? (
           <iframe
