@@ -122,6 +122,56 @@ Deno.serve(async (req) => {
     `Updated creator_video (uid=${video.uid}) state=${state} -> status=${nextStatus}`
   )
 
+  // ── SERVER-SIDE CLIP ──────────────────────────────────────────────────────
+  // If the user picked a start time in the trimmer, create a clipped version
+  // that starts from start_time_seconds. We only do this once the original is ready.
+  if (state === 'ready' || video.readyToStream === true) {
+    const { data: cvRow } = await admin
+      .from('creator_videos')
+      .select('id, clip_pending, start_time_seconds, duration_seconds, title, creator_id, original_cloudflare_uid')
+      .eq('cloudflare_uid', video.uid)
+      .maybeSingle()
+
+    if (cvRow?.clip_pending && cvRow.start_time_seconds > 0 && !cvRow.original_cloudflare_uid) {
+      try {
+        const start = Number(cvRow.start_time_seconds)
+        const dur   = Number(cvRow.duration_seconds || 30)
+        const end   = start + Math.min(dur, 30)
+        console.log(`Clipping uid=${video.uid} ${start}s..${end}s`)
+
+        const clip = await createClip({
+          sourceUid: video.uid,
+          startTimeSeconds: start,
+          endTimeSeconds: end,
+          meta: { title: cvRow.title, kidtok_user_id: cvRow.creator_id },
+        })
+
+        // Point the row at the new clipped video. Webhook will fire again
+        // for the clip's UID and update playback URLs.
+        await admin
+          .from('creator_videos')
+          .update({
+            original_cloudflare_uid: video.uid,   // keep reference to original
+            cloudflare_uid: clip.uid,             // switch playback to clip
+            clip_pending: false,
+            ready_to_stream: clip.readyToStream,
+            hls_url: buildHlsUrl(clip.uid),
+            thumbnail_url: buildThumbnailUrl(clip.uid),
+            status: 'processing',                  // wait for clip's webhook
+          })
+          .eq('id', cvRow.id)
+
+        // Delete original to save storage costs
+        try { await deleteVideo(video.uid) } catch (e) { console.warn('Delete original failed:', e) }
+        console.log(`Clip created: ${clip.uid}, original deleted`)
+      } catch (err) {
+        console.error('Clip API error:', err)
+        // Don't fail the webhook — original video is still playable
+        await admin.from('creator_videos').update({ clip_pending: false }).eq('id', cvRow.id)
+      }
+    }
+  }
+
   // Hive moderation hook — if HIVE_API_KEY is set we'd kick off a moderation
   // job here. Skipped for now to keep the function simple; will live in a
   // separate 'creator-hive-moderate' Edge Function we'll add later.

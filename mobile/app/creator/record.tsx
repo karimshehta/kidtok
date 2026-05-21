@@ -17,6 +17,9 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window')
 const MAX_DURATION_SEC = 30
 
 export default function CameraRecordScreen() {
+  const { i18n } = useTranslation()
+  const ar = i18n.language === 'ar'
+
   const router = useRouter()
   const userId = useAuth((s) => s.user?.id)
 
@@ -65,7 +68,7 @@ export default function CameraRecordScreen() {
       })
       if (video?.uri) setVideoUri(video.uri)
     } catch (err) {
-      Toast.show({ type: 'error', text1: 'فشل التسجيل', text2: (err as Error).message })
+      Toast.show({ type: 'error', text1: ar ? 'فشل التسجيل' : 'Recording failed', text2: (err as Error).message })
     } finally {
       setRecording(false)
     }
@@ -122,12 +125,12 @@ export default function CameraRecordScreen() {
 
       Toast.show({
         type: 'success',
-        text1: 'تم رفع الفيديو ✓',
-        text2: 'سيظهر بعد المراجعة',
+        text1: ar ? 'تم رفع الفيديو ✓' : 'Video uploaded ✓',
+        text2: ar ? 'سيظهر بعد المراجعة' : 'Will appear after review',
       })
       router.back()
     } catch (err) {
-      Toast.show({ type: 'error', text1: 'فشل الرفع', text2: (err as Error).message })
+      Toast.show({ type: 'error', text1: ar ? 'فشل الرفع' : 'Upload failed', text2: (err as Error).message })
     } finally {
       setUploading(false)
     }
@@ -139,10 +142,10 @@ export default function CameraRecordScreen() {
       <View style={{ flex: 1, backgroundColor: colors.black, alignItems: 'center', justifyContent: 'center', padding: spacing.lg }}>
         <Ionicons name="camera-outline" size={80} color={colors.white} />
         <Text style={{ color: colors.white, fontSize: fontSize.lg, fontWeight: '800', marginTop: spacing.md, textAlign: 'center' }}>
-          يحتاج التطبيق إلى الكاميرا والميكروفون
+          {ar ? 'يحتاج التطبيق إلى الكاميرا والميكروفون' : 'Camera & Microphone Permission Required'}
         </Text>
         <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: fontSize.sm, marginTop: spacing.sm, textAlign: 'center' }}>
-          نحتاج الإذن للوصول للكاميرا والميكروفون لتسجيل الفيديوهات
+          {ar ? 'نحتاج الإذن للوصول للكاميرا والميكروفون لتسجيل الفيديوهات' : 'We need access to your camera and microphone to record videos'}
         </Text>
         <Pressable
           onPress={async () => {
@@ -157,10 +160,10 @@ export default function CameraRecordScreen() {
             borderRadius: radius.pill,
           }}
         >
-          <Text style={{ color: colors.white, fontWeight: '800' }}>السماح</Text>
+          <Text style={{ color: colors.white, fontWeight: '800' }}>{ar ? 'السماح' : 'Allow'}</Text>
         </Pressable>
         <Pressable onPress={() => router.back()} style={{ marginTop: spacing.md }}>
-          <Text style={{ color: 'rgba(255,255,255,0.7)' }}>إلغاء</Text>
+          <Text style={{ color: 'rgba(255,255,255,0.7)' }}>{ar ? 'إلغاء' : 'Cancel'}</Text>
         </Pressable>
       </View>
     )
@@ -219,7 +222,7 @@ export default function CameraRecordScreen() {
             }}
           >
             <Ionicons name="refresh" size={20} color={colors.white} />
-            <Text style={{ color: colors.white, fontWeight: '800' }}>إعادة</Text>
+            <Text style={{ color: colors.white, fontWeight: '800' }}>{ar ? 'إعادة' : 'Retake'}</Text>
           </Pressable>
 
           <Pressable
@@ -239,7 +242,7 @@ export default function CameraRecordScreen() {
               <>
                 <Ionicons name="cloud-upload" size={22} color={colors.white} />
                 <Text style={{ color: colors.white, fontWeight: '900', fontSize: fontSize.base }}>
-                  نشر
+                  {ar ? 'نشر' : 'Post'}
                 </Text>
               </>
             )}

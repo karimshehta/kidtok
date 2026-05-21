@@ -18,6 +18,7 @@ interface UploadRequest {
   interest_id?: number | null
   tags?: string[]
   max_duration_seconds?: number
+  start_time_seconds?: number
 }
 
 Deno.serve(async (req) => {
@@ -61,6 +62,9 @@ Deno.serve(async (req) => {
     MAX_DURATION_SEC
   )
 
+  // Server-side trim — if user picked a start offset, we'll clip after upload
+  const startTimeSeconds = Math.max(0, Number(body.start_time_seconds) || 0)
+
   // 4. Request a direct upload URL from Cloudflare
   let upload
   try {
@@ -100,6 +104,8 @@ Deno.serve(async (req) => {
       creator_id: user.id,
       title: body.title.trim(),
       description: body.description?.trim() || null,
+      start_time_seconds: startTimeSeconds,
+      clip_pending: startTimeSeconds > 0,
       age_id: body.age_id ?? null,
       interest_id: body.interest_id ?? null,
       tags: Array.isArray(body.tags) ? body.tags.slice(0, 20) : [],

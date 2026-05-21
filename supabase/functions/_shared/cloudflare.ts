@@ -158,3 +158,56 @@ export function buildPreviewUrl(uid: string): string {
   const env = getCloudflareEnv()
   return `https://${env.customerCode}.cloudflarestream.com/${uid}/manifest/video.mpd`
 }
+
+
+// ─── Clip API ─────────────────────────────────────────────────────────────────
+// Create a new video that's a subsection of an existing one. The original keeps
+// existing; we typically delete it after clip is ready.
+export async function createClip(opts: {
+  sourceUid: string
+  startTimeSeconds: number
+  endTimeSeconds: number
+  creator?: string
+  meta?: Record<string, string>
+}): Promise<{ uid: string; readyToStream: boolean; status?: string }> {
+  const env = getCloudflareEnv()
+  const res = await fetch(
+    `${CF_API_BASE}/accounts/${env.accountId}/stream/clip`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${env.apiToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        clippedFromVideoUID: opts.sourceUid,
+        startTimeSeconds: opts.startTimeSeconds,
+        endTimeSeconds: opts.endTimeSeconds,
+        creator: opts.creator,
+        meta: opts.meta ?? {},
+      }),
+    }
+  )
+  const data = await res.json()
+  if (!res.ok || !data.success) {
+    throw new Error(`Cloudflare clip failed: ${JSON.stringify(data.errors || data)}`)
+  }
+  const v = data.result
+  return { uid: v.uid, readyToStream: !!v.readyToStream, status: v.status?.state }
+}
+
+// Delete a video from Cloudflare Stream
+export async function deleteVideo(uid: string): Promise<void> {
+  const env = getCloudflareEnv()
+  const res = await fetch(
+    `${CF_API_BASE}/accounts/${env.accountId}/stream/${uid}`,
+    {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${env.apiToken}` },
+    }
+  )
+  if (!res.ok && res.status !== 404) {
+    const text = await res.text()
+    throw new Error(`Cloudflare delete failed: ${res.status} ${text}`)
+  }
+}
