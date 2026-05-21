@@ -183,11 +183,7 @@ const ChildVideoItem = forwardRef<
       {/* Video or thumbnail */}
       <div className="absolute inset-0">
         {isActive && cfUid ? (
-          <CloudflareStreamPlayer
-            uid={cfUid}
-            isActive={isActive}
-            poster={thumb}
-            className="absolute inset-0 w-full h-full"
+          <CloudflareStreamPlayer uid={cfUid} hlsUrl={video.hls_url || video.hls || null} isActive={isActive} poster={thumb} className="absolute inset-0 w-full h-full"
           />
         ) : embedSrc ? (
           <iframe
