@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   View, Text, Pressable, ScrollView, TextInput,
   ActivityIndicator, StatusBar, Alert,
@@ -15,6 +15,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/stores/auth'
 import { colors, spacing, fontSize, radius } from '@/lib/theme'
 import VideoTrimmer from '@/components/VideoTrimmer'
+import { Video as VideoCompressor } from 'react-native-compressor'
 
 type Step = 'picking' | 'trimming' | 'details'
 
@@ -36,6 +37,14 @@ export default function UploadScreen() {
   const [tags, setTags] = useState('')
   const [uploading, setUploading] = useState(false)
   const [progress, setProgress] = useState(0)
+  const [uploadPhase, setUploadPhase] = useState<'idle' | 'compressing' | 'uploading' | 'done'>('idle')
+  const cancelCompressId = useRef<string>('')
+  const xhrRef = useRef<XMLHttpRequest | null>(null)
+  // ── Background compression state ──────────────────────────────────────────
+  const [bgCompressedUri, setBgCompressedUri] = useState<string | null>(null)
+  const [bgCompressProgress, setBgCompressProgress] = useState(0)
+  const [bgCompressDone, setBgCompressDone] = useState(false)
+  const bgCompressStarted = useRef(false)
 
   // Open picker on mount
   useEffect(() => { pickVideo() }, [])
@@ -70,6 +79,91 @@ export default function UploadScreen() {
     setStartSec(start)
     setClipDuration(duration)
     setStep('details')
+    // Start compressing immediately in background while user fills title/tags
+    startBackgroundCompression()
+  }
+
+  // ── Background compression (runs while user is on details screen) ─────────
+  const startBackgroundCompression = async () => {
+    if (!videoUri || bgCompressStarted.current) return
+    bgCompressStarted.current = true
+    try {
+      const compressed = await VideoCompressor.compress(
+        videoUri,
+        {
+          compressionMethod: 'auto',
+          minimumFileSizeForCompress: 4,
+          getCancellationId: (id) => { cancelCompressId.current = id },
+        },
+        (p: number) => setBgCompressProgress(Math.round(p * 100))
+      )
+      setBgCompressedUri(compressed)
+      setBgCompressDone(true)
+    } catch (err: any) {
+      // Compression failed — we'll fall back to original on upload
+      console.warn('[Upload] BG compress failed:', err?.message)
+      setBgCompressedUri(videoUri)  // use original
+      setBgCompressDone(true)
+    }
+  }
+
+  // ── Wait for background compression to finish (usually instant if user took time on details) ─
+  const waitForCompression = async (): Promise<string> => {
+    // If already done, return immediately — typical happy path
+    if (bgCompressedUri) return bgCompressedUri
+    if (!bgCompressStarted.current) startBackgroundCompression()
+
+    setUploadPhase('compressing')
+    return new Promise<string>((resolve) => {
+      const check = setInterval(() => {
+        if (bgCompressedUri) { clearInterval(check); resolve(bgCompressedUri) }
+        else setProgress(bgCompressProgress)
+      }, 100)
+    })
+  }
+
+  const uploadWithRetry = async (uri: string, url: string, maxRetries = 3) => {
+    setUploadPhase('uploading')
+    setProgress(0)
+    let lastErr: any = null
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const xhr = new XMLHttpRequest()
+          xhrRef.current = xhr
+          xhr.upload.addEventListener('progress', (e) => {
+            if (e.lengthComputable) setProgress(Math.round((e.loaded / e.total) * 100))
+          })
+          xhr.open('POST', url)
+          xhr.onload = () => (xhr.status >= 200 && xhr.status < 300) ? resolve() : reject(new Error(`HTTP ${xhr.status}`))
+          xhr.onerror = () => reject(new Error('فشل الاتصال'))
+          xhr.onabort = () => reject(new Error('تم الإلغاء'))
+          xhr.ontimeout = () => reject(new Error('انتهت المهلة'))
+          const form = new FormData()
+          // @ts-ignore RN FormData accepts {uri,name,type}
+          form.append('file', { uri, name: 'upload.mp4', type: 'video/mp4' })
+          xhr.send(form)
+        })
+        return  // success
+      } catch (err: any) {
+        lastErr = err
+        const msg = String(err?.message || '')
+        // Don't retry on auth errors or user cancel
+        if (msg.includes('4') || msg.includes('تم الإلغاء')) throw err
+        if (attempt < maxRetries) {
+          await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt)))  // 2s, 4s
+        }
+      }
+    }
+    throw lastErr
+  }
+
+  const cancelUpload = () => {
+    try { if (cancelCompressId.current) VideoCompressor.cancelCompression(cancelCompressId.current) } catch {}
+    try { xhrRef.current?.abort() } catch {}
+    setUploadPhase('idle')
+    setUploading(false)
+    setProgress(0)
   }
 
   const upload = async () => {
@@ -78,10 +172,12 @@ export default function UploadScreen() {
     const tagsArray = tags.split(',').map(t => t.trim()).filter(Boolean)
 
     setUploading(true)
-    setProgress(0)
 
     try {
-      // 1. Get Cloudflare upload URL (pass startSec + duration for server-side trim)
+      // STEP 1: Use the file already compressing in background
+      const localFileUri = await waitForCompression()
+
+      // STEP 2: Request upload URL from edge fn
       const { data: urlData, error: urlErr } = await supabase.functions.invoke(
         'creator-upload-url',
         {
@@ -96,26 +192,19 @@ export default function UploadScreen() {
       if (urlErr) throw urlErr
       const uploadURL: string = urlData.upload_url
 
-      // 2. Upload via XHR with progress
-      await new Promise<void>((resolve, reject) => {
-        const xhr = new XMLHttpRequest()
-        xhr.upload.addEventListener('progress', (e) => {
-          if (e.lengthComputable) setProgress(Math.round((e.loaded / e.total) * 100))
-        })
-        xhr.open('POST', uploadURL)
-        xhr.onload = () => (xhr.status >= 200 && xhr.status < 300) ? resolve() : reject(new Error(`HTTP ${xhr.status}`))
-        xhr.onerror = () => reject(new Error('فشل الاتصال'))
-        const form = new FormData()
-        // @ts-ignore
-        form.append('file', { uri: videoUri, name: 'upload.mp4', type: 'video/mp4' })
-        xhr.send(form)
-      })
+      // STEP 3: Upload compressed file with retry
+      await uploadWithRetry(localFileUri, uploadURL, 3)
 
+      setUploadPhase('done')
       setProgress(100)
       Toast.show({ type: 'success', text1: '✅ تم رفع الفيديو', text2: 'سيظهر بعد المراجعة' })
-      router.back()
+      setTimeout(() => router.back(), 800)
     } catch (err: any) {
-      Toast.show({ type: 'error', text1: 'فشل الرفع', text2: err.message })
+      const isCancel = String(err?.message || '').includes('تم الإلغاء')
+      if (!isCancel) {
+        Toast.show({ type: 'error', text1: 'فشل الرفع', text2: err?.message || 'حدث خطأ' })
+      }
+      setUploadPhase('idle')
     } finally {
       setUploading(false)
     }
@@ -158,7 +247,20 @@ export default function UploadScreen() {
             <Ionicons name="videocam" size={24} color="#fff" />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: '#fff', fontWeight: '800' }}>فيديو جاهز للرفع</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={{ color: '#fff', fontWeight: '800' }}>فيديو جاهز للرفع</Text>
+              {bgCompressDone ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: 'rgba(34,197,94,0.15)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 100 }}>
+                  <Ionicons name="checkmark-circle" size={11} color="#22C55E" />
+                  <Text style={{ color: '#22C55E', fontSize: 10, fontWeight: '700' }}>محسّن</Text>
+                </View>
+              ) : bgCompressStarted.current ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: 'rgba(252,211,77,0.15)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 100 }}>
+                  <ActivityIndicator size="small" color="#FCD34D" />
+                  <Text style={{ color: '#FCD34D', fontSize: 10, fontWeight: '700' }}>تحسين {bgCompressProgress}%</Text>
+                </View>
+              ) : null}
+            </View>
             <Text style={{ color: colors.grey400, fontSize: fontSize.sm, marginTop: 2 }}>
               من {fmtSec(startSec)} ← {fmtSec(startSec + clipDuration)} ({Math.round(clipDuration)}s)
             </Text>
@@ -198,25 +300,37 @@ export default function UploadScreen() {
         {uploading && (
           <View>
             <View style={{ height: 4, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 2, overflow: 'hidden', marginBottom: spacing.sm }}>
-              <View style={{ width: `${progress}%`, height: '100%', backgroundColor: colors.primary, borderRadius: 2 }} />
+              <View style={{ width: `${progress}%`, height: '100%', backgroundColor: uploadPhase === 'compressing' ? '#FCD34D' : colors.primary, borderRadius: 2 }} />
             </View>
             <Text style={{ color: colors.grey400, fontSize: fontSize.xs, textAlign: 'center' }}>
-              جاري الرفع... {progress}%
+              {uploadPhase === 'compressing' && `جاري ضغط الفيديو... ${progress}%`}
+              {uploadPhase === 'uploading'   && `جاري الرفع... ${progress}%`}
+              {uploadPhase === 'done'        && `تم الرفع ✓`}
+              {uploadPhase === 'idle'        && `جاري التحضير...`}
             </Text>
+            {uploadPhase === 'compressing' && (
+              <Text style={{ color: '#FCD34D', fontSize: 10, textAlign: 'center', marginTop: 2 }}>
+                ضغط على الجهاز - رفع أسرع
+              </Text>
+            )}
           </View>
         )}
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-          <Pressable onPress={() => router.back()} disabled={uploading} style={{ flex: 1, paddingVertical: 14, borderRadius: radius.pill, alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.1)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' }}>
-            <Text style={{ color: '#fff', fontWeight: '700' }}>إلغاء</Text>
-          </Pressable>
-          <Pressable onPress={upload} disabled={uploading} style={{ flex: 2, paddingVertical: 14, borderRadius: radius.pill, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8, backgroundColor: colors.primary, opacity: uploading ? 0.7 : 1 }}>
-            {uploading ? <ActivityIndicator color="#fff" /> : (
-              <>
+          {uploading ? (
+            <Pressable onPress={cancelUpload} style={{ flex: 1, paddingVertical: 14, borderRadius: radius.pill, alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.15)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' }}>
+              <Text style={{ color: '#fff', fontWeight: '700' }}>إلغاء</Text>
+            </Pressable>
+          ) : (
+            <>
+              <Pressable onPress={() => router.back()} style={{ flex: 1, paddingVertical: 14, borderRadius: radius.pill, alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.1)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' }}>
+                <Text style={{ color: '#fff', fontWeight: '700' }}>إلغاء</Text>
+              </Pressable>
+              <Pressable onPress={upload} style={{ flex: 2, paddingVertical: 14, borderRadius: radius.pill, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8, backgroundColor: colors.primary }}>
                 <Ionicons name="cloud-upload" size={20} color="#fff" />
                 <Text style={{ color: '#fff', fontWeight: '900', fontSize: fontSize.base }}>رفع الفيديو</Text>
-              </>
-            )}
-          </Pressable>
+              </Pressable>
+            </>
+          )}
         </View>
       </LinearGradient>
     </KeyboardScreen>

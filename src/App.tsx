@@ -86,6 +86,7 @@ export default function App() {
       <Route element={<ProtectedRoute />}>
         <Route path="/home" element={<Home />} />
         <Route path="/feed" element={<Feed />} />
+        <Route path="/discover" element={<Discover />} />
         <Route path="/children" element={<Children />} />
         <Route path="/children/:childId" element={<ChildDetail />} />
         <Route path="/playlists/:playlistId" element={<PlaylistDetail />} />

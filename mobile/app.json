@@ -172,7 +172,8 @@
           }
         }
       ],
-      "expo-video"
+      "expo-video",
+      "react-native-compressor"
     ],
     "updates": {
       "url": "https://u.expo.dev/fb2d9f4c-1ee3-4e3f-953b-6373f1665c6d",
