@@ -37,12 +37,13 @@ function useRewardedSettings() {
       const { data } = await supabase
         .from('app_settings')
         .select('key, value')
-        .in('key', ['admob_android_rewarded', 'admob_ios_rewarded'])
+        .in('key', ['admob_android_rewarded', 'admob_ios_rewarded', 'admob_rewarded_enabled'])
       const m: Record<string, string> = {}
       for (const row of data || []) m[row.key] = row.value || ''
       return {
         androidUnitId: m['admob_android_rewarded'] || '',
         iosUnitId:     m['admob_ios_rewarded']     || '',
+        enabled:       m['admob_rewarded_enabled'] !== 'false',
       }
     },
   })

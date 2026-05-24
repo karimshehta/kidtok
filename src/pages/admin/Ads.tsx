@@ -174,7 +174,7 @@ export default function AdminAds() {
           </h2>
 
           <p className="text-sm text-neutral-700 mb-4 bg-neutral-200/50 rounded-xl p-3">
-            These IDs are used by the <strong>Expo mobile app</strong> (Phase 1B). The values from the legacy Flutter project have been pre-filled. Update if you create new AdMob ad units.
+            ⚠️ <strong>App IDs</strong> are baked into the native build at compile time — changing them requires a new release. <strong>Unit IDs and toggles</strong> are read live from this dashboard and update over-the-air without a rebuild.
           </p>
 
           <div className="space-y-3">
@@ -196,6 +196,13 @@ export default function AdminAds() {
               label="Rewarded Unit IDs"
               androidKey="admob_android_rewarded"
               iosKey="admob_ios_rewarded"
+              form={form}
+              set={set}
+            />
+            <PlatformFields
+              label="Banner Unit IDs"
+              androidKey="admob_android_banner"
+              iosKey="admob_ios_banner"
               form={form}
               set={set}
             />
@@ -233,6 +240,45 @@ export default function AdminAds() {
                 form={form}
                 set={set}
               />
+              {/* ─── Master toggles per ad type (OTA) ─── */}
+              <div className="flex items-center justify-between bg-neutral-50 rounded-xl px-4 py-3 border border-neutral-200">
+                <div>
+                  <p className="text-sm font-medium">Enable interstitial ads</p>
+                  <p className="text-xs text-neutral-500">Full-screen ads between feed videos (free users)</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => set('admob_interstitial_enabled', form['admob_interstitial_enabled'] === 'false' ? 'true' : 'false')}
+                  className={cn(
+                    'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
+                    form['admob_interstitial_enabled'] !== 'false' ? 'bg-primary' : 'bg-neutral-300'
+                  )}
+                >
+                  <span className={cn(
+                    'inline-block h-4 w-4 transform rounded-full bg-white transition-transform',
+                    form['admob_interstitial_enabled'] !== 'false' ? 'translate-x-6' : 'translate-x-1'
+                  )} />
+                </button>
+              </div>
+              <div className="flex items-center justify-between bg-neutral-50 rounded-xl px-4 py-3 border border-neutral-200">
+                <div>
+                  <p className="text-sm font-medium">Enable rewarded ads</p>
+                  <p className="text-xs text-neutral-500">Optional ads users watch to earn coins or ad-free time</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => set('admob_rewarded_enabled', form['admob_rewarded_enabled'] === 'false' ? 'true' : 'false')}
+                  className={cn(
+                    'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
+                    form['admob_rewarded_enabled'] !== 'false' ? 'bg-primary' : 'bg-neutral-300'
+                  )}
+                >
+                  <span className={cn(
+                    'inline-block h-4 w-4 transform rounded-full bg-white transition-transform',
+                    form['admob_rewarded_enabled'] !== 'false' ? 'translate-x-6' : 'translate-x-1'
+                  )} />
+                </button>
+              </div>
               <div className="flex items-center justify-between bg-neutral-50 rounded-xl px-4 py-3 border border-neutral-200">
                 <div>
                   <p className="text-sm font-medium">Enable banner in feed</p>

@@ -12,7 +12,7 @@ import Toast from 'react-native-toast-message'
 import { useTranslation } from 'react-i18next'
 import { supabase } from '@/lib/supabase'
 import { useHasPin } from '@/hooks/usePinAuth'
-import { usePlanLimits, parsePlanLimitError } from '@/hooks/usePlanLimits'
+import { useLockedPlaylistsIds, usePlanLimits, parsePlanLimitError } from '@/hooks/usePlanLimits'
 import { useAuth } from '@/stores/auth'
 import ChildAvatar from '@/components/ChildAvatar'
 import { colors, spacing, fontSize, radius } from '@/lib/theme'
@@ -187,22 +187,44 @@ export default function ChildDetailScreen() {
           </View>
         ) : (
           <View style={{ gap: spacing.sm }}>
-            {playlists.map((p) => (
+            {playlists.map((p) => {
+              const isLocked = lockedPlaylistIds.has(p.id)
+              return (
               <Pressable
                 key={p.id}
-                onPress={() => router.push(`/playlist/${p.id}`)}
+                onPress={() => {
+                  if (isLocked) {
+                    Alert.alert(
+                      '🔒 مقفول',
+                      `الباقة الحالية تسمح بـ ${planLimits?.max_playlists || 1} قوائم تشغيل فقط. اشترك للوصول لكل القوائم.`,
+                      [
+                        { text: 'لاحقاً', style: 'cancel' },
+                        { text: 'ترقية الباقة', onPress: () => router.push('/subscription') },
+                      ]
+                    )
+                    return
+                  }
+                  router.push(`/playlist/${p.id}`)
+                }}
                 style={({ pressed }) => ({
+                  position: 'relative',
                   flexDirection: 'row',
                   alignItems: 'center',
                   padding: spacing.md,
-                  backgroundColor: colors.grey50,
+                  backgroundColor: isLocked ? '#FFF7ED' : colors.grey50,
                   borderRadius: radius.lg,
                   borderWidth: 1,
-                  borderColor: colors.grey100,
-                  opacity: pressed ? 0.7 : 1,
+                  borderColor: isLocked ? '#FED7AA' : colors.grey100,
+                  opacity: pressed ? 0.7 : (isLocked ? 0.85 : 1),
                   gap: spacing.md,
                 })}
               >
+                {isLocked && (
+                  <View style={{ position: 'absolute', top: 6, right: 6, flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#F97316', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 100, zIndex: 1 }}>
+                    <Ionicons name="lock-closed" size={9} color="#fff" />
+                    <Text style={{ color: '#fff', fontSize: 9, fontWeight: '800' }}>مقفول</Text>
+                  </View>
+                )}
                 <View
                   style={{
                     width: 48, height: 48, borderRadius: radius.md,

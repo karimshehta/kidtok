@@ -8,7 +8,7 @@ import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 
 import { supabase } from '@/lib/supabase'
-import { usePlanLimits } from '@/hooks/usePlanLimits'
+import { usePlanLimits, usePlanStatus, useLockedChildrenIds } from '@/hooks/usePlanLimits'
 import { useAuth } from '@/stores/auth'
 import ChildAvatar from '@/components/ChildAvatar'
 import { colors, spacing, fontSize, radius } from '@/lib/theme'
@@ -32,6 +32,8 @@ export default function ChildrenScreen() {
   const [menuChild, setMenuChild] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
   const { data: planLimits } = usePlanLimits()
+  const { data: planStatus } = usePlanStatus()
+  const { data: lockedIds = new Set<string>() } = useLockedChildrenIds()
 
   const onRefresh = useCallback(async () => {
     if (!userId) return
@@ -160,12 +162,29 @@ export default function ChildrenScreen() {
           </View>
         ) : (
           <View style={{ gap: spacing.md }}>
-            {children.map((child) => (
+            {children.map((child) => {
+              const isLocked = lockedIds.has(child.id)
+              return (
               <View
                 key={child.id}
-                style={{ flexDirection: 'row', alignItems: 'center', padding: spacing.md, backgroundColor: colors.grey50, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.grey100, gap: spacing.md }}
+                style={{ flexDirection: 'row', alignItems: 'center', padding: spacing.md, backgroundColor: isLocked ? '#FFF7ED' : colors.grey50, borderRadius: radius.lg, borderWidth: 1, borderColor: isLocked ? '#FED7AA' : colors.grey100, gap: spacing.md, opacity: isLocked ? 0.85 : 1 }}
               >
-                <Pressable style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.md }} onPress={() => router.push(`/children/${child.id}`)}>
+                <Pressable style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.md }} onPress={() => {
+                  if (isLocked) {
+                    Alert.alert(
+                      lang === 'ar' ? '🔒 مقفول' : '🔒 Locked',
+                      lang === 'ar'
+                        ? `الباقة الحالية تسمح بـ ${planLimits?.max_children || 1} أطفال فقط. اشترك للوصول لجميع الأطفال.`
+                        : `Your current plan allows ${planLimits?.max_children || 1} children only. Upgrade to access all children.`,
+                      [
+                        { text: lang === 'ar' ? 'لاحقاً' : 'Later', style: 'cancel' },
+                        { text: lang === 'ar' ? 'ترقية الباقة' : 'Upgrade', onPress: () => router.push('/subscription') },
+                      ]
+                    )
+                    return
+                  }
+                  router.push(`/children/${child.id}`)
+                }}>
                   <ChildAvatar name={child.name} imageUrl={child.image_url} gender={child.gender} size="md" />
                   <View style={{ flex: 1 }}>
                     <Text style={{ fontSize: fontSize.base, fontWeight: '700', color: colors.grey900 }}>{child.name}</Text>
@@ -211,8 +230,15 @@ export default function ChildrenScreen() {
                     </Pressable>
                   </View>
                 )}
+              {isLocked && (
+                <View style={{ position: 'absolute', top: 6, right: 6, flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#F97316', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 100, zIndex: 1 }}>
+                  <Ionicons name="lock-closed" size={10} color="#fff" />
+                  <Text style={{ color: '#fff', fontSize: 9, fontWeight: '800' }}>{lang === 'ar' ? 'مقفول' : 'Locked'}</Text>
+                </View>
+              )}
               </View>
-            ))}
+              )
+            })}
           </View>
         )}
       </ScrollView>

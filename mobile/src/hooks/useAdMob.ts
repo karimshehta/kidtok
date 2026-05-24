@@ -28,6 +28,7 @@ function useAdSettings() {
         .in('key', [
           'admob_android_interstitial',
           'admob_ios_interstitial',
+          'admob_interstitial_enabled',
           'ads_interstitial_after_videos',
         ])
       const m: Record<string, string> = {}
@@ -35,6 +36,7 @@ function useAdSettings() {
       return {
         androidUnitId: m['admob_android_interstitial'] || '',
         iosUnitId:     m['admob_ios_interstitial']     || '',
+        enabled:       m['admob_interstitial_enabled'] !== 'false',
         afterVideos:   parseInt(m['ads_interstitial_after_videos'] || '5', 10),
       }
     },
@@ -53,7 +55,7 @@ export function useAdMob() {
   const adUnitId     = Platform.OS === 'android' ? adSettings?.androidUnitId : adSettings?.iosUnitId
   const afterVideos  = adSettings?.afterVideos ?? 5
   // Only show ads when: plan has ads, AdMob module available, unit ID configured
-  const shouldShowAds = !!(planLimits?.has_ads !== false && adModule && adUnitId)
+  const shouldShowAds = !!(planLimits?.has_ads !== false && adSettings?.enabled !== false && adModule && adUnitId)
 
   const loadAd = useCallback(() => {
     if (!adModule || !adUnitId) return
