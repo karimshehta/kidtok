@@ -56,7 +56,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#03BBE5"
+        "backgroundColor": "#FFFFFF"
       },
       "package": "com.kidtok.app",
       "versionCode": 1,
