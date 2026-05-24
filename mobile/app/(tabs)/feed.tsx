@@ -26,6 +26,7 @@ import { useMyVideoInteraction, useToggleVideoInteraction } from '@/hooks/useSoc
 import CommentsSheet from '@/components/CommentsSheet'
 import ChildAvatar from '@/components/ChildAvatar'
 import { getYouTubeThumbnail } from '@/lib/youtube'
+import YouTubeAttributionSheet from '@/components/YouTubeAttributionSheet'
 import { colors, spacing, fontSize, radius } from '@/lib/theme'
 import { onHeaderPageChange, headerAnimHeight, HEADER_BAR_HEIGHT } from '@/lib/headerScroll'
 import { usePlanLimits } from '@/hooks/usePlanLimits'
@@ -349,10 +350,18 @@ const VideoItem = memo(function VideoItem({
     || (cloudflareUid ? `https://videodelivery.net/${cloudflareUid}/manifest/video.m3u8` : null)
   const poster = video.thumbnail_url || (video.youtube_id ? getYouTubeThumbnail(video.youtube_id, 'max') : null)
 
+  // ── Source-aware tap: native creator → profile, YouTube channel → attribution sheet
+  const [ytSheetOpen, setYtSheetOpen] = useState(false)
+  const isYouTube = video.source === 'youtube'
   const openCreator = useCallback(() => {
-    const id = video.creator_id || video.channel_id
+    if (isYouTube) {
+      // Never open fake KidTok profile for external YouTube channels
+      setYtSheetOpen(true)
+      return
+    }
+    const id = video.creator_id
     if (id) router.push(`/creator/${id}`)
-  }, [video.creator_id, video.channel_id])
+  }, [isYouTube, video.creator_id])
 
   const handleLike = useCallback(() => toggleMut.mutate({ videoId: video.id, type: 'like' }), [video.id])
   const handleDislike = useCallback(() => toggleMut.mutate({ videoId: video.id, type: 'dislike' }), [video.id])
@@ -391,12 +400,24 @@ const VideoItem = memo(function VideoItem({
           </View>
           {/* اسم الـ channel */}
           <Pressable onPress={openCreator} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: colors.white }}>
-              <Ionicons name="person" size={18} color={colors.white} />
+            <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: isYouTube ? 'rgba(220,38,38,0.25)' : 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: isYouTube ? '#DC2626' : colors.white }}>
+              <Ionicons name={isYouTube ? 'logo-youtube' : 'person'} size={18} color={colors.white} />
             </View>
             <View>
-              <Text style={{ color: colors.white, fontWeight: '800', fontSize: fontSize.sm }}>@{video.channel_name || 'KidTok'}</Text>
-              <Text style={{ color: 'rgba(255,255,255,0.65)', fontSize: 11 }}>ستوري</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={{ color: colors.white, fontWeight: '800', fontSize: fontSize.sm }}>
+                  {isYouTube ? (video.channel_name || 'YouTube') : `@${video.channel_name || 'KidTok'}`}
+                </Text>
+                {isYouTube && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: 'rgba(220,38,38,0.92)', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 100 }}>
+                    <Ionicons name="logo-youtube" size={8} color="#fff" />
+                    <Text style={{ color: '#fff', fontSize: 8, fontWeight: '800' }}>YouTube</Text>
+                  </View>
+                )}
+              </View>
+              <Text style={{ color: 'rgba(255,255,255,0.65)', fontSize: 11 }}>
+                {isYouTube ? 'محتوى خارجي' : 'ستوري'}
+              </Text>
             </View>
           </Pressable>
         </LinearGradient>
@@ -419,6 +440,13 @@ const VideoItem = memo(function VideoItem({
             <StoryActionBtn icon="gift-outline" count={0} onPress={handleGift} />
           </View>
         </LinearGradient>
+        <YouTubeAttributionSheet
+          visible={ytSheetOpen}
+          onClose={() => setYtSheetOpen(false)}
+          channelName={video.channel_name}
+          channelId={video.channel_id}
+          videoThumbnail={video.thumbnail_url || (video.youtube_id ? `https://img.youtube.com/vi/${video.youtube_id}/mqdefault.jpg` : null)}
+        />
       </View>
     )
   }
@@ -440,10 +468,20 @@ const VideoItem = memo(function VideoItem({
             <Text style={{ fontSize: 10, fontWeight: '800', color: colors.primary }}>KidTok Picks</Text>
           </View>
         )}
-        <Pressable onPress={openCreator}>
+        <Pressable onPress={openCreator} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
           <Text style={{ color: colors.white, fontSize: fontSize.sm, fontWeight: '700' }}>
-            {video.category === 'parent_pick' ? '🌟 KidTok' : `@${video.channel_name || 'KidTok'}`}
+            {video.category === 'parent_pick'
+              ? '🌟 KidTok'
+              : isYouTube
+                ? (video.channel_name || 'YouTube')
+                : `@${video.channel_name || 'KidTok'}`}
           </Text>
+          {isYouTube && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: 'rgba(220,38,38,0.92)', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 100 }}>
+              <Ionicons name="logo-youtube" size={9} color="#fff" />
+              <Text style={{ color: '#fff', fontSize: 9, fontWeight: '800', letterSpacing: 0.3 }}>YouTube</Text>
+            </View>
+          )}
         </Pressable>
         <Text style={{ color: colors.white, fontSize: fontSize.base, fontWeight: '700', marginTop: 4 }} numberOfLines={2}>
           {video.title || 'KidTok video'}
@@ -467,6 +505,15 @@ const VideoItem = memo(function VideoItem({
         <ActionButton icon="add" count={0} onPress={handlePlaylist} />
         <ActionButton icon="gift" count={0} onPress={handleGift} />
       </View>
+
+      {/* YouTube attribution sheet — replaces fake creator profile */}
+      <YouTubeAttributionSheet
+        visible={ytSheetOpen}
+        onClose={() => setYtSheetOpen(false)}
+        channelName={video.channel_name}
+        channelId={video.channel_id}
+        videoThumbnail={video.thumbnail_url || (video.youtube_id ? `https://img.youtube.com/vi/${video.youtube_id}/mqdefault.jpg` : null)}
+      />
     </View>
   )
 })
@@ -490,6 +537,24 @@ const ReelWebVideo = memo(function ReelWebVideo({
   useEffect(() => {
     if (isActive && html) syncYouTubeAudio()
   }, [isActive, html, syncYouTubeAudio])
+
+  // Tap-to-pause toggle (compliance: provide a control since YT controls are hidden)
+  const [paused, setPaused] = useState(false)
+  useEffect(() => { setPaused(false) }, [html, isActive])
+  const togglePause = useCallback(() => {
+    if (!html) return
+    const command = paused ? 'playVideo' : 'pauseVideo'
+    webViewRef.current?.injectJavaScript(`
+      (function(){
+        var p = document.getElementById('kidtok-player');
+        if (p && p.contentWindow) {
+          p.contentWindow.postMessage(JSON.stringify({event:'command',func:'${command}',args:[]}), '*');
+        }
+      })();
+      true;
+    `)
+    setPaused(!paused)
+  }, [paused, html])
 
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
@@ -518,7 +583,7 @@ const ReelWebVideo = memo(function ReelWebVideo({
           setSupportMultipleWindows={false}
           androidLayerType="hardware"
           cacheEnabled
-          thirdPartyCookiesEnabled
+          thirdPartyCookiesEnabled={false}
           userAgent="Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
           onLoadEnd={syncYouTubeAudio}
           onShouldStartLoadWithRequest={(request) => {
@@ -527,6 +592,22 @@ const ReelWebVideo = memo(function ReelWebVideo({
             return true
           }}
         />
+      )}
+
+      {/* Tap layer — provides play/pause control since YT controls are hidden (compliance + UX) */}
+      {isActive && html && (
+        <Pressable
+          onPress={togglePause}
+          style={{ position: 'absolute', top: 0, right: 0, bottom: 80, left: 0 }}
+        >
+          {paused && (
+            <View style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.25)' }}>
+              <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' }}>
+                <Ionicons name="play" size={38} color={colors.white} style={{ marginLeft: 4 }} />
+              </View>
+            </View>
+          )}
+        </Pressable>
       )}
 
       {!isActive && (
@@ -560,7 +641,7 @@ true;
 }
 
 function getYouTubeEmbedHtml(videoId: string) {
-  const src = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&mute=1&controls=0&modestbranding=1&playsinline=1&rel=0&loop=1&playlist=${videoId}&enablejsapi=1&origin=${encodeURIComponent(KIDTOK_ORIGIN)}`
+  const src = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&mute=1&controls=0&modestbranding=1&playsinline=1&rel=0&loop=1&playlist=${videoId}&enablejsapi=1&fs=0&iv_load_policy=3&disablekb=1&origin=${encodeURIComponent(KIDTOK_ORIGIN)}`
   return `<!doctype html>
 <html>
 <head>
