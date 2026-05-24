@@ -1,16 +1,26 @@
 -- ════════════════════════════════════════════════════════════════════════════
--- Production Import (FIXED v2): ages + interests do NOT have created_at columns
+-- Production Import v3: uses TRUNCATE...CASCADE to bypass FK ordering issues
 -- ════════════════════════════════════════════════════════════════════════════
+-- The previous attempt with DELETE failed because videos still held interest_id
+-- references (likely from creator uploads added after the seed). TRUNCATE CASCADE
+-- bypasses all FK ordering and clears every dependent table in one operation.
+--
+-- Tables cleared by CASCADE (when truncating interests + ages):
+--   - videos          (FK to interests + ages)
+--   - playlist_videos (FK to videos — cascades from videos)
+--   - child_interests (FK to interests)
+--   - creator_videos  (FK to interests + ages — if any rows exist)
+-- ════════════════════════════════════════════════════════════════════════════
+
 begin;
 
+-- 1. Null out children.age_id BEFORE truncating ages (we keep children rows)
 update public.children set age_id = null;
-delete from public.playlist_videos;
-delete from public.videos;
-delete from public.child_interests;
 
--- Ages (NO created_at)
-delete from public.ages;
-alter sequence public.ages_id_seq restart with 1;
+-- 2. Nuclear option: TRUNCATE with CASCADE handles all FK chains atomically
+truncate table public.interests, public.ages restart identity cascade;
+
+-- 3. Reseed ages with explicit IDs
 
 insert into public.ages (id, name_ar, name_en, min_age, max_age, sort_order) values (8, '0-2 سنوات', '0-2 years', 0, 2, 1);
 insert into public.ages (id, name_ar, name_en, min_age, max_age, sort_order) values (9, '3-4 سنوات', '3-4 years', 3, 4, 2);
@@ -22,9 +32,7 @@ insert into public.ages (id, name_ar, name_en, min_age, max_age, sort_order) val
 select setval('public.ages_id_seq', 13);
 
 
--- Interests (NO created_at)
-delete from public.interests;
-alter sequence public.interests_id_seq restart with 1;
+-- 4. Reseed interests with explicit IDs
 
 insert into public.interests (id, name_ar, name_en, icon, sort_order, is_active) values (1, 'التعلم والإبداع', 'Learning & Creativity', '✨', 1, true);
 insert into public.interests (id, name_ar, name_en, icon, sort_order, is_active) values (2, 'اللغة والمعرفة', 'Language & Knowledge', '📚', 2, true);
@@ -38,6 +46,8 @@ insert into public.interests (id, name_ar, name_en, icon, sort_order, is_active)
 
 select setval('public.interests_id_seq', 12);
 
+
+-- 5. Bulk insert 699 unique YouTube videos
 
 insert into public.videos (youtube_id, title, thumbnail_url, interest_id, age_id, is_suggested, added_count, source, created_at) values
 
