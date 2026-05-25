@@ -218,14 +218,21 @@ export function useAdminUserActions() {
 
   const grantPremium = useMutation({
     mutationFn: async (vars: { user_id: string; plan_id: string; days?: number }) => {
-      const expires = vars.days
-        ? new Date(Date.now() + vars.days * 86400_000).toISOString()
-        : null
-      const { error } = await supabase.from('user_subscriptions').insert({
-        user_id: vars.user_id,
-        plan_id: vars.plan_id,
-        status:  'active',
-        expires_at: expires,
+      const days = vars.days || 30
+      const expires = new Date(Date.now() + days * 86400_000).toISOString()
+
+      // Cancel any existing active subscription first
+      await supabase.from('subscriptions')
+        .update({ status: 'cancelled' })
+        .eq('user_id', vars.user_id)
+        .eq('status', 'active')
+
+      const { error } = await supabase.from('subscriptions').insert({
+        user_id:          vars.user_id,
+        plan_id:          parseInt(vars.plan_id, 10),  // plan_id is int in schema
+        status:           'active',
+        expires_at:       expires,
+        payment_provider: 'manual',
       })
       if (error) throw error
     },
@@ -234,7 +241,7 @@ export function useAdminUserActions() {
 
   const cancelPremium = useMutation({
     mutationFn: async (user_id: string) => {
-      const { error } = await supabase.from('user_subscriptions')
+      const { error } = await supabase.from('subscriptions')
         .update({ status: 'cancelled' })
         .eq('user_id', user_id)
         .eq('status', 'active')
