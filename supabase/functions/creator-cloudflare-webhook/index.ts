@@ -70,14 +70,14 @@ Deno.serve(async (req) => {
   }
 
   const state = video.status?.state
-  const autoApprove = (Deno.env.get('CREATOR_AUTO_APPROVE') || '').toLowerCase() === 'true'
 
-  // Decide the new status based on Cloudflare's reported state
+  // Review system removed — all ready videos are approved immediately.
+  // Creators see their content the moment Cloudflare finishes processing.
   let nextStatus: string
   let rejection_reason: string | null = null
 
   if (state === 'ready' || video.readyToStream === true) {
-    nextStatus = autoApprove ? 'approved' : 'pending_review'
+    nextStatus = 'approved'
   } else if (state === 'error') {
     nextStatus = 'rejected'
     rejection_reason =
