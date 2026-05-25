@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import toast from 'react-hot-toast'
+import { useQuery } from '@tanstack/react-query'
 import {
   Users as UsersIcon, Search, Shield, User as UserIcon, Sparkles,
   Loader2, Filter, MoreVertical, Ban, CheckCircle2, XCircle,
@@ -8,6 +9,7 @@ import {
 } from 'lucide-react'
 import AdminLayout from '@/components/AdminLayout'
 import { useAdminUsers, useAdminUserStats, useAdminUserActions } from '@/hooks/useAdminUsers'
+import { supabase } from '@/lib/supabase'
 import type { AdminUser, UserFilters, Role } from '@/hooks/useAdminUsers'
 import { cn } from '@/lib/utils'
 
@@ -97,24 +99,33 @@ function ConfirmDialog({ open, title, message, confirmLabel = 'Confirm', danger,
 // User Detail Modal
 // ════════════════════════════════════════════════════════════════════════════
 function UserDetailModal({ user, onClose }: { user: AdminUser | null; onClose: () => void }) {
-  const { setRole, setVerified, adjustCoins } = useAdminUserActions()
+  const { setRole, setVerified, adjustCoins, grantPremium, cancelPremium } = useAdminUserActions()
   const [coinDelta, setCoinDelta] = useState('')
+  const [planDays, setPlanDays] = useState('30')
+
+  // Fetch available plans for the dropdown
+  const { data: plans = [] } = useQuery({
+    queryKey: ['subscription-plans'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('subscription_plans')
+        .select('id, name_ar, name_en, price, currency')
+        .order('price', { ascending: true })
+      return data || []
+    },
+    staleTime: 3600_000,
+  })
 
   if (!user) return null
 
   const handleAdjustCoins = async () => {
     const delta = parseInt(coinDelta, 10)
-    if (isNaN(delta) || delta === 0) {
-      toast.error('Enter a valid number')
-      return
-    }
+    if (isNaN(delta) || delta === 0) { toast.error('Enter a valid number'); return }
     try {
       await adjustCoins.mutateAsync({ user_id: user.id, delta })
       toast.success(`Coins ${delta > 0 ? '+' : ''}${delta} → user`)
       setCoinDelta('')
-    } catch (e) {
-      toast.error((e as Error).message)
-    }
+    } catch (e) { toast.error((e as Error).message) }
   }
 
   const RoleIcon = ROLE_BADGES[user.role].icon
@@ -231,6 +242,61 @@ function UserDetailModal({ user, onClose }: { user: AdminUser | null; onClose: (
                 </button>
               </div>
               <p className="text-xs text-amber-800 mt-2">Current balance: <strong>{user.coin_balance}</strong></p>
+            </div>
+
+            {/* ── Plan assignment ─────────────────────────────────────── */}
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 space-y-2">
+              <p className="text-xs font-bold text-purple-900 uppercase tracking-wide inline-flex items-center gap-1">
+                <Crown className="w-3.5 h-3.5" />Subscription plan
+              </p>
+              <div className="flex items-center gap-2 text-xs text-purple-800">
+                <span>Current:</span>
+                <span className="font-bold">{user.active_plan_name || 'Free'}</span>
+              </div>
+              {/* Grant plan */}
+              <div className="flex gap-2">
+                <select
+                  id="plan-select"
+                  className="flex-1 rounded-md border border-purple-300 px-2 py-1.5 text-sm bg-white"
+                >
+                  {plans.map((p: any) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name_ar} — {p.price} {p.currency}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="number"
+                  value={planDays}
+                  onChange={(e) => setPlanDays(e.target.value)}
+                  min={1}
+                  placeholder="Days"
+                  className="w-20 rounded-md border border-purple-300 px-2 py-1.5 text-sm bg-white"
+                />
+                <button
+                  onClick={() => {
+                    const sel = document.getElementById('plan-select') as HTMLSelectElement
+                    if (!sel?.value) return
+                    grantPremium.mutate({ user_id: user.id, plan_id: sel.value, days: parseInt(planDays, 10) || 30 },
+                      { onSuccess: () => toast.success('Plan assigned'), onError: (e) => toast.error((e as Error).message) })
+                  }}
+                  disabled={grantPremium.isPending}
+                  className="px-3 py-1.5 bg-purple-700 hover:bg-purple-800 text-white rounded-md text-sm font-bold disabled:opacity-50 whitespace-nowrap"
+                >
+                  {grantPremium.isPending ? '…' : 'Grant'}
+                </button>
+              </div>
+              {/* Cancel plan */}
+              {user.active_plan_name && (
+                <button
+                  onClick={() => cancelPremium.mutate(user.id,
+                    { onSuccess: () => toast.success('Plan cancelled'), onError: (e) => toast.error((e as Error).message) })}
+                  disabled={cancelPremium.isPending}
+                  className="w-full py-1.5 text-xs font-bold text-red-700 hover:bg-red-50 rounded-md border border-red-200 disabled:opacity-50"
+                >
+                  {cancelPremium.isPending ? '…' : 'Cancel current plan'}
+                </button>
+              )}
             </div>
           </div>
         </div>

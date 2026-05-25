@@ -215,6 +215,15 @@ export default function AdminAds() {
               min={5}
               max={1440}
             />
+            <Field
+              label="Auto-show rewarded ad after (minutes)"
+              hint="Show rewarded ad prompt in feed + child mode after X minutes of use. Free users only. Set to 0 to disable."
+              value={form['rewarded_ad_after_minutes'] || '3'}
+              onChange={(v) => set('rewarded_ad_after_minutes', v)}
+              type="number"
+              min={0}
+              max={60}
+            />
 
             {/* ─── Interstitial Frequency ─── */}
             <div className="pt-2 border-t border-neutral-200">
