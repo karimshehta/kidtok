@@ -1,5 +1,7 @@
--- Add is_verified to search_users RPC
-create or replace function public.search_users(p_query text, p_limit int default 20)
+-- Must drop first — PostgreSQL can't change return type with CREATE OR REPLACE
+drop function if exists public.search_users(text, int);
+
+create function public.search_users(p_query text, p_limit int default 20)
 returns table (
   id              uuid,
   name            text,
