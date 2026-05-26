@@ -24,6 +24,7 @@ export interface AdminUser {
   followers_count: number
   following_count: number
   uploads_count:   number
+  total_views:     number
   watched_count:   number
   active_plan_name: string | null
   total_count:     number
@@ -110,6 +111,7 @@ export function useAdminUsers(filters: UserFilters = {}) {
         followers_count: p.followers_count ?? 0,
         following_count: p.following_count ?? 0,
         uploads_count:   0,
+        total_views:     0,
         watched_count:   0,
         active_plan_name: null,
         total_count:     count ?? 0,

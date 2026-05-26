@@ -34,6 +34,15 @@ function formatDate(d: string | null): string {
   return date.toLocaleDateString()
 }
 
+// Compact numeric formatter for view counts (1.2K, 3.4M, …)
+function formatCompact(n: number | null | undefined): string {
+  if (!n) return '0'
+  if (n < 1000)       return n.toString()
+  if (n < 1_000_000)  return (n / 1000).toFixed(n < 10_000 ? 1 : 0).replace('.0', '') + 'K'
+  if (n < 1e9)        return (n / 1_000_000).toFixed(n < 10_000_000 ? 1 : 0).replace('.0', '') + 'M'
+  return (n / 1e9).toFixed(1).replace('.0', '') + 'B'
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 // Stat Card
 // ════════════════════════════════════════════════════════════════════════════
@@ -180,6 +189,7 @@ function UserDetailModal({ user, onClose }: { user: AdminUser | null; onClose: (
             <Info label="Last active" value={formatDate(user.last_active_at)} />
             <Info label="Coins" value={<span className="font-bold inline-flex items-center gap-1"><Coins className="w-3.5 h-3.5 text-amber-600" />{user.coin_balance}</span>} />
             <Info label="Uploads" value={user.uploads_count.toLocaleString()} />
+            <Info label="Total views" value={formatCompact(user.total_views)} />
             <Info label="Followers" value={user.followers_count.toLocaleString()} />
             <Info label="Following" value={user.following_count.toLocaleString()} />
           </div>
@@ -520,8 +530,9 @@ export default function AdminUsers() {
                       {/* Stats */}
                       <td className="px-4 py-3 hidden md:table-cell text-right">
                         <div className="text-xs space-x-2 whitespace-nowrap">
-                          <span className="text-neutral-500">📹 {user.uploads_count}</span>
-                          <span className="text-amber-600 font-medium">🪙 {user.coin_balance}</span>
+                          <span className="text-neutral-500" title="Videos uploaded">📹 {user.uploads_count}</span>
+                          <span className="text-blue-600" title="Total views across uploads">👁 {formatCompact(user.total_views)}</span>
+                          <span className="text-amber-600 font-medium" title="Coin balance">🪙 {user.coin_balance}</span>
                         </div>
                       </td>
                       {/* Joined */}
