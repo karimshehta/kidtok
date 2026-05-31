@@ -107,7 +107,23 @@ export default function AdminNotifications() {
         payload.target_value = targetValue.trim() || null
       }
       const { data, error } = await supabase.functions.invoke('send-push', { body: payload })
-      if (error) throw error
+      if (error) {
+        // supabase-js hides the response body — read it ourselves to surface
+        // the real reason (FORBIDDEN / DB_INSERT_FAILED / MISSING_FIELDS / ...).
+        let detail = ''
+        try {
+          const ctx: any = (error as any).context
+          if (ctx?.response) {
+            const body = await ctx.response.clone().json().catch(async () => {
+              return { detail: await ctx.response.clone().text().catch(() => '') }
+            })
+            const code = body?.error || ''
+            const msg  = body?.detail || ''
+            detail = code && msg ? `${code} — ${msg}` : (code || msg || '')
+          }
+        } catch {}
+        throw new Error(detail ? `${error.message}: ${detail}` : error.message)
+      }
       return data
     },
     onSuccess: (data: any) => {
