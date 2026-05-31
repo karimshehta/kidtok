@@ -174,7 +174,7 @@ Deno.serve(async (req) => {
 async function sendBatch(
   admin: any,
   historyId: string,
-  tokens: { expo_token: string; language: string }[],
+  tokens: { expo_token: string; language: string; user_id?: string }[],
   msg: {
     title_ar: string
     body_ar: string
@@ -247,6 +247,28 @@ async function sendBatch(
       failed += chunk.length
     }
   }
+
+  // ── Fanout to per-user inbox so the in-app notifications tab shows it.
+  // dispatch_push=false because we already sent the Expo push above —
+  // otherwise the notifications trigger would re-send it (duplicate push).
+  try {
+    const uniqueUserIds = [...new Set(tokens.map((t) => t.user_id).filter(Boolean))]
+    if (uniqueUserIds.length > 0) {
+      const rows = uniqueUserIds.map((uid) => ({
+        user_id:       uid,
+        type:          'broadcast',
+        title_ar:      msg.title_ar,
+        body_ar:       msg.body_ar,
+        title_en:      msg.title_en || null,
+        body_en:       msg.body_en  || null,
+        image_url:     msg.image_url || null,
+        deep_link:     msg.deep_link || null,
+        data:          msg.data || {},
+        dispatch_push: false,        // ← already sent above
+      }))
+      await admin.from('notifications').insert(rows)
+    }
+  } catch { /* inbox fanout is best-effort; don't fail the send */ }
 
   await admin.from('notification_history').update({
     status: failed === messages.length ? 'failed' : 'sent',
