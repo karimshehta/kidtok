@@ -25,10 +25,57 @@ function getAppUrl(): string {
   return Deno.env.get('APP_URL') || 'https://kidtok.vercel.app'
 }
 
-function redirectTo(path: string): Response {
-  return new Response(null, {
-    status: 302,
-    headers: { Location: `${getAppUrl()}${path}` },
+// Returns a self-contained HTML page the WebView can display directly,
+// instead of redirecting to /subscription/success on Vercel (which doesn't
+// exist and produces a "Not Found" page in the mobile WebView).
+//
+// The page contains `?kidtok_done=1` in the query (set by the caller) which
+// the mobile WebView matches and uses to auto-close. It also calls
+// window.ReactNativeWebView.postMessage as a backup channel.
+function htmlPage(success: boolean): Response {
+  const title  = success ? 'تم الدفع بنجاح'  : 'لم يكتمل الدفع'
+  const titleEn = success ? 'Payment successful' : 'Payment failed'
+  const icon   = success ? '✅' : '❌'
+  const color  = success ? '#16A34A' : '#DC2626'
+  const bg     = success ? '#F0FDF4' : '#FEF2F2'
+  const subAr  = success ? 'العودة للتطبيق...' : 'يرجى المحاولة مجدداً'
+  const subEn  = success ? 'Returning to the app…' : 'Please try again'
+  const html = `<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>${title}</title>
+<style>
+  html, body { margin:0; padding:0; height:100%; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+         background:${bg}; display:flex; align-items:center; justify-content:center; }
+  .card { text-align:center; padding:32px; }
+  .icon { font-size:80px; line-height:1; margin-bottom:20px; }
+  h1    { color:${color}; font-size:24px; margin:0 0 8px; font-weight:800; }
+  p     { color:#6B7280; font-size:14px; margin:6px 0 0; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">${icon}</div>
+    <h1>${title}</h1>
+    <p>${titleEn}</p>
+    <p>${subAr}</p>
+    <p>${subEn}</p>
+  </div>
+  <script>
+    try {
+      window.ReactNativeWebView && window.ReactNativeWebView.postMessage(
+        JSON.stringify({ kidtok_payment: '${success ? 'success' : 'failed'}' })
+      );
+    } catch (e) {}
+  </script>
+</body>
+</html>`
+  return new Response(html, {
+    status: 200,
+    headers: { 'Content-Type': 'text/html; charset=utf-8' },
   })
 }
 
@@ -62,7 +109,7 @@ Deno.serve(async (req) => {
 
   if (!receivedHmac) {
     console.warn('Paymob callback: no HMAC')
-    return isGet ? redirectTo('/subscription/failed?reason=no_signature') : jsonResponse({ error: 'no signature' }, 401)
+    return isGet ? htmlPage(false) : jsonResponse({ error: 'no signature' }, 401)
   }
 
   // ===== Verify HMAC =====
@@ -70,12 +117,45 @@ Deno.serve(async (req) => {
   try {
     const cfg = getPaymobConfig()
     valid = await verifyPaymobHmac(cfg, data, receivedHmac)
+    if (!valid) {
+      // Diagnostic: log the fields we used and the HMACs we expected vs got.
+      // (The secret itself is never logged.) Helps debug HMAC-source mismatch
+      // between Paymob's old/new dashboards.
+      const debugFields = {
+        amount_cents:           data.amount_cents,
+        created_at:             data.created_at,
+        currency:               data.currency,
+        error_occured:          data.error_occured,
+        has_parent_transaction: data.has_parent_transaction,
+        id:                     data.id,
+        integration_id:         data.integration_id,
+        is_3d_secure:           data.is_3d_secure,
+        is_auth:                data.is_auth,
+        is_capture:             data.is_capture,
+        is_refunded:            data.is_refunded,
+        is_standalone_payment:  data.is_standalone_payment,
+        is_voided:              data.is_voided,
+        order:                  data.order,
+        owner:                  data.owner,
+        pending:                data.pending,
+        source_data_pan:        data.source_data_pan,
+        source_data_sub_type:   data.source_data_sub_type,
+        source_data_type:       data.source_data_type,
+        success:                data.success,
+      }
+      console.warn('HMAC mismatch debug:', JSON.stringify({
+        received_hmac_prefix: String(receivedHmac).slice(0, 12) + '…',
+        received_hmac_length: String(receivedHmac).length,
+        transport:            isGet ? 'GET (redirect)' : 'POST (webhook)',
+        fields:               debugFields,
+      }))
+    }
   } catch (err) {
     console.error('verify error:', err)
   }
   if (!valid) {
     console.warn('Paymob callback: invalid HMAC')
-    return isGet ? redirectTo('/subscription/failed?reason=invalid_signature') : jsonResponse({ error: 'invalid signature' }, 401)
+    return isGet ? htmlPage(false) : jsonResponse({ error: 'invalid signature' }, 401)
   }
 
   // ===== Find the subscription =====
@@ -87,21 +167,50 @@ Deno.serve(async (req) => {
     data?.order?.merchant_order_id ||
     null
 
-  if (!merchantOrderId) {
-    console.warn('No merchant_order_id in callback payload')
-    return isGet ? redirectTo('/subscription/failed?reason=missing_order') : jsonResponse({ error: 'no merchant_order_id' }, 400)
+  // Paymob's own internal order id — falls back lookup target when their
+  // redirect URL doesn't include our merchant_order_id (it sometimes only has
+  // `order=<paymob_order_id>` in the query params).
+  const paymobOrderId =
+    (typeof data.order === 'number' || typeof data.order === 'string') ? String(data.order) :
+    data?.order?.id ? String(data.order.id) :
+    data.order_id ? String(data.order_id) :
+    null
+
+  if (!merchantOrderId && !paymobOrderId) {
+    console.warn('No order identifier in callback payload')
+    return isGet ? htmlPage(false) : jsonResponse({ error: 'no order id' }, 400)
   }
 
   const admin = getServiceClient()
-  const { data: sub, error: findErr } = await admin
-    .from('subscriptions')
-    .select('id, user_id, plan_id, status, expires_at')
-    .eq('provider_subscription_id', merchantOrderId)
-    .maybeSingle()
+  let sub: { id: string; user_id: string; plan_id: number; status: string; expires_at: string } | null = null
+  let findErr: any = null
+
+  // Primary lookup by our merchant_order_id (stored as provider_subscription_id).
+  if (merchantOrderId) {
+    const r = await admin
+      .from('subscriptions')
+      .select('id, user_id, plan_id, status, expires_at')
+      .eq('provider_subscription_id', merchantOrderId)
+      .maybeSingle()
+    sub = r.data as any
+    findErr = r.error
+  }
+  // Fallback: look up by Paymob's order_id which we stored in provider_data.
+  if (!sub && paymobOrderId) {
+    const r = await admin
+      .from('subscriptions')
+      .select('id, user_id, plan_id, status, expires_at')
+      .eq('provider_data->>paymob_order_id', paymobOrderId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    sub = r.data as any
+    findErr = r.error
+  }
 
   if (findErr || !sub) {
-    console.warn('No subscription matches merchant_order_id', merchantOrderId)
-    return isGet ? redirectTo('/subscription/failed?reason=order_not_found') : jsonResponse({ error: 'order not found' }, 404)
+    console.warn('No subscription matches', { merchantOrderId, paymobOrderId })
+    return isGet ? htmlPage(false) : jsonResponse({ error: 'order not found' }, 404)
   }
 
   // ===== Decide success vs failure =====
@@ -145,7 +254,7 @@ Deno.serve(async (req) => {
     .eq('id', sub.id)
   if (updateErr) {
     console.error('Failed to update subscription:', updateErr)
-    return isGet ? redirectTo('/subscription/failed?reason=db_error') : jsonResponse({ error: 'db error' }, 500)
+    return isGet ? htmlPage(false) : jsonResponse({ error: 'db error' }, 500)
   }
 
   // If we just activated this subscription, expire/cancel the user's other actives
@@ -160,11 +269,7 @@ Deno.serve(async (req) => {
 
   // ===== Respond =====
   if (isGet) {
-    return redirectTo(
-      patch.status === 'active'
-        ? `/subscription/success?id=${sub.id}`
-        : `/subscription/failed?reason=${pending ? 'pending' : 'declined'}`
-    )
+    return htmlPage(patch.status === 'active')
   }
   return jsonResponse({ ok: true, subscription_id: sub.id, new_status: patch.status })
 })
