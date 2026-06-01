@@ -19,6 +19,7 @@ import {
   getPaymobConfig,
   verifyPaymobHmac,
   flattenPaymobData,
+  pickPaymobField,
 } from '../_shared/paymob.ts'
 
 function getAppUrl(): string {
@@ -121,32 +122,22 @@ Deno.serve(async (req) => {
       // Diagnostic: log the fields we used and the HMACs we expected vs got.
       // (The secret itself is never logged.) Helps debug HMAC-source mismatch
       // between Paymob's old/new dashboards.
-      const debugFields = {
-        amount_cents:           data.amount_cents,
-        created_at:             data.created_at,
-        currency:               data.currency,
-        error_occured:          data.error_occured,
-        has_parent_transaction: data.has_parent_transaction,
-        id:                     data.id,
-        integration_id:         data.integration_id,
-        is_3d_secure:           data.is_3d_secure,
-        is_auth:                data.is_auth,
-        is_capture:             data.is_capture,
-        is_refunded:            data.is_refunded,
-        is_standalone_payment:  data.is_standalone_payment,
-        is_voided:              data.is_voided,
-        order:                  data.order,
-        owner:                  data.owner,
-        pending:                data.pending,
-        source_data_pan:        data.source_data_pan,
-        source_data_sub_type:   data.source_data_sub_type,
-        source_data_type:       data.source_data_type,
-        success:                data.success,
+      const debugFields: Record<string, string> = {}
+      for (const f of [
+        'amount_cents','created_at','currency','error_occured','has_parent_transaction',
+        'id','integration_id','is_3d_secure','is_auth','is_capture','is_refunded',
+        'is_standalone_payment','is_voided','order.id','owner','pending',
+        'source_data.pan','source_data.sub_type','source_data.type','success',
+      ]) {
+        debugFields[f] = pickPaymobField(data, f)
       }
+      const signedConcat = Object.values(debugFields).join('')
       console.warn('HMAC mismatch debug:', JSON.stringify({
         received_hmac_prefix: String(receivedHmac).slice(0, 12) + '…',
         received_hmac_length: String(receivedHmac).length,
         transport:            isGet ? 'GET (redirect)' : 'POST (webhook)',
+        signed_string_preview: signedConcat.slice(0, 200) + (signedConcat.length > 200 ? '…' : ''),
+        signed_string_length:  signedConcat.length,
         fields:               debugFields,
       }))
     }

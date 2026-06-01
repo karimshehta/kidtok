@@ -181,8 +181,14 @@ export async function paymobWalletPay(
 // ============================================================
 // HMAC verification (callback security)
 // ============================================================
-// The 20 fields that Paymob signs (in this exact order). Documented in
+// The 20 fields Paymob signs, in this exact order. See:
 // https://docs.paymob.com/docs/hmac-calculation
+//
+// Format note: Paymob uses dot-notation in their docs (`order.id`,
+// `source_data.pan`, etc.). The POST webhook delivers nested objects so
+// dot-notation works literally. The GET redirect URL delivers the same
+// fields FLAT with underscores in the query string (e.g. `source_data_pan`).
+// Our `getField` helper checks both forms.
 const HMAC_FIELDS = [
   'amount_cents',
   'created_at',
@@ -197,14 +203,40 @@ const HMAC_FIELDS = [
   'is_refunded',
   'is_standalone_payment',
   'is_voided',
-  'order',
+  'order.id',
   'owner',
   'pending',
-  'source_data_pan',
-  'source_data_sub_type',
-  'source_data_type',
+  'source_data.pan',
+  'source_data.sub_type',
+  'source_data.type',
   'success',
 ]
+
+export function pickPaymobField(data: Record<string, any>, path: string): string {
+  // 1) Try dot-notation traversal (POST webhook: nested objects).
+  const parts = path.split('.')
+  let val: any = data
+  for (const p of parts) {
+    if (val == null) { val = undefined; break }
+    val = val[p]
+  }
+  // 2) Fallback: GET redirect uses flat underscore keys
+  //    e.g. `order.id` -> `order`, `source_data.pan` -> `source_data_pan`.
+  if (val == null && path.includes('.')) {
+    // Try the simple top-level name first (order.id -> order)
+    val = data[parts[0]]
+    if (val == null || (typeof val === 'object')) {
+      // Then try fully-underscored (source_data.pan -> source_data_pan)
+      val = data[path.replace(/\./g, '_')]
+    }
+  }
+  if (val == null) return ''
+  return String(val)
+}
+
+function getField(data: Record<string, any>, path: string): string {
+  return pickPaymobField(data, path)
+}
 
 /**
  * Verify Paymob HMAC-SHA512 signature.
@@ -221,7 +253,7 @@ export async function verifyPaymobHmac(
   data: Record<string, unknown>,
   receivedHmac: string
 ): Promise<boolean> {
-  const concat = HMAC_FIELDS.map((f) => `${data[f] ?? ''}`).join('')
+  const concat = HMAC_FIELDS.map((f) => getField(data as Record<string, any>, f)).join('')
 
   const enc = new TextEncoder()
   const key = await crypto.subtle.importKey(
