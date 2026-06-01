@@ -233,15 +233,31 @@ async function sendBatch(
 
       const result = await resp.json()
       const tickets = result?.data || []
-      for (const tk of tickets) {
+      // tickets[i] aligns with chunk[i] — same order. Track which tokens are
+      // dead so we can deactivate them in one batched query at the end.
+      const deadTokens: string[] = []
+      for (let j = 0; j < tickets.length; j++) {
+        const tk = tickets[j]
         if (tk?.status === 'ok') sent++
         else {
           failed++
-          // Mark token as inactive if it's invalid (DeviceNotRegistered)
-          if (tk?.details?.error === 'DeviceNotRegistered') {
-            // ignore — token already removed below if needed
+          // DeviceNotRegistered / InvalidCredentials → permanently dead.
+          // Mark inactive so we never waste another push on it.
+          const errCode = tk?.details?.error
+          if (errCode === 'DeviceNotRegistered' || errCode === 'InvalidCredentials') {
+            const deadTo = chunk[j]?.to
+            if (typeof deadTo === 'string' && deadTo) deadTokens.push(deadTo)
           }
         }
+      }
+      // Batch-deactivate dead tokens
+      if (deadTokens.length > 0) {
+        try {
+          await admin
+            .from('push_tokens')
+            .update({ is_active: false, updated_at: new Date().toISOString() })
+            .in('expo_token', deadTokens)
+        } catch { /* best-effort cleanup; don't fail the send */ }
       }
     } catch {
       failed += chunk.length
