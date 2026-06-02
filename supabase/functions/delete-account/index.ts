@@ -1,0 +1,76 @@
+// /functions/v1/delete-account
+//
+// Permanently deletes the calling user's account and all of their data.
+// Required by Apple App Store §5.1.1(v) and Google Play account-deletion
+// policies — apps that let users sign up must let them delete the account
+// from within the app.
+//
+// Flow:
+//   1. Verify the request is from the user themselves (JWT → auth.uid()).
+//   2. Best-effort cancel any active subscription so we don't keep billing.
+//   3. Delete from public.profiles. Cascades clean up videos, children,
+//      playlists, comments, likes, follows, notifications, push_tokens,
+//      subscriptions etc. via on-delete-cascade FKs.
+//   4. Delete the auth.users row via the admin API. This is irreversible.
+//   5. Return success — caller signs out locally.
+
+import { handlePreflight, jsonResponse } from '../_shared/cors.ts'
+import { getServiceClient, requireUser } from '../_shared/supabase.ts'
+
+Deno.serve(async (req) => {
+  const preflight = handlePreflight(req)
+  if (preflight) return preflight
+  if (req.method !== 'POST') return jsonResponse({ error: 'method not allowed' }, 405)
+
+  try {
+    const user = await requireUser(req)
+    if (!user) return jsonResponse({ error: 'unauthorized' }, 401)
+
+    const admin = getServiceClient()
+
+    // 1) Cancel any active subscription so we don't keep billing
+    try {
+      await admin
+        .from('subscriptions')
+        .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+    } catch (e) {
+      console.warn('subscription cancel failed (non-fatal):', e)
+    }
+
+    // 2) Delete the profile row. The schema's on-delete-cascade FKs handle
+    //    everything that hangs off it (children, videos, playlists, comments,
+    //    likes, follows, notifications, push tokens, subscriptions, etc.).
+    const { error: profileErr } = await admin
+      .from('profiles')
+      .delete()
+      .eq('id', user.id)
+    if (profileErr) {
+      console.error('profile delete failed:', profileErr)
+      return jsonResponse({
+        error:  'profile delete failed',
+        detail: profileErr.message,
+        code:   profileErr.code ?? null,
+      }, 500)
+    }
+
+    // 3) Delete the auth user. Irreversible.
+    const { error: authErr } = await admin.auth.admin.deleteUser(user.id)
+    if (authErr) {
+      console.error('auth delete failed:', authErr)
+      return jsonResponse({
+        error:  'auth delete failed',
+        detail: authErr.message,
+      }, 500)
+    }
+
+    return jsonResponse({ ok: true, user_id: user.id })
+  } catch (err: any) {
+    console.error('unhandled error:', err)
+    return jsonResponse({
+      error:  'internal error',
+      detail: String(err?.message || err),
+    }, 500)
+  }
+})
