@@ -154,12 +154,13 @@ export default function AdminReports() {
               const thumb = r.creator_video?.thumbnail_url || r.video?.thumbnail_url
               const title = r.creator_video?.title || r.video?.title || '(no title)'
               const reporter = r.reporter?.name || r.reporter?.username || r.reporter_id.slice(0, 8)
+              const canPlay = !!(r.video?.hls_url || r.creator_video?.cloudflare_uid)
               return (
                 <div key={r.id} className="card flex gap-4 items-start">
                   {/* Thumbnail */}
                   <div
-                    onClick={() => r.video?.hls_url && setPlaying(r)}
-                    className="relative w-28 h-28 rounded-lg overflow-hidden bg-neutral-100 flex-shrink-0 cursor-pointer"
+                    onClick={() => canPlay && setPlaying(r)}
+                    className={`relative w-28 h-28 rounded-lg overflow-hidden bg-neutral-100 flex-shrink-0 ${canPlay ? 'cursor-pointer' : ''}`}
                   >
                     {thumb ? (
                       <img src={thumb} alt="" className="w-full h-full object-cover" />
@@ -168,7 +169,7 @@ export default function AdminReports() {
                         <Play className="w-8 h-8" />
                       </div>
                     )}
-                    {r.video?.hls_url && (
+                    {canPlay && (
                       <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 hover:opacity-100 transition">
                         <Play className="w-8 h-8 text-white" />
                       </div>
@@ -229,23 +230,14 @@ export default function AdminReports() {
           </div>
         )}
 
-        {/* Inline video player */}
-        {playing?.video?.hls_url && (
-          <div
-            className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4"
-            onClick={() => setPlaying(null)}
-          >
-            <div onClick={(e) => e.stopPropagation()} className="max-w-2xl w-full">
-              <VideoPlayer src={playing.video.hls_url} />
-              <button
-                onClick={() => setPlaying(null)}
-                className="mt-3 mx-auto block px-4 py-2 text-sm font-semibold rounded-lg bg-white text-black"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        )}
+        {/* Inline video player — VideoPlayer is itself a full modal */}
+        <VideoPlayer
+          open={!!playing}
+          onClose={() => setPlaying(null)}
+          hlsUrl={playing?.video?.hls_url || null}
+          cloudflareUid={playing?.creator_video?.cloudflare_uid || null}
+          title={playing?.creator_video?.title || playing?.video?.title || null}
+        />
       </div>
     </AdminLayout>
   )
