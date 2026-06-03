@@ -44,14 +44,13 @@ export default function AdminReports() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('pending')
   const [playing, setPlaying] = useState<ReportRow | null>(null)
 
-  const { data: reports = [], isLoading } = useQuery<ReportRow[]>({
+  const { data: reports = [], isLoading, isError, error } = useQuery<ReportRow[]>({
     queryKey: ['admin-video-reports', statusFilter],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('video_reports')
         .select(`
           id, reporter_id, creator_video_id, video_id, reason, notes, status, created_at,
-          reporter:profiles!reporter_id (id, name, username),
           creator_video:creator_videos!creator_video_id (id, title, cloudflare_uid, thumbnail_url, creator_id, status),
           video:videos!video_id (id, title, hls_url, thumbnail_url, creator_id)
         `)
@@ -59,7 +58,24 @@ export default function AdminReports() {
         .order('created_at', { ascending: false })
         .limit(200)
       if (error) throw error
-      return (data as any) || []
+
+      const rows = ((data as any) || []) as Omit<ReportRow, 'reporter'>[]
+      const reporterIds = Array.from(new Set(rows.map((row) => row.reporter_id).filter(Boolean)))
+      if (reporterIds.length === 0) {
+        return rows.map((row) => ({ ...row, reporter: null }))
+      }
+
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, name, username')
+        .in('id', reporterIds)
+      if (profilesError) throw profilesError
+
+      const profilesById = new Map((profiles || []).map((profile) => [profile.id, profile]))
+      return rows.map((row) => ({
+        ...row,
+        reporter: profilesById.get(row.reporter_id) || null,
+      })) as ReportRow[]
     },
   })
 
@@ -142,6 +158,10 @@ export default function AdminReports() {
         {isLoading ? (
           <div className="card text-center py-12">
             <Loader2 className="w-6 h-6 animate-spin mx-auto text-neutral-400" />
+          </div>
+        ) : isError ? (
+          <div className="card border-red-200 bg-red-50 text-red-700">
+            {(error as Error)?.message || 'Failed to load reports'}
           </div>
         ) : reports.length === 0 ? (
           <div className="card text-center py-12">
