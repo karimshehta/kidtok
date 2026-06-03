@@ -39,6 +39,23 @@ Deno.serve(async (req) => {
       console.warn('subscription cancel failed (non-fatal):', e)
     }
 
+    // 2) NULL out cross-references that don't have ON DELETE CASCADE on
+    //    auth.users. These tables exist for admin/audit purposes and don't
+    //    cascade — leaving them with the user's id would block the auth
+    //    delete in step 4. Best-effort: ignore failures since most regular
+    //    users have no rows here anyway.
+    for (const table of [
+      'app_settings',        // updated_by
+      'notifications_log',   // created_by
+    ] as const) {
+      try {
+        const col = table === 'app_settings' ? 'updated_by' : 'created_by'
+        await admin.from(table).update({ [col]: null }).eq(col, user.id)
+      } catch (e) {
+        console.warn(`nulling ${table} failed (non-fatal):`, e)
+      }
+    }
+
     // 2) Delete the profile row. The schema's on-delete-cascade FKs handle
     //    everything that hangs off it (children, videos, playlists, comments,
     //    likes, follows, notifications, push tokens, subscriptions, etc.).
