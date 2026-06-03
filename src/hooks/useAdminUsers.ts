@@ -254,8 +254,18 @@ export function useAdminUserActions() {
 
   const deleteUser = useMutation({
     mutationFn: async (user_id: string) => {
-      const { error } = await supabase.from('profiles').delete().eq('id', user_id)
-      if (error) throw error
+      // Use the edge function — direct profile delete leaves the auth.users
+      // row alive (user can still log in) and orphans Cloudflare Stream
+      // assets. The function deletes profile, auth.users, AND drains the
+      // Cloudflare cleanup queue in one shot.
+      const { data, error } = await supabase.functions.invoke('admin-delete-user', {
+        body: { user_id },
+      })
+      if (error) {
+        const detail = (data as any)?.detail || (data as any)?.error || error.message
+        throw new Error(detail)
+      }
+      return data as any
     },
     onSuccess: invalidate,
   })

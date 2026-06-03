@@ -16,6 +16,7 @@
 
 import { handlePreflight, jsonResponse } from '../_shared/cors.ts'
 import { getServiceClient, requireUser } from '../_shared/supabase.ts'
+import { drainCloudflareQueue } from '../_shared/cloudflare.ts'
 
 Deno.serve(async (req) => {
   const preflight = handlePreflight(req)
@@ -82,7 +83,22 @@ Deno.serve(async (req) => {
       }, 500)
     }
 
-    return jsonResponse({ ok: true, user_id: user.id })
+    // 4) Drain the Cloudflare cleanup queue. The BEFORE-DELETE trigger on
+    //    creator_videos queued each cloudflare_uid as the profile cascade
+    //    ran; we drain now so the user's videos disappear from Cloudflare
+    //    Stream immediately rather than waiting for a cron sweep.
+    let cloudflareResult: any = null
+    try {
+      cloudflareResult = await drainCloudflareQueue(admin, 500)
+    } catch (e: any) {
+      console.warn('cloudflare drain failed (will retry on next call):', e)
+    }
+
+    return jsonResponse({
+      ok:               true,
+      user_id:          user.id,
+      cloudflare_drain: cloudflareResult,
+    })
   } catch (err: any) {
     console.error('unhandled error:', err)
     return jsonResponse({

@@ -211,3 +211,64 @@ export async function deleteVideo(uid: string): Promise<void> {
     throw new Error(`Cloudflare delete failed: ${res.status} ${text}`)
   }
 }
+
+/**
+ * Drains pending entries from the pending_cloudflare_deletions queue.
+ * Successful entries are marked processed; failures get attempts++ and
+ * last_error updated so they're retried on the next call.
+ *
+ * The queue is populated by a Postgres trigger on creator_videos BEFORE
+ * DELETE, so it captures cascade deletes (admin delete user, self-delete,
+ * even direct SQL).
+ */
+export type DrainResult = {
+  scanned:   number
+  deleted:   number
+  not_found: number
+  failed:    number
+  failures:  { uid: string; status: number | null; message: string }[]
+}
+
+export async function drainCloudflareQueue(
+  admin: any,
+  limit = 50
+): Promise<DrainResult> {
+  const result: DrainResult = { scanned: 0, deleted: 0, not_found: 0, failed: 0, failures: [] }
+
+  const { data: rows } = await admin
+    .from('pending_cloudflare_deletions')
+    .select('id, cloudflare_uid, attempts')
+    .is('processed_at', null)
+    .order('enqueued_at', { ascending: true })
+    .limit(limit)
+
+  if (!rows || rows.length === 0) return result
+  result.scanned = rows.length
+
+  for (const row of rows as any[]) {
+    try {
+      await deleteVideo(row.cloudflare_uid)
+      // deleteVideo treats 404 as success too. Mark processed.
+      await admin
+        .from('pending_cloudflare_deletions')
+        .update({ processed_at: new Date().toISOString() })
+        .eq('id', row.id)
+      result.deleted++
+    } catch (err: any) {
+      const msg = String(err?.message || err).slice(0, 400)
+      const statusMatch = msg.match(/failed:\s*(\d+)/)
+      const status = statusMatch ? Number(statusMatch[1]) : null
+      await admin
+        .from('pending_cloudflare_deletions')
+        .update({
+          attempts:   (row.attempts ?? 0) + 1,
+          last_error: msg,
+        })
+        .eq('id', row.id)
+      result.failed++
+      result.failures.push({ uid: row.cloudflare_uid, status, message: msg })
+    }
+  }
+
+  return result
+}
