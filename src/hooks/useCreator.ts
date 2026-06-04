@@ -257,18 +257,35 @@ export function useAdminAllCreatorVideos(search: string) {
     queryFn: async (): Promise<AdminCreatorVideoRow[]> => {
       let q = supabase
         .from('creator_videos')
-        .select('*, creator:profiles!creator_id (id, name, username)')
+        .select('*')
         .order('created_at', { ascending: false })
         .limit(200)
       if (term) {
         // Postgres ILIKE search on title. `%${term}%` matches substrings.
-        // No need to escape % / _ for typical title searches — admins use
-        // plain words, not SQL wildcards.
         q = q.ilike('title', `%${term}%`)
       }
       const { data, error } = await q
       if (error) throw error
-      return (data || []) as unknown as AdminCreatorVideoRow[]
+      const rows = (data || []) as CreatorVideo[]
+      if (rows.length === 0) return []
+
+      // Resolve creator profiles in a second round-trip. We can't do this as
+      // an embedded join because creator_videos.creator_id references
+      // auth.users(id), not public.profiles(id) — PostgREST has no FK to
+      // follow. profiles.id === auth.users.id by Supabase convention, so the
+      // merge by id is exact.
+      const creatorIds = Array.from(new Set(rows.map((r) => r.creator_id).filter(Boolean)))
+      const { data: profiles, error: pErr } = await supabase
+        .from('profiles')
+        .select('id, name, username')
+        .in('id', creatorIds)
+      if (pErr) throw pErr
+      const byId = new Map((profiles || []).map((p: any) => [p.id, p]))
+
+      return rows.map((r) => ({
+        ...r,
+        creator: byId.get(r.creator_id) ?? null,
+      })) as AdminCreatorVideoRow[]
     },
     // 30s staleTime — admin browsing doesn't need real-time refresh
     staleTime: 30_000,
