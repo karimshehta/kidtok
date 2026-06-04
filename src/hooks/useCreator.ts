@@ -229,3 +229,86 @@ export function useBecomeCreator() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['user-role'] }),
   })
 }
+
+// ────────────────────────────────────────────────────────────────────────
+// Admin: All Creator Videos (with search) + hard-delete
+// ────────────────────────────────────────────────────────────────────────
+// usePendingModeration above only returns the *review queue*. Admins also
+// need a global view of every creator video (approved, rejected, blocked
+// included) with the ability to search by title and remove anything that
+// should be off the platform — even after it was already approved.
+
+export interface AdminCreatorVideoRow extends CreatorVideo {
+  // Nested creator info so the admin can see who uploaded each video
+  creator?: { id: string; name: string | null; username: string | null } | null
+}
+
+/**
+ * Lists every creator_videos row, optionally filtered by a title search.
+ * Sorted newest-first. Capped at 200 so the page stays responsive even
+ * when the catalog grows; admins should use the search to drill down.
+ */
+export function useAdminAllCreatorVideos(search: string) {
+  const term = search.trim()
+  return useQuery({
+    // Include `term` in the queryKey so each search has its own cache entry
+    // instead of clobbering one another.
+    queryKey: ['admin', 'all-creator-videos', term],
+    queryFn: async (): Promise<AdminCreatorVideoRow[]> => {
+      let q = supabase
+        .from('creator_videos')
+        .select('*, creator:profiles!creator_id (id, name, username)')
+        .order('created_at', { ascending: false })
+        .limit(200)
+      if (term) {
+        // Postgres ILIKE search on title. `%${term}%` matches substrings.
+        // No need to escape % / _ for typical title searches — admins use
+        // plain words, not SQL wildcards.
+        q = q.ilike('title', `%${term}%`)
+      }
+      const { data, error } = await q
+      if (error) throw error
+      return (data || []) as unknown as AdminCreatorVideoRow[]
+    },
+    // 30s staleTime — admin browsing doesn't need real-time refresh
+    staleTime: 30_000,
+  })
+}
+
+/**
+ * Hard-deletes a creator video via the admin-delete-video edge function.
+ * The function verifies the caller has profiles.role='admin', cascades the
+ * mirror videos row away, and drains the Cloudflare cleanup queue inline.
+ */
+export function useAdminDeleteVideo() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (videoId: string) => {
+      // Use direct fetch instead of supabase.functions.invoke so we can
+      // read the JSON body on non-2xx responses — supabase-js wraps those
+      // in FunctionsHttpError and hides the detail otherwise.
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) throw new Error('not authenticated')
+      const supabaseUrl = (supabase as any).supabaseUrl || (supabase as any).rest?.url?.replace(/\/rest\/.*$/, '') || ''
+      const res = await fetch(`${supabaseUrl}/functions/v1/admin-delete-video`, {
+        method: 'POST',
+        headers: {
+          'Content-Type':  'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ video_id: videoId }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(body?.detail || body?.error || `HTTP ${res.status}`)
+      }
+      return body
+    },
+    onSuccess: () => {
+      // Both the pending-review and the all-videos lists need to drop the row
+      qc.invalidateQueries({ queryKey: ['admin', 'all-creator-videos'] })
+      qc.invalidateQueries({ queryKey: ['admin', 'pending-moderation'] })
+      qc.invalidateQueries({ queryKey: ['creator-videos'] })
+    },
+  })
+}
