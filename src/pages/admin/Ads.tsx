@@ -327,6 +327,8 @@ export default function AdminAds() {
               value={form['coins_per_ad'] || '5'} onChange={(v) => set('coins_per_ad', v)} type="number" min={1} max={100} />
             <Field label={t('coins.cooldown')} hint="Default: 30"
               value={form['ad_reward_cooldown_min'] || '30'} onChange={(v) => set('ad_reward_cooldown_min', v)} type="number" min={1} max={1440} />
+            <Field label="Coins per daily register" hint="Default: 5"
+              value={form['coins_per_daily_register'] || '5'} onChange={(v) => set('coins_per_daily_register', v)} type="number" min={0} max={1000} />
             <Field label={t('coins.monthlyRequired')} hint="Default: 100"
               value={form['coins_for_monthly'] || '100'} onChange={(v) => set('coins_for_monthly', v)} type="number" min={1} />
             <Field label={t('coins.yearlyRequired')} hint="Default: 200"
