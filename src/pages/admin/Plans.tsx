@@ -31,7 +31,7 @@ export default function AdminPlans() {
             {t('admin.nav.plans')}
           </h1>
           <p className="text-neutral-700 text-sm mt-1">
-            Edit prices and limits — changes apply to NEW subscriptions only.
+            Edit prices and limits — plan limits apply immediately in the app.
           </p>
         </header>
 
@@ -95,6 +95,7 @@ function PlanRow({
     max_children: plan.max_children ?? 1,
     max_playlists: plan.max_playlists ?? 1,
     max_videos_per_playlist: plan.max_videos_per_playlist ?? 20,
+    max_creator_uploads_per_30_days: plan.max_creator_uploads_per_30_days ?? 30,
     daily_time_minutes: plan.daily_time_minutes ?? 60,
     has_insights: plan.has_insights,
     has_ads: plan.has_ads,
@@ -113,6 +114,7 @@ function PlanRow({
         max_children: plan.max_children ?? 1,
         max_playlists: plan.max_playlists ?? 1,
         max_videos_per_playlist: plan.max_videos_per_playlist ?? 20,
+        max_creator_uploads_per_30_days: plan.max_creator_uploads_per_30_days ?? 30,
         daily_time_minutes: plan.daily_time_minutes ?? 60,
         has_insights: plan.has_insights,
         has_ads: plan.has_ads,
@@ -236,6 +238,15 @@ function PlanRow({
                 className="input-field"
               />
             </Field>
+            <Field label="Creator uploads / 30 days">
+              <input
+                type="number"
+                min="0"
+                value={form.max_creator_uploads_per_30_days}
+                onChange={(e) => setForm((f) => ({ ...f, max_creator_uploads_per_30_days: parseInt(e.target.value) || 0 }))}
+                className="input-field"
+              />
+            </Field>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -284,10 +295,11 @@ function PlanRow({
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2 text-xs">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mt-2 text-xs">
           <Stat label="Children" value={plan.max_children ?? '∞'} />
           <Stat label="Playlists" value={plan.max_playlists ?? '∞'} />
           <Stat label="Videos/list" value={plan.max_videos_per_playlist ?? '∞'} />
+          <Stat label="Uploads/30d" value={plan.max_creator_uploads_per_30_days ?? 30} />
           <Stat label="Daily min" value={plan.daily_time_minutes ?? '∞'} />
           <Feature on={!plan.has_ads} label="No ads" />
           <Feature on={plan.has_insights} label="Insights" />

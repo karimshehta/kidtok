@@ -231,6 +231,7 @@ function PlanCard({
   if (plan.max_children && plan.max_children > 1) features.push({ key: 'multiChildren', value: plan.max_children })
   if (plan.max_playlists) features.push({ key: 'manyPlaylists', value: plan.max_playlists })
   if (plan.max_videos_per_playlist) features.push({ key: 'moreVideos', value: plan.max_videos_per_playlist })
+  if (plan.max_creator_uploads_per_30_days) features.push({ key: 'creatorUploads', value: plan.max_creator_uploads_per_30_days })
   if (plan.has_insights) features.push({ key: 'insights' })
   if (plan.has_games) features.push({ key: 'games' })
   if (plan.has_free_courses) features.push({ key: 'freeCourses' })

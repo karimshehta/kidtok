@@ -17,6 +17,7 @@ export interface SubscriptionPlan {
   max_children: number | null
   max_playlists: number | null
   max_videos_per_playlist: number | null
+  max_creator_uploads_per_30_days: number
   has_insights: boolean
   has_ads: boolean
   has_games: boolean

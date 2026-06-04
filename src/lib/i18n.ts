@@ -160,6 +160,7 @@ const ar = {
       multiChildren: '{{count}} أطفال',
       manyPlaylists: '{{count}} قوائم تشغيل',
       moreVideos: '{{count}} فيديو لكل قائمة',
+      creatorUploads: '{{count}} فيديو رفع أو تصوير كل 30 يوم',
       insights: 'إحصائيات تفصيلية',
       games: 'ألعاب تعليمية',
       freeCourses: 'كورسات مجانية',
@@ -342,6 +343,7 @@ const ar = {
         networkFailed: 'الرفع فشل بسبب مشكلة في الشبكة. حاول مرة تانية.',
         aborted: 'تم إلغاء الرفع.',
         notACreator: 'لازم تفعّل وضع المنشئ الأول.',
+        uploadLimitReached: 'وصلت لحد رفع أو تصوير الفيديوهات في باقتك لهذا الشهر.',
       },
     },
     myVideos: {
@@ -742,6 +744,7 @@ const en: typeof ar = {
       multiChildren: '{{count}} children',
       manyPlaylists: '{{count}} playlists',
       moreVideos: '{{count}} videos per playlist',
+      creatorUploads: '{{count}} uploads or recordings every 30 days',
       insights: 'Detailed insights',
       games: 'Educational games',
       freeCourses: 'Free courses',
@@ -924,6 +927,7 @@ const en: typeof ar = {
         networkFailed: 'Upload failed due to a network issue. Try again.',
         aborted: 'Upload cancelled.',
         notACreator: 'You need to activate creator mode first.',
+        uploadLimitReached: 'You reached your plan upload/recording limit for this month.',
       },
     },
     myVideos: {

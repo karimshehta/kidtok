@@ -148,6 +148,7 @@ export function uploadErrorMessage(err: unknown, t: (key: string) => string): st
     CLOUDFLARE_NETWORK_ERROR: 'creator.upload.errors.networkFailed',
     CLOUDFLARE_UPLOAD_ABORTED: 'creator.upload.errors.aborted',
     NOT_A_CREATOR:          'creator.upload.errors.notACreator',
+    PLAN_UPLOAD_LIMIT_REACHED: 'creator.upload.errors.uploadLimitReached',
   }
 
   // If there's a known translation key, use it

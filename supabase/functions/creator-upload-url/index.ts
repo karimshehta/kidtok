@@ -2,7 +2,7 @@
 //
 // Auth: requires a logged-in user whose profile.role IN ('creator','admin').
 // Body: { title, description?, age_id?, interest_id?, tags?[], max_duration_seconds? }
-// Returns: { upload_url, creator_video_id, cloudflare_uid }
+// Returns: { upload_url, creator_video_id, cloudflare_uid, upload_quota }
 //
 // The client then uploads the video file directly to `upload_url` (multipart POST).
 // Cloudflare will fire a webhook to /creator-cloudflare-webhook when transcoding finishes.
@@ -19,6 +19,16 @@ interface UploadRequest {
   tags?: string[]
   max_duration_seconds?: number
   start_time_seconds?: number
+}
+
+interface UploadQuotaReservation {
+  event_id: string
+  plan_code: string
+  upload_limit: number
+  used_uploads: number
+  remaining_uploads: number
+  cycle_start: string
+  cycle_end: string
 }
 
 Deno.serve(async (req) => {
@@ -65,7 +75,42 @@ Deno.serve(async (req) => {
   // Server-side trim — if user picked a start offset, we'll clip after upload
   const startTimeSeconds = Math.max(0, Number(body.start_time_seconds) || 0)
 
-  // 4. Request a direct upload URL from Cloudflare
+  // 4. Reserve this upload against the user's plan before Cloudflare is touched.
+  // This protects Stream usage even if the user records/uploads repeatedly.
+  const { data: quotaRows, error: quotaErr } = await admin.rpc('reserve_creator_upload_quota', {
+    p_user_id: user.id,
+  })
+  const quota = (Array.isArray(quotaRows) ? quotaRows[0] : quotaRows) as UploadQuotaReservation | undefined
+
+  if (quotaErr || !quota?.event_id) {
+    const msg = quotaErr?.message || 'Failed to reserve upload quota'
+    if (msg.includes('PLAN_UPLOAD_LIMIT_REACHED')) {
+      return errorResponse(
+        'You reached your plan upload limit for this 30-day period.',
+        429,
+        'PLAN_UPLOAD_LIMIT_REACHED'
+      )
+    }
+
+    console.error('[creator-upload-url] quota reservation error:', quotaErr)
+    return errorResponse('Failed to check upload quota', 500, 'UPLOAD_QUOTA_CHECK_FAILED')
+  }
+  const quotaEventId = quota.event_id
+
+  const releaseQuotaReservation = async () => {
+    try {
+      await admin
+        .from('creator_upload_quota_events')
+        .delete()
+        .eq('id', quotaEventId)
+        .is('creator_video_id', null)
+        .is('cloudflare_uid', null)
+    } catch (err) {
+      console.warn('[creator-upload-url] failed to release quota reservation:', err)
+    }
+  }
+
+  // 5. Request a direct upload URL from Cloudflare
   let upload
   try {
     upload = await createDirectUpload({
@@ -77,6 +122,8 @@ Deno.serve(async (req) => {
       },
     })
   } catch (err) {
+    await releaseQuotaReservation()
+
     const errMsg = (err as Error).message || 'unknown error'
     console.error('[creator-upload-url] Cloudflare error:', errMsg)
 
@@ -96,7 +143,12 @@ Deno.serve(async (req) => {
     )
   }
 
-  // 5. Persist the creator_videos row in 'uploading' state
+  await admin
+    .from('creator_upload_quota_events')
+    .update({ cloudflare_uid: upload.uid })
+    .eq('id', quotaEventId)
+
+  // 6. Persist the creator_videos row in 'uploading' state
   // We use service role to bypass the role-check policy (we already verified above).
   const { data: row, error: insertErr } = await admin
     .from('creator_videos')
@@ -120,9 +172,22 @@ Deno.serve(async (req) => {
     return errorResponse('Failed to record upload', 500, 'DB_INSERT_FAILED')
   }
 
+  await admin
+    .from('creator_upload_quota_events')
+    .update({ creator_video_id: row.id, cloudflare_uid: upload.uid })
+    .eq('id', quotaEventId)
+
   return jsonResponse({
     upload_url: upload.uploadURL,
     creator_video_id: row.id,
     cloudflare_uid: row.cloudflare_uid,
+    upload_quota: {
+      plan_code: quota.plan_code,
+      limit: quota.upload_limit,
+      used: quota.used_uploads,
+      remaining: quota.remaining_uploads,
+      cycle_start: quota.cycle_start,
+      cycle_end: quota.cycle_end,
+    },
   })
 })

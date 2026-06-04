@@ -158,6 +158,12 @@ export default function SubscriptionManagement({ sub }: Props) {
                   <span>{t('subscription.features.anytime', { minutes: currentPlan.daily_time_minutes })}</span>
                 </div>
               )}
+              {currentPlan?.max_creator_uploads_per_30_days && (
+                <div className="flex items-center gap-3 text-sm">
+                  <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0" />
+                  <span>{t('subscription.features.creatorUploads', { count: currentPlan.max_creator_uploads_per_30_days })}</span>
+                </div>
+              )}
             </div>
           </div>
         )}
