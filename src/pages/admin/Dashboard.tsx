@@ -18,22 +18,41 @@ import {
 } from 'lucide-react'
 import AdminLayout from '@/components/AdminLayout'
 import { useAdminStats } from '@/hooks/useFeed'
+import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
+
+// ── Active-users counter ────────────────────────────────────────────────
+// Reads count_active_users() (5-minute window). Refetches every 30s so the
+// number stays meaningful without hammering the DB. Errors silently fall
+// back to 0 so the dashboard never shows a broken state to admins.
+function useActiveUsers() {
+  return useQuery({
+    queryKey: ['admin-active-users'],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('count_active_users', { p_window_minutes: 5 })
+      if (error) return 0
+      return Number(data) || 0
+    },
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+    staleTime: 15_000,
+  })
+}
 
 export default function AdminDashboard() {
   const { t } = useTranslation()
   const { data: stats, isLoading } = useAdminStats()
+  const { data: activeUsers = 0 } = useActiveUsers()
 
   const cards: Array<{
-    key: 'users' | 'creators' | 'children' | 'playlists' | 'pendingReview' | 'approvedCreator' | 'suggested' | 'reports'
+    key: 'users' | 'children' | 'playlists' | 'pendingReview' | 'approvedCreator' | 'suggested' | 'reports'
     value: number | undefined
     icon: typeof UsersIcon
     color: string
     href?: string
   }> = [
     { key: 'users', value: stats?.totalUsers, icon: UsersIcon, color: 'text-blue-600 bg-blue-50' },
-    { key: 'creators', value: stats?.totalCreators, icon: Sparkles, color: 'text-purple-600 bg-purple-50' },
     { key: 'children', value: stats?.totalChildren, icon: Baby, color: 'text-pink-600 bg-pink-50' },
     { key: 'playlists', value: stats?.totalPlaylists, icon: ListMusic, color: 'text-cyan-600 bg-cyan-50' },
     { key: 'pendingReview', value: stats?.pendingReview, icon: Clock, color: 'text-amber-600 bg-amber-50', href: '/admin/moderation' },
@@ -45,12 +64,27 @@ export default function AdminDashboard() {
   return (
     <AdminLayout>
       <div className="max-w-6xl">
-        <header className="mb-8">
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <ShieldCheck className="w-8 h-8 text-primary" />
-            {t('admin.dashboard.title')}
-          </h1>
-          <p className="text-neutral-700 mt-1">{t('admin.dashboard.welcome')}</p>
+        <header className="mb-8 flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="text-3xl font-bold flex items-center gap-2">
+              <ShieldCheck className="w-8 h-8 text-primary" />
+              {t('admin.dashboard.title')}
+            </h1>
+            <p className="text-neutral-700 mt-1">{t('admin.dashboard.welcome')}</p>
+          </div>
+
+          {/* Active-now badge: green pulsing dot + live user count.
+              Re-renders every 30s from useActiveUsers. */}
+          <div className="flex items-center gap-2 px-3 py-2 rounded-full bg-green-50 border border-green-200 shrink-0">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500" />
+            </span>
+            <span className="text-sm font-semibold text-green-800 tabular-nums">
+              {activeUsers.toLocaleString()}
+            </span>
+            <span className="text-xs text-green-700">{t('admin.dashboard.activeNow', 'Active now')}</span>
+          </div>
         </header>
 
         {/* Stats grid */}
