@@ -285,21 +285,23 @@ export default function AdminRevenue() {
                     />
                     <YAxis tick={{ fontSize: 11 }} stroke="#9ca3af" allowDecimals={false} />
                     <Tooltip
-                      formatter={(v: any, name: string) => {
-                        if (name === 'revenue') return [fmtMoney(v), ar ? 'الإيرادات' : 'Revenue']
-                        if (name === 'monthly_count') return [v, ar ? 'شهري' : 'Monthly']
-                        if (name === 'yearly_count')  return [v, ar ? 'سنوي'  : 'Yearly']
-                        return [v, name]
+                      formatter={(v: any, name: any) => {
+                        const key = String(name ?? '')
+                        if (key === 'revenue')       return [fmtMoney(v), ar ? 'الإيرادات' : 'Revenue']
+                        if (key === 'monthly_count') return [v, ar ? 'شهري' : 'Monthly']
+                        if (key === 'yearly_count')  return [v, ar ? 'سنوي' : 'Yearly']
+                        return [v, key]
                       }}
-                      labelFormatter={(v) => v}
+                      labelFormatter={(v) => String(v)}
                     />
                     <Legend
-                      formatter={(value: string) =>
-                        value === 'monthly_count' ? (ar ? 'شهري' : 'Monthly') :
-                        value === 'yearly_count'  ? (ar ? 'سنوي'  : 'Yearly') :
-                        value === 'revenue'       ? (ar ? 'الإيرادات' : 'Revenue') :
-                        value
-                      }
+                      formatter={(value: any) => {
+                        const key = String(value ?? '')
+                        if (key === 'monthly_count') return ar ? 'شهري' : 'Monthly'
+                        if (key === 'yearly_count')  return ar ? 'سنوي' : 'Yearly'
+                        if (key === 'revenue')       return ar ? 'الإيرادات' : 'Revenue'
+                        return key
+                      }}
                     />
                     <Line type="monotone" dataKey="monthly_count" stroke="#03BBE5" strokeWidth={2} dot={false} />
                     <Line type="monotone" dataKey="yearly_count"  stroke="#F96286" strokeWidth={2} dot={false} />
