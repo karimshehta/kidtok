@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import toast from 'react-hot-toast'
 import {
   TrendingUp,
   Calendar,
@@ -11,6 +12,8 @@ import {
   Loader2,
   ChevronLeft,
   ChevronRight,
+  Trash2,
+  X,
 } from 'lucide-react'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -76,10 +79,12 @@ const PROVIDER_COLOR: Record<string, string> = {
 export default function AdminRevenue() {
   const { i18n } = useTranslation()
   const ar = i18n.language === 'ar'
+  const qc = useQueryClient()
 
   const [quick, setQuick]   = useState<QuickRange>('30d')
   const [from, setFrom]     = useState<Date>(() => rangeFor('30d').from)
   const [to,   setTo]       = useState<Date>(() => rangeFor('30d').to)
+  const [confirmClean, setConfirmClean] = useState(false)
 
   const applyQuick = (q: QuickRange) => {
     const r = rangeFor(q)
@@ -107,6 +112,40 @@ export default function AdminRevenue() {
       })
       if (error) throw error
       return data as any
+    },
+  })
+
+  // ── Clean pending mutation ──────────────────────────────────────────
+  // Calls admin_delete_pending_subscriptions scoped to the current date
+  // window. Grace period 60min (server side) so a Paymob callback that's
+  // running slow can't be killed mid-flight. On success we invalidate
+  // the analytics + recent-subs caches so the page refreshes instantly.
+  const cleanPending = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.rpc('admin_delete_pending_subscriptions', {
+        p_from: fromIso,
+        p_to:   toIso,
+        p_grace_minutes: 60,
+      })
+      if (error) throw error
+      return data as { deleted: number; grace_minutes: number }
+    },
+    onSuccess: (res) => {
+      setConfirmClean(false)
+      toast.success(
+        ar
+          ? `🧹 تم حذف ${res.deleted} اشتراك معلق`
+          : `🧹 Deleted ${res.deleted} pending subscriptions`
+      )
+      qc.invalidateQueries({ queryKey: ['admin-subscription-analytics'] })
+      qc.invalidateQueries({ queryKey: ['admin-recent-subscriptions'] })
+    },
+    onError: (err: any) => {
+      toast.error(
+        ar
+          ? `فشل الحذف: ${err?.message || 'خطأ'}`
+          : `Delete failed: ${err?.message || 'error'}`
+      )
     },
   })
 
@@ -277,10 +316,26 @@ export default function AdminRevenue() {
 
             {/* ── Status breakdown ──────────────────────────────── */}
             <div className="bg-white rounded-2xl border border-neutral-200 p-5 mb-6">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="font-bold text-lg">
-                  {ar ? 'تفصيل حالات الاشتراك' : 'Status Breakdown'}
-                </h2>
+              <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
+                <div className="flex items-center gap-3">
+                  <h2 className="font-bold text-lg">
+                    {ar ? 'تفصيل حالات الاشتراك' : 'Status Breakdown'}
+                  </h2>
+                  {/* Clean Pending button — only shown when there's
+                      something to clean. Opens a confirm modal first; the
+                      actual DELETE only runs after the admin re-confirms
+                      with the count visible. */}
+                  {pendingCount > 0 && (
+                    <button
+                      onClick={() => setConfirmClean(true)}
+                      disabled={cleanPending.isPending}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 hover:bg-amber-200 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      {ar ? `حذف الـ ${pendingCount} معلق` : `Clean ${pendingCount} pending`}
+                    </button>
+                  )}
+                </div>
                 <span className="text-xs text-neutral-500">
                   {ar ? 'الإيرادات تشمل: ' : 'Revenue includes: '}
                   <span className="font-semibold">active + expired + cancelled</span>
@@ -468,6 +523,89 @@ export default function AdminRevenue() {
           </>
         )}
       </div>
+
+      {/* ── Confirm Clean Pending modal ───────────────────────── */}
+      {confirmClean && (
+        <div
+          className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+          onClick={() => !cleanPending.isPending && setConfirmClean(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
+                  <Trash2 className="w-5 h-5 text-amber-700" />
+                </div>
+                <h3 className="text-lg font-bold">
+                  {ar ? 'حذف الاشتراكات المعلقة' : 'Delete Pending Subscriptions'}
+                </h3>
+              </div>
+              <button
+                onClick={() => !cleanPending.isPending && setConfirmClean(false)}
+                className="p-1 rounded-lg hover:bg-neutral-100"
+                aria-label="Close"
+              >
+                <X className="w-5 h-5 text-neutral-500" />
+              </button>
+            </div>
+
+            <p className="text-sm text-neutral-700 mb-4">
+              {ar
+                ? `هل تريد حذف الاشتراكات المعلقة (~${pendingCount}) في الفترة المعروضة؟ هذه عمليات اشتراك بدأها المستخدمون لكن لم يكملوا الدفع في Paymob.`
+                : `Delete the pending subscriptions (~${pendingCount}) in the current date range? These are checkouts users started but never completed on Paymob.`}
+            </p>
+
+            {/* Rules — clear visual list of what we will and won't touch */}
+            <ul className="text-xs text-neutral-600 bg-neutral-50 rounded-xl p-3 space-y-1.5 mb-5">
+              <li className="flex items-start gap-2">
+                <span className="text-green-600 mt-0.5">✓</span>
+                <span>{ar
+                  ? `يحذف الـ pending فقط في الفترة من ${toYmd(from)} إلى ${toYmd(to)}`
+                  : `Deletes pending only — in range ${toYmd(from)} to ${toYmd(to)}`}</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-green-600 mt-0.5">✓</span>
+                <span>{ar
+                  ? 'يتجاهل أي صف أحدث من ساعة (احتياط في حالة تأخر Paymob)'
+                  : 'Skips any row younger than 1 hour (in case Paymob is slow)'}</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-red-500 mt-0.5">✗</span>
+                <span>{ar
+                  ? 'لا يمس active / expired / cancelled (المدفوع لا يُحذف)'
+                  : 'Never touches active / expired / cancelled (paid is safe)'}</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-red-500 mt-0.5">⚠</span>
+                <span className="font-semibold text-red-700">
+                  {ar ? 'الحذف نهائي ولا يمكن التراجع' : 'Deletion is permanent and cannot be undone'}
+                </span>
+              </li>
+            </ul>
+
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setConfirmClean(false)}
+                disabled={cleanPending.isPending}
+                className="px-4 py-2 rounded-lg border border-neutral-200 text-neutral-700 hover:bg-neutral-50 disabled:opacity-60"
+              >
+                {ar ? 'إلغاء' : 'Cancel'}
+              </button>
+              <button
+                onClick={() => cleanPending.mutate()}
+                disabled={cleanPending.isPending}
+                className="px-4 py-2 rounded-lg bg-red-600 text-white font-semibold hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-2"
+              >
+                {cleanPending.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                {ar ? 'نعم، احذف الكل' : 'Yes, delete all'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AdminLayout>
   )
 }
