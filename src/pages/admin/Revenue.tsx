@@ -113,9 +113,21 @@ export default function AdminRevenue() {
   const summary    = data?.summary    || {}
   const byPlan     = (data?.by_plan     || []) as any[]
   const byProvider = (data?.by_provider || []) as any[]
+  const byStatus   = (data?.by_status   || []) as any[]
   const timeseries = (data?.timeseries  || []) as any[]
   const activeNow  = data?.active_now  || {}
   const currency   = summary.currency || 'EGP'
+
+  // Status totals — used by the breakdown widget. Pending is the
+  // important one: those are abandoned checkouts (user tapped Subscribe
+  // but never completed Paymob) and a high count means the payment
+  // flow is leaking.
+  const statusCount = (s: string) =>
+    Number((byStatus.find((r: any) => r.status === s)?.count) || 0)
+  const pendingCount   = statusCount('pending')
+  const activeCount    = statusCount('active')
+  const cancelledCount = statusCount('cancelled')
+  const expiredCount   = statusCount('expired')
 
   // Format helpers
   const fmtMoney = (n: number) => `${currency} ${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
@@ -261,6 +273,56 @@ export default function AdminRevenue() {
                   />
                 </div>
               </div>
+            </div>
+
+            {/* ── Status breakdown ──────────────────────────────── */}
+            <div className="bg-white rounded-2xl border border-neutral-200 p-5 mb-6">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="font-bold text-lg">
+                  {ar ? 'تفصيل حالات الاشتراك' : 'Status Breakdown'}
+                </h2>
+                <span className="text-xs text-neutral-500">
+                  {ar ? 'الإيرادات تشمل: ' : 'Revenue includes: '}
+                  <span className="font-semibold">active + expired + cancelled</span>
+                </span>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <StatusTile
+                  label={ar ? 'نشط' : 'Active'}
+                  value={activeCount}
+                  tone="green"
+                  hint={ar ? 'يدفع حالياً' : 'paying now'}
+                />
+                <StatusTile
+                  label={ar ? 'منتهٍ' : 'Expired'}
+                  value={expiredCount}
+                  tone="neutral"
+                  hint={ar ? 'دفع سابقاً' : 'past paying'}
+                />
+                <StatusTile
+                  label={ar ? 'ملغي' : 'Cancelled'}
+                  value={cancelledCount}
+                  tone="blue"
+                  hint={ar ? 'دفع ثم ألغى' : 'paid + cancelled'}
+                />
+                <StatusTile
+                  label={ar ? 'معلق' : 'Pending'}
+                  value={pendingCount}
+                  tone={pendingCount > 0 ? 'amber' : 'neutral'}
+                  hint={ar ? 'مهجور — لم يدفع' : 'abandoned, no payment'}
+                  warn={pendingCount > 0}
+                />
+              </div>
+              {pendingCount > 0 && (
+                <p className="text-xs text-amber-700 mt-3 flex items-start gap-1.5">
+                  <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                  <span>
+                    {ar
+                      ? `${pendingCount} اشتراك معلق — اليوزر داس "اشترك" لكن لم يكمل الدفع في Paymob. هذه الصفوف لا تحتسب في الإيرادات.`
+                      : `${pendingCount} pending subscriptions — users tapped "Subscribe" but didn't complete Paymob payment. These are NOT counted in revenue.`}
+                  </span>
+                </p>
+              )}
             </div>
 
             {/* ── Timeseries chart (full width) ───────────────────── */}
@@ -442,6 +504,36 @@ function Inline({ label, value, tone }: { label: string; value: string; tone?: '
 function EmptyState({ label }: { label: string }) {
   return (
     <div className="text-center py-10 text-neutral-400 text-sm">{label}</div>
+  )
+}
+
+function StatusTile({ label, value, tone, hint, warn }: {
+  label: string
+  value: number
+  tone: 'green' | 'blue' | 'amber' | 'neutral'
+  hint?: string
+  warn?: boolean
+}) {
+  const toneClasses: Record<typeof tone, string> = {
+    green:   'bg-green-50 border-green-200 text-green-900',
+    blue:    'bg-blue-50 border-blue-200 text-blue-900',
+    amber:   'bg-amber-50 border-amber-200 text-amber-900',
+    neutral: 'bg-neutral-50 border-neutral-200 text-neutral-900',
+  }
+  return (
+    <div className={cn(
+      'rounded-xl border p-3',
+      toneClasses[tone],
+      warn && 'ring-2 ring-amber-300',
+    )}>
+      <div className="text-xs font-medium opacity-80">{label}</div>
+      <div className="text-2xl font-bold tabular-nums mt-0.5">
+        {value.toLocaleString()}
+      </div>
+      {hint && (
+        <div className="text-[10px] opacity-70 mt-0.5">{hint}</div>
+      )}
+    </div>
   )
 }
 
