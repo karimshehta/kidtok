@@ -38,6 +38,7 @@ const AdminContent     = lazy(() => import('@/pages/admin/Content'))
 const AdminModeration  = lazy(() => import('@/pages/admin/Moderation'))
 const AdminUsers       = lazy(() => import('@/pages/admin/Users'))
 const AdminPlans       = lazy(() => import('@/pages/admin/Plans'))
+const AdminRevenue     = lazy(() => import('@/pages/admin/Revenue'))
 const AdminAds         = lazy(() => import('@/pages/admin/Ads'))
 const AdminSocial      = lazy(() => import('@/pages/admin/Social'))
 const AdminAppVersion  = lazy(() => import('@/pages/admin/AppVersion'))
@@ -109,6 +110,7 @@ export default function App() {
         <Route path="/admin/moderation" element={<AdminModeration />} />
         <Route path="/admin/users" element={<AdminUsers />} />
         <Route path="/admin/plans" element={<AdminPlans />} />
+        <Route path="/admin/revenue" element={<AdminRevenue />} />
         <Route path="/admin/ads" element={<AdminAds />} />
         <Route path="/admin/social" element={<AdminSocial />} />
         <Route path="/admin/app-version" element={<AdminAppVersion />} />

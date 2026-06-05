@@ -19,6 +19,7 @@ import {
   Smartphone,
   Shield,
   Bell,
+  TrendingUp,
 } from 'lucide-react'
 import { useUserRole } from '@/hooks/useCreator'
 import { useAuth } from '@/stores/auth'
@@ -60,6 +61,7 @@ export default function AdminLayout({ children }: Props) {
     { to: '/admin/moderation', label: t('admin.nav.moderation'), icon: ShieldCheck },
     { to: '/admin/users', label: t('admin.nav.users'), icon: UsersIcon },
     { to: '/admin/plans', label: t('admin.nav.plans'), icon: CreditCard },
+    { to: '/admin/revenue', label: 'Revenue', icon: TrendingUp },
     { to: '/admin/ads', label: t('admin.nav.ads'), icon: Megaphone },
     { to: '/admin/social', label: 'Social Media', icon: Share2 },
     { to: '/admin/app-version', label: t('admin.nav.appVersion'), icon: Smartphone },
