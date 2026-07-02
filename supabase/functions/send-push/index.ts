@@ -106,64 +106,81 @@ Deno.serve(async (req) => {
     }
 
     // ── Fetch matching push tokens ────────────────────────────────────
-    let q = admin
+    // NOTE: PostgREST caps un-paginated SELECT at ~1000 rows. Without
+    // explicit pagination, this used to return only the first 1000
+    // tokens even when 5,000+ existed — which is why past sends
+    // reported ~900 delivered on a base of 5,641 devices. We now
+    // paginate through every matching row.
+    const buildTokenQuery = () => admin
       .from('push_tokens')
       .select('expo_token, language, user_id')
       .eq('is_active', true)
 
+    let tokenFilter: 'none' | 'language' | 'user' | 'in' | 'free' = 'none'
+    let tokenFilterValue: any = null
+
     if (target_type === 'language' && target_value) {
-      q = q.eq('language', target_value === 'en' ? 'en' : 'ar')
+      tokenFilter = 'language'
+      tokenFilterValue = target_value === 'en' ? 'en' : 'ar'
     } else if (target_type === 'user' && target_value) {
-      q = q.eq('user_id', target_value)
+      tokenFilter = 'user'
+      tokenFilterValue = target_value
     } else if (target_type === 'role' && target_value) {
-      // Get user_ids with this role first
-      const { data: users } = await admin
-        .from('profiles')
-        .select('id')
-        .eq('role', target_value)
-      const ids = (users || []).map((u: any) => u.id)
+      // Get user_ids with this role first (also paginated — role tables
+      // can be small but we paginate for safety)
+      const users = await fetchAll((from, to) =>
+        admin.from('profiles').select('id').eq('role', target_value).range(from, to)
+      )
+      const ids = users.map((u: any) => u.id)
       if (ids.length === 0) {
         await admin.from('notification_history').update({
           status: 'sent', sent_count: 0, sent_at: new Date().toISOString(),
         }).eq('id', history.id)
         return json({ ok: true, sent: 0, message: 'No users with that role' })
       }
-      q = q.in('user_id', ids)
+      tokenFilter = 'in'
+      tokenFilterValue = ids
     } else if (target_type === 'subscribed') {
-      const { data: subs } = await admin
-        .from('subscriptions')
-        .select('user_id')
-        .eq('status', 'active')
-        .gt('expires_at', new Date().toISOString())
-      const ids = [...new Set((subs || []).map((s: any) => s.user_id))]
+      const subs = await fetchAll((from, to) =>
+        admin.from('subscriptions').select('user_id')
+          .eq('status', 'active')
+          .gt('expires_at', new Date().toISOString())
+          .range(from, to)
+      )
+      const ids = [...new Set(subs.map((s: any) => s.user_id))]
       if (ids.length === 0) {
         await admin.from('notification_history').update({
           status: 'sent', sent_count: 0, sent_at: new Date().toISOString(),
         }).eq('id', history.id)
         return json({ ok: true, sent: 0, message: 'No subscribed users' })
       }
-      q = q.in('user_id', ids)
+      tokenFilter = 'in'
+      tokenFilterValue = ids
     } else if (target_type === 'free') {
-      const { data: subs } = await admin
-        .from('subscriptions')
-        .select('user_id')
-        .eq('status', 'active')
-        .gt('expires_at', new Date().toISOString())
-      const subIds = new Set((subs || []).map((s: any) => s.user_id))
-      // We'll filter out subscribed users below in JS
-      const { data: allTokens } = await q
-      const filtered = (allTokens || []).filter((t: any) => !subIds.has(t.user_id))
+      const subs = await fetchAll((from, to) =>
+        admin.from('subscriptions').select('user_id')
+          .eq('status', 'active')
+          .gt('expires_at', new Date().toISOString())
+          .range(from, to)
+      )
+      const subIds = new Set(subs.map((s: any) => s.user_id))
+      const allTokens = await fetchAll((from, to) => buildTokenQuery().range(from, to))
+      const filtered = allTokens.filter((t: any) => !subIds.has(t.user_id))
       return await sendBatch(admin, history.id, filtered, {
         title_ar, body_ar, title_en, body_en, image_url, deep_link, data,
       })
     }
 
-    const { data: tokens, error: tokErr } = await q
-    if (tokErr) {
-      return json({ error: 'TOKEN_QUERY_FAILED', detail: tokErr.message }, 500)
-    }
+    // Fetch tokens (fully paginated — no more silent 1000-row cap)
+    const tokens = await fetchAll((from, to) => {
+      let q = buildTokenQuery().range(from, to)
+      if (tokenFilter === 'language') q = q.eq('language', tokenFilterValue)
+      else if (tokenFilter === 'user') q = q.eq('user_id', tokenFilterValue)
+      else if (tokenFilter === 'in') q = q.in('user_id', tokenFilterValue)
+      return q
+    })
 
-    return await sendBatch(admin, history.id, tokens || [], {
+    return await sendBatch(admin, history.id, tokens, {
       title_ar, body_ar, title_en, body_en, image_url, deep_link, data,
     })
   } catch (err) {
@@ -241,10 +258,10 @@ async function sendBatch(
         if (tk?.status === 'ok') sent++
         else {
           failed++
-          // DeviceNotRegistered / InvalidCredentials → permanently dead.
-          // Mark inactive so we never waste another push on it.
+          // Any of the dead-token error codes → deactivate so we
+          // never waste another push on this token.
           const errCode = tk?.details?.error
-          if (errCode === 'DeviceNotRegistered' || errCode === 'InvalidCredentials') {
+          if (errCode && DEAD_TOKEN_ERRORS.has(errCode)) {
             const deadTo = chunk[j]?.to
             if (typeof deadTo === 'string' && deadTo) deadTokens.push(deadTo)
           }
@@ -302,3 +319,49 @@ function json(body: unknown, status = 200): Response {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })
 }
+
+/**
+ * Paginate through a Supabase query, gathering every row.
+ *
+ * PostgREST caps un-paginated selects at ~1000 rows. Any table that
+ * grows past that ceiling (push_tokens, notification_history, etc.)
+ * silently truncates results without pagination. This helper walks
+ * page-by-page in 1000-row windows until it sees a short page or an
+ * error, then returns the full set.
+ */
+async function fetchAll<T = any>(
+  makeQuery: (from: number, to: number) => any,
+  pageSize = 1000,
+): Promise<T[]> {
+  const out: T[] = []
+  let from = 0
+  // Hard ceiling — refuses to try more than 200k rows to avoid runaway
+  // loops. Push_tokens rarely goes past 100k for KidTok's scale; if we
+  // ever cross this we'll notice from the log and paginate on read.
+  const maxPages = 200
+  for (let page = 0; page < maxPages; page++) {
+    const to = from + pageSize - 1
+    const { data, error } = await makeQuery(from, to)
+    if (error) {
+      console.error('[fetchAll] error at page', page, error)
+      break
+    }
+    if (!data || data.length === 0) break
+    out.push(...data)
+    if (data.length < pageSize) break
+    from += pageSize
+  }
+  return out
+}
+
+/**
+ * Expo returns a handful of ticket-level error codes that all mean the
+ * token is dead and should never be pushed again. Kept as a single set
+ * so we deactivate on any of them, not just the two most common.
+ */
+const DEAD_TOKEN_ERRORS = new Set([
+  'DeviceNotRegistered',
+  'InvalidCredentials',
+  'MismatchSenderId',
+  'MessageTooBig',
+])
