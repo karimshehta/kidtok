@@ -19,7 +19,7 @@ declare
   v_new_tier  int;
   v_milestone int;
 begin
-  if new.follower_count is null or coalesce(old.follower_count, 0) >= new.follower_count then
+  if new.followers_count is null or coalesce(old.followers_count, 0) >= new.followers_count then
     return new;
   end if;
 
@@ -31,8 +31,8 @@ begin
     return new;
   end if;
 
-  v_old_tier := floor(coalesce(old.follower_count, 0) / v_step::float)::int;
-  v_new_tier := floor(new.follower_count / v_step::float)::int;
+  v_old_tier := floor(coalesce(old.followers_count, 0) / v_step::float)::int;
+  v_new_tier := floor(new.followers_count / v_step::float)::int;
   if v_new_tier <= v_old_tier or v_new_tier = 0 then
     return new;
   end if;
@@ -54,7 +54,7 @@ begin
     jsonb_build_object(
       'milestone',      v_milestone,
       'step',           v_step,
-      'follower_count', new.follower_count,
+      'followers_count', new.followers_count,
       'kind',           'follower_milestone'
     )
   );
@@ -67,5 +67,5 @@ $$;
 
 drop trigger if exists trg_notify_follower_milestone on public.profiles;
 create trigger trg_notify_follower_milestone
-  after update of follower_count on public.profiles
+  after update of followers_count on public.profiles
   for each row execute function public.notify_follower_milestone();
