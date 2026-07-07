@@ -16,6 +16,8 @@ import {
   Rocket,
   Clock,
   Undo2,
+  Bell,
+  Sparkles,
 } from 'lucide-react'
 import AdminLayout from '@/components/AdminLayout'
 import { supabase } from '@/lib/supabase'
@@ -35,6 +37,8 @@ interface AutomationSettings {
   engagement_boost_view_cap:    number
   engagement_boost_like_cap:    number
   engagement_boost_max_age_days: number
+  follower_milestone_enabled:   boolean
+  follower_milestone_step:      number
 }
 
 interface AutomationStatus {
@@ -325,6 +329,71 @@ export default function AdminAutomation() {
               : 'Videos older than this are skipped'}
           />
         </BoostCard>
+
+        {/* ── Follower milestone notifications ─────────────── */}
+        <div className={cn(
+          'rounded-2xl border p-5 space-y-4',
+          form.follower_milestone_enabled ? 'border-primary/30 bg-white' : 'border-neutral-300 bg-neutral-100/50',
+        )}>
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <div className={cn(
+                'w-10 h-10 rounded-xl flex items-center justify-center',
+                form.follower_milestone_enabled ? 'bg-primary text-white' : 'bg-neutral-300 text-neutral-700',
+              )}>
+                <Bell className="w-6 h-6" />
+              </div>
+              <div>
+                <h2 className="font-semibold text-lg">
+                  {ar ? 'إشعارات المتابعين' : 'Milestone Notifications'}
+                </h2>
+                <p className="text-sm text-neutral-700">
+                  {ar
+                    ? 'إرسال إشعار للمنشئ كلما وصل عدد متابعينه لمضاعفات رقم معين'
+                    : 'Send a cheerful push whenever a user hits a follower milestone'}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => toggleFlag('follower_milestone_enabled' as any)}
+              className={cn(
+                'flex items-center gap-2 px-3 py-2 rounded-xl font-medium text-sm transition',
+                form.follower_milestone_enabled ? 'bg-primary text-white' : 'bg-neutral-300 text-neutral-700',
+              )}
+            >
+              {form.follower_milestone_enabled ? <ToggleRight className="w-5 h-5" /> : <ToggleLeft className="w-5 h-5" />}
+              {form.follower_milestone_enabled ? (ar ? 'شغال' : 'On') : (ar ? 'موقوف' : 'Off')}
+            </button>
+          </div>
+
+          <NumberField
+            label={ar ? 'الإشعار كل كام متابع؟' : 'Fire at every N followers'}
+            value={form.follower_milestone_step ?? 20}
+            onChange={(v) => set('follower_milestone_step', v)}
+            min={5} max={1000}
+            hint={ar
+              ? 'يعني: يوصله إشعار عند 20، 40، 60، 80... وهكذا'
+              : 'e.g. 20 → user pings at 20, 40, 60, 80...'}
+          />
+
+          {/* Preview */}
+          <div className="rounded-xl bg-gradient-to-br from-primary/10 to-secondary/10 border border-primary/20 p-4">
+            <div className="flex items-center gap-2 text-xs text-neutral-700 mb-2">
+              <Sparkles className="w-3.5 h-3.5" />
+              {ar ? 'شكل الإشعار عند اليوزر' : 'What the user sees'}
+            </div>
+            <div className="font-semibold text-sm mb-1">
+              {ar
+                ? `🎉 مبروك يا نجم! ${form.follower_milestone_step ?? 20} متابع 🌟`
+                : `🎉 ${form.follower_milestone_step ?? 20} followers! You're on fire 🌟`}
+            </div>
+            <div className="text-xs text-neutral-700 leading-relaxed">
+              {ar
+                ? `✨ عندك ${form.follower_milestone_step ?? 20} متابع بينتظر محتواك! انشر فيديوهات جديدة عشان تجذب أكتر ولا تفوّت شعبيتك 💫🚀`
+                : `✨ ${form.follower_milestone_step ?? 20} fans are waiting for your next post! Share new videos to grow your audience even more 💫🚀`}
+            </div>
+          </div>
+        </div>
 
         {/* Save button — sticks to the bottom while dirty */}
         {dirty && (
