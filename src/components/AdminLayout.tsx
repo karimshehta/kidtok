@@ -20,6 +20,7 @@ import {
   Shield,
   Bell,
   TrendingUp,
+  Zap,
 } from 'lucide-react'
 import { useUserRole } from '@/hooks/useCreator'
 import { useAuth } from '@/stores/auth'
@@ -67,6 +68,7 @@ export default function AdminLayout({ children }: Props) {
     { to: '/admin/app-version', label: t('admin.nav.appVersion'), icon: Smartphone },
     { to: '/admin/security', label: t('admin.nav.security'), icon: Shield },
     { to: '/admin/notifications', label: t('admin.nav.notifications'), icon: Bell },
+    { to: '/admin/automation', label: i18n.language === 'ar' ? 'الأتمتة' : 'Automation', icon: Zap },
     { to: '/admin/reference', label: t('admin.nav.reference'), icon: Tags },
     { to: '/admin/reports', label: t('admin.nav.reports'), icon: Flag },
   ]
