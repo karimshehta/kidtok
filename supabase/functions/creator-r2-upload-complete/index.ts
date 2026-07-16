@@ -5,13 +5,17 @@
 
 import { handlePreflight, jsonResponse, errorResponse } from '../_shared/cors.ts'
 import { getServiceClient, requireUser } from '../_shared/supabase.ts'
-import { headR2Object } from '../_shared/r2.ts'
+import { createR2PresignedUpload, headR2Object } from '../_shared/r2.ts'
 
 interface CompleteRequest {
   creator_video_id?: string
   duration_seconds?: number
   size_bytes?: number
+  thumbnail_base64?: string
+  thumbnail_mime?: string
 }
+
+const MAX_THUMBNAIL_BYTES = 1_500_000
 
 Deno.serve(async (req) => {
   const preflight = handlePreflight(req)
@@ -95,6 +99,21 @@ Deno.serve(async (req) => {
     patch.size_bytes = Math.round(verifiedSize)
   }
 
+  if (body.thumbnail_base64) {
+    try {
+      patch.thumbnail_url = await uploadThumbnailToR2({
+        creatorId: video.creator_id,
+        videoId: video.id,
+        base64: body.thumbnail_base64,
+        mime: body.thumbnail_mime,
+      })
+    } catch (err) {
+      // Thumbnail is helpful for the profile/feed grid, but it must not block
+      // publishing a successfully uploaded video.
+      console.warn('[creator-r2-upload-complete] thumbnail upload skipped:', err)
+    }
+  }
+
   const { error: updateErr } = await admin
     .from('creator_videos')
     .update(patch)
@@ -111,5 +130,61 @@ Deno.serve(async (req) => {
     ok: true,
     creator_video_id: video.id,
     public_url: video.r2_public_url,
+    thumbnail_url: patch.thumbnail_url || null,
   })
 })
+
+async function uploadThumbnailToR2(opts: {
+  creatorId: string
+  videoId: string
+  base64: string
+  mime?: string
+}): Promise<string> {
+  const mime = normalizeThumbnailMime(opts.mime)
+  const bytes = decodeBase64(opts.base64)
+  if (bytes.length === 0) throw new Error('thumbnail is empty')
+  if (bytes.length > MAX_THUMBNAIL_BYTES) {
+    throw new Error(`thumbnail too large: ${bytes.length} bytes`)
+  }
+
+  const extension = extensionForMime(mime)
+  const upload = await createR2PresignedUpload({
+    key: `creator-thumbnails/${opts.creatorId}/${opts.videoId}.${extension}`,
+    expiresSeconds: 300,
+  })
+  const res = await fetch(upload.uploadUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': mime, 'Cache-Control': 'public, max-age=31536000, immutable' },
+    body: bytes,
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`thumbnail R2 upload failed: ${res.status} ${text}`)
+  }
+  return upload.publicUrl
+}
+
+function decodeBase64(value: string): Uint8Array {
+  const clean = value
+    .replace(/^data:[^;]+;base64,/, '')
+    .replace(/\s/g, '')
+  const binary = atob(clean)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i)
+  }
+  return bytes
+}
+
+function normalizeThumbnailMime(mime?: string): 'image/jpeg' | 'image/png' | 'image/webp' {
+  const normalized = String(mime || '').toLowerCase()
+  if (normalized === 'image/png') return 'image/png'
+  if (normalized === 'image/webp') return 'image/webp'
+  return 'image/jpeg'
+}
+
+function extensionForMime(mime: 'image/jpeg' | 'image/png' | 'image/webp'): 'jpg' | 'png' | 'webp' {
+  if (mime === 'image/png') return 'png'
+  if (mime === 'image/webp') return 'webp'
+  return 'jpg'
+}
