@@ -224,6 +224,18 @@ export default function AdminAds() {
               min={0}
               max={60}
             />
+            <Field
+              label="Rewarded prompt after feed swipes"
+              hint="Mobile feed only: show a rewarded-ad gate after N swipes in For You, Suggested, or Following. 0 = disabled."
+              value={form['rewarded_ad_after_swipes'] || '0'}
+              onChange={(v) => set('rewarded_ad_after_swipes', v)}
+              type="number"
+              min={0}
+              max={100}
+            />
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+              Rewarded ads must remain opt-in under AdMob policy. For a truly forced ad break, use the interstitial frequency below instead.
+            </div>
 
             {/* ─── Interstitial Frequency ─── */}
             <div className="pt-2 border-t border-neutral-200">
