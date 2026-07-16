@@ -62,6 +62,15 @@ inspector_port = 8083
 [functions.creator-upload-url]
 verify_jwt = true
 
+[functions.avatar-upload-url]
+verify_jwt = true
+
+[functions.avatar-reward]
+verify_jwt = true
+
+[functions.avatar-upload-cancel]
+verify_jwt = true
+
 # Cloudflare webhook: called by Cloudflare (server-to-server with HMAC),
 # no JWT involved. Signature is verified inside the function.
 [functions.creator-cloudflare-webhook]
