@@ -178,6 +178,23 @@ export default function AdminAds() {
           </p>
 
           <div className="space-y-3">
+            <div className="rounded-xl border border-violet-200 bg-violet-50 p-3">
+              <label className="block">
+                <span className="text-sm font-semibold block mb-0.5">Creator upload storage</span>
+                <span className="text-xs text-neutral-700 block mb-2">
+                  New mobile builds only. Keep Cloudflare until R2 secrets and public bucket URL are configured.
+                </span>
+                <select
+                  value={form['creator_upload_storage_provider'] || 'cloudflare'}
+                  onChange={(e) => set('creator_upload_storage_provider', e.target.value)}
+                  className="input-field"
+                  dir="ltr"
+                >
+                  <option value="cloudflare">cloudflare</option>
+                  <option value="r2">r2</option>
+                </select>
+              </label>
+            </div>
             <PlatformFields
               label="App IDs"
               androidKey="admob_android_app_id"

@@ -8,6 +8,7 @@
 
 import { handlePreflight, jsonResponse } from '../_shared/cors.ts'
 import { getServiceClient, requireUser } from '../_shared/supabase.ts'
+import { drainR2Queue } from '../_shared/r2.ts'
 
 function cf() {
   const accountId = Deno.env.get('CLOUDFLARE_ACCOUNT_ID')
@@ -55,7 +56,7 @@ Deno.serve(async (req) => {
     // Fetch the row + ownership check
     const { data: vid, error: findErr } = await admin
       .from('creator_videos')
-      .select('id, creator_id, cloudflare_uid, status')
+      .select('id, creator_id, cloudflare_uid, status, storage_provider, r2_key')
       .eq('id', videoId)
       .maybeSingle()
 
@@ -77,15 +78,13 @@ Deno.serve(async (req) => {
     // automatically when the videos row is deleted, so doing this first
     // avoids leaving orphan likes/comments that could trip up the next step.
     let mirrorDeleteErr: string | null = null
-    if (vid.cloudflare_uid) {
-      const { error } = await admin
-        .from('videos')
-        .delete()
-        .eq('cloudflare_uid', vid.cloudflare_uid)
-      if (error) {
-        console.error('mirror videos delete error:', error)
-        mirrorDeleteErr = error.message
-      }
+    const { error: mirrorError } = await admin
+      .from('videos')
+      .delete()
+      .eq('creator_video_id', videoId)
+    if (mirrorError) {
+      console.error('mirror videos delete error:', mirrorError)
+      mirrorDeleteErr = mirrorError.message
     }
 
     // ── Now delete the creator_videos row itself.
@@ -116,12 +115,19 @@ Deno.serve(async (req) => {
       }
     }
 
+    let r2Drain: any = null
+    if (vid.storage_provider === 'r2' && vid.r2_key) {
+      try { r2Drain = await drainR2Queue(admin, 10) }
+      catch (e) { console.warn('R2 drain non-fatal:', e) }
+    }
+
     return jsonResponse({
       ok:                   true,
       video_id:             videoId,
       cloudflare_uid:       vid.cloudflare_uid,
       cloudflare_deleted:   cloudflareResult.ok,
       cloudflare_status:    cloudflareResult.status,
+      r2_drain:             r2Drain,
     })
   } catch (err: any) {
     console.error('unhandled error:', err)

@@ -12,6 +12,7 @@
 import { handlePreflight, jsonResponse } from '../_shared/cors.ts'
 import { getServiceClient, requireUser }  from '../_shared/supabase.ts'
 import { drainCloudflareQueue }           from '../_shared/cloudflare.ts'
+import { drainR2Queue }                   from '../_shared/r2.ts'
 
 Deno.serve(async (req) => {
   const preflight = handlePreflight(req)
@@ -49,7 +50,7 @@ Deno.serve(async (req) => {
     // Find the row we're about to delete (so we can log/return useful info)
     const { data: vid, error: findErr } = await admin
       .from('creator_videos')
-      .select('id, creator_id, cloudflare_uid, title, status')
+      .select('id, creator_id, cloudflare_uid, title, status, storage_provider, r2_key')
       .eq('id', videoId)
       .maybeSingle()
     if (findErr) {
@@ -63,6 +64,15 @@ Deno.serve(async (req) => {
     // Delete — the trigger queue_cloudflare_deletion fires here and writes
     // the cloudflare_uid into pending_cloudflare_deletions BEFORE the row
     // disappears, so we don't need to capture the uid manually.
+    const { error: mirrorErr } = await admin
+      .from('videos')
+      .delete()
+      .eq('creator_video_id', videoId)
+    if (mirrorErr) {
+      console.error('mirror delete error:', mirrorErr)
+      return jsonResponse({ error: 'mirror delete failed', detail: mirrorErr.message }, 500)
+    }
+
     const { error: delErr } = await admin
       .from('creator_videos')
       .delete()
@@ -78,12 +88,19 @@ Deno.serve(async (req) => {
     try { drain = await drainCloudflareQueue(admin, 50) }
     catch (e) { console.error('drain failed:', e); /* non-fatal */ }
 
+    let r2Drain: any = null
+    if (vid.storage_provider === 'r2' && vid.r2_key) {
+      try { r2Drain = await drainR2Queue(admin, 50) }
+      catch (e) { console.error('r2 drain failed:', e); /* non-fatal */ }
+    }
+
     return jsonResponse({
       ok: true,
       video_id: videoId,
       title:    vid.title,
       creator_id: vid.creator_id,
       cloudflare_drain: drain,
+      r2_drain: r2Drain,
     })
   } catch (e: any) {
     console.error('admin-delete-video error:', e)

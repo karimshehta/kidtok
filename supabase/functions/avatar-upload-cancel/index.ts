@@ -3,6 +3,7 @@
 
 import { handlePreflight, jsonResponse, errorResponse } from '../_shared/cors.ts'
 import { getServiceClient, requireUser } from '../_shared/supabase.ts'
+import { drainR2Queue } from '../_shared/r2.ts'
 
 Deno.serve(async (req) => {
   const preflight = handlePreflight(req)
@@ -27,7 +28,7 @@ Deno.serve(async (req) => {
   const admin = getServiceClient()
   const { data: video } = await admin
     .from('creator_videos')
-    .select('id, status, kid_avatar_id')
+    .select('id, status, kid_avatar_id, storage_provider, r2_key')
     .eq('id', creatorVideoId)
     .eq('creator_id', user.id)
     .not('kid_avatar_id', 'is', null)
@@ -88,5 +89,11 @@ Deno.serve(async (req) => {
     return errorResponse('Failed to cancel upload', 500, 'DELETE_FAILED')
   }
 
-  return jsonResponse({ cancelled: true, refunded: !!useEvent?.id })
+  let r2Drain: any = null
+  if (video.storage_provider === 'r2' && video.r2_key) {
+    try { r2Drain = await drainR2Queue(admin, 10) }
+    catch (err) { console.warn('[avatar-upload-cancel] R2 drain failed:', err) }
+  }
+
+  return jsonResponse({ cancelled: true, refunded: !!useEvent?.id, r2_drain: r2Drain })
 })

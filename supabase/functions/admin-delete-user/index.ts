@@ -22,6 +22,7 @@
 import { handlePreflight, jsonResponse } from '../_shared/cors.ts'
 import { getServiceClient, requireUser } from '../_shared/supabase.ts'
 import { drainCloudflareQueue } from '../_shared/cloudflare.ts'
+import { drainR2Queue } from '../_shared/r2.ts'
 
 Deno.serve(async (req) => {
   const preflight = handlePreflight(req)
@@ -113,10 +114,18 @@ Deno.serve(async (req) => {
       console.warn('cloudflare drain failed (will retry on next call):', e)
     }
 
+    let r2Result: any = null
+    try {
+      r2Result = await drainR2Queue(admin, 500)
+    } catch (e: any) {
+      console.warn('r2 drain failed (will retry on next call):', e)
+    }
+
     return jsonResponse({
       ok:                  true,
       user_id:             targetId,
       cloudflare_drain:    cloudflareResult,   // null if drain failed entirely
+      r2_drain:            r2Result,
     })
   } catch (err: any) {
     console.error('admin-delete-user unhandled error:', err)
