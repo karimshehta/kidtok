@@ -12,7 +12,7 @@ import { createDirectUpload } from '../_shared/cloudflare.ts'
 import { getServiceClient, requireUser } from '../_shared/supabase.ts'
 
 interface UploadRequest {
-  title: string
+  title?: string
   description?: string | null
   age_id?: number | null
   interest_id?: number | null
@@ -54,10 +54,11 @@ Deno.serve(async (req) => {
     return errorResponse('Invalid JSON body', 400, 'BAD_JSON')
   }
 
-  if (!body.title || typeof body.title !== 'string' || body.title.trim().length === 0) {
-    return errorResponse('Title is required', 400, 'TITLE_REQUIRED')
+  if (body.title != null && typeof body.title !== 'string') {
+    return errorResponse('Title must be a string', 400, 'TITLE_INVALID')
   }
-  if (body.title.length > 200) {
+  const cleanTitle = (body.title || '').trim()
+  if (cleanTitle.length > 200) {
     return errorResponse('Title too long (max 200 chars)', 400, 'TITLE_TOO_LONG')
   }
   if (body.description && body.description.length > 5000) {
@@ -117,7 +118,7 @@ Deno.serve(async (req) => {
       maxDurationSeconds: maxDuration,
       creator: user.id,
       meta: {
-        title: body.title.trim(),
+        title: cleanTitle,
         kidtok_user_id: user.id,
       },
     })
@@ -154,7 +155,7 @@ Deno.serve(async (req) => {
     .from('creator_videos')
     .insert({
       creator_id: user.id,
-      title: body.title.trim(),
+        title: cleanTitle,
       description: body.description?.trim() || null,
       start_time_seconds: startTimeSeconds,
       clip_pending: startTimeSeconds > 0,

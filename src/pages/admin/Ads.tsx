@@ -243,7 +243,7 @@ export default function AdminAds() {
             />
             <Field
               label="Rewarded prompt after feed swipes"
-              hint="Mobile feed only: show a rewarded-ad gate after N swipes in For You, Suggested, or Following. 0 = disabled."
+              hint="Mobile feed only: show a rewarded-ad gate after N swipes in KidTok Hero, Suggested, or Following. 0 = disabled."
               value={form['rewarded_ad_after_swipes'] || '0'}
               onChange={(v) => set('rewarded_ad_after_swipes', v)}
               type="number"

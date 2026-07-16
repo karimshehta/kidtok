@@ -9,7 +9,7 @@ import { getServiceClient, requireUser } from '../_shared/supabase.ts'
 import { createR2PresignedUpload } from '../_shared/r2.ts'
 
 interface UploadRequest {
-  title: string
+  title?: string
   description?: string | null
   age_id?: number | null
   interest_id?: number | null
@@ -55,10 +55,11 @@ Deno.serve(async (req) => {
     return errorResponse('Invalid JSON body', 400, 'BAD_JSON')
   }
 
-  if (!body.title || typeof body.title !== 'string' || !body.title.trim()) {
-    return errorResponse('Title is required', 400, 'TITLE_REQUIRED')
+  if (body.title != null && typeof body.title !== 'string') {
+    return errorResponse('Title must be a string', 400, 'TITLE_INVALID')
   }
-  if (body.title.length > 200) {
+  const cleanTitle = (body.title || '').trim()
+  if (cleanTitle.length > 200) {
     return errorResponse('Title too long', 400, 'TITLE_TOO_LONG')
   }
   if (body.description && body.description.length > 5000) {
@@ -161,7 +162,7 @@ Deno.serve(async (req) => {
       creator_id: user.id,
       kid_avatar_id: avatar?.id ?? null,
       kid_avatar_sound_key: avatar?.sound_key ?? null,
-      title: body.title.trim(),
+      title: cleanTitle,
       description: body.description?.trim() || null,
       start_time_seconds: startTimeSeconds,
       clip_pending: false,

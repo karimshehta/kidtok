@@ -108,7 +108,7 @@ const ar = {
   },
   feed: {
     title: 'الرئيسية',
-    forYou: 'لك',
+    forYou: 'أبطال كيدتوك',
     following: 'متابَعون',
     emptyTitle: 'لسه ما فيش محتوى مقترح',
     emptyBody: 'فريق KidTok بيختار المحتوى الآمن للأطفال. ارجع بعد شوية!',
@@ -692,7 +692,7 @@ const en: typeof ar = {
   },
   feed: {
     title: 'For you',
-    forYou: 'For you',
+    forYou: 'KidTok Hero',
     following: 'Following',
     emptyTitle: 'No suggested content yet',
     emptyBody: 'The KidTok team curates safe content for kids. Check back soon!',
