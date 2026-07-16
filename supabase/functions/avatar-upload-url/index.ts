@@ -7,6 +7,7 @@ import { getServiceClient, requireUser } from '../_shared/supabase.ts'
 
 interface UploadRequest {
   avatar_id: string
+  access_method?: 'free' | 'reward' | 'coins'
   title: string
   description?: string | null
   age_id?: number | null
@@ -54,6 +55,9 @@ Deno.serve(async (req) => {
   if (!body.avatar_id) {
     return errorResponse('avatar_id is required', 400, 'MISSING_AVATAR')
   }
+  if (body.access_method && !['free', 'reward', 'coins'].includes(body.access_method)) {
+    return errorResponse('Invalid avatar access method', 400, 'INVALID_ACCESS_METHOD')
+  }
   if (!body.title || typeof body.title !== 'string' || !body.title.trim()) {
     return errorResponse('Title is required', 400, 'TITLE_REQUIRED')
   }
@@ -98,6 +102,7 @@ Deno.serve(async (req) => {
   const { data: avatarRows, error: avatarErr } = await admin.rpc('reserve_avatar_use', {
     p_user_id: user.id,
     p_avatar_id: body.avatar_id,
+    p_access_method: body.access_method || null,
   })
   const avatarUse = (Array.isArray(avatarRows) ? avatarRows[0] : avatarRows) as AvatarReservation | undefined
 
@@ -109,6 +114,12 @@ Deno.serve(async (req) => {
     }
     if (message.includes('REWARDED_AD_REQUIRED')) {
       return errorResponse('Watch a rewarded ad to unlock one use', 403, 'REWARDED_AD_REQUIRED')
+    }
+    if (message.includes('AVATAR_PRICE_NOT_CONFIGURED')) {
+      return errorResponse('Avatar price is not configured', 409, 'AVATAR_PRICE_NOT_CONFIGURED')
+    }
+    if (message.includes('INVALID_AVATAR_ACCESS_METHOD')) {
+      return errorResponse('Invalid avatar access method', 400, 'INVALID_ACCESS_METHOD')
     }
     console.error('[avatar-upload-url] avatar reservation failed:', avatarErr)
     return errorResponse('Failed to reserve avatar', 500, 'AVATAR_RESERVATION_FAILED')
