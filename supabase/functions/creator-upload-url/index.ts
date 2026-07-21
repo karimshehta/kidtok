@@ -46,6 +46,24 @@ Deno.serve(async (req) => {
   // 2. Get service client (all authenticated users can upload)
   const admin = getServiceClient()
 
+  // 2b. Banned users cannot upload. This function uses the service-role
+  // client below (needed for quota reservation), which BYPASSES RLS —
+  // so the DB-level ban policies don't cover this path. Explicit check
+  // required here. (See migration 20260716000001 for the RLS side of
+  // this fix, which covers likes/follows/comments.)
+  const { data: callerProfile, error: callerErr } = await admin
+    .from('profiles')
+    .select('is_banned')
+    .eq('id', user.id)
+    .maybeSingle()
+  if (callerErr) {
+    console.error('Ban check failed:', callerErr)
+    return errorResponse('Could not verify account status', 500, 'BAN_CHECK_FAILED')
+  }
+  if (callerProfile?.is_banned) {
+    return errorResponse('This account has been suspended', 403, 'ACCOUNT_BANNED')
+  }
+
   // 3. Validate input
   let body: UploadRequest
   try {
