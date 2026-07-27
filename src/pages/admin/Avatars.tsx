@@ -1,7 +1,7 @@
 import { useEffect, useState, type ComponentType } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { Camera, Coins, Eye, EyeOff, Frame, Gift, Loader2, Mic2, Palette, Save, SlidersHorizontal, Sparkles, Volume2 } from 'lucide-react'
+import { Camera, ChevronDown, ChevronRight, Coins, Eye, EyeOff, Frame, Gift, Loader2, Mic2, Palette, Save, SlidersHorizontal, Sparkles, Trash2, Volume2 } from 'lucide-react'
 
 import AdminLayout from '@/components/AdminLayout'
 import { supabase } from '@/lib/supabase'
@@ -197,10 +197,26 @@ export default function AdminAvatars() {
   })
 
   const createSnapLens = useMutation({
-    mutationFn: async (payload: Pick<AdminSnapLens, 'id' | 'lens_id' | 'name_match' | 'name_ar' | 'name_en' | 'access_type' | 'coin_cost' | 'sort_order' | 'is_active' | 'is_blocked'>) => {
+    mutationFn: async (payload: Pick<AdminSnapLens, 'id' | 'lens_id' | 'name_match' | 'name_ar' | 'name_en' | 'icon_url' | 'access_type' | 'coin_cost' | 'sort_order' | 'is_active' | 'is_blocked'>) => {
       const { error } = await supabase
         .from('snap_lens_catalog')
         .insert(payload)
+      if (error) throw error
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['admin', 'snap-lens-catalog'] }),
+        queryClient.invalidateQueries({ queryKey: ['snap-lens-catalog'] }),
+      ])
+    },
+  })
+
+  const deleteSnapLens = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('snap_lens_catalog')
+        .delete()
+        .eq('id', id)
       if (error) throw error
     },
     onSuccess: async () => {
@@ -296,7 +312,7 @@ export default function AdminAvatars() {
             لا توجد عناصر في هذا الكتالوج حاليًا.
           </div>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className={tab === 'snap' ? 'space-y-2' : 'grid gap-4 md:grid-cols-2'}>
             {tab === 'voices'
                 ? (activeItems as AdminVoice[]).map((voice) => (
                   <CatalogCard
@@ -343,6 +359,17 @@ export default function AdminAvatars() {
                             toast.success(`Saved ${lens.name_en || lens.id}`)
                           } catch (error) {
                             toast.error(error instanceof Error ? error.message : 'Could not save Snap lens')
+                          }
+                        }}
+                        deleting={deleteSnapLens.isPending && deleteSnapLens.variables === lens.id}
+                        onDelete={async () => {
+                          const ok = window.confirm(`Delete "${lens.name_en || lens.id}" from Snap lens rules? If kids already bought it, hiding/blocking is safer than deleting.`)
+                          if (!ok) return
+                          try {
+                            await deleteSnapLens.mutateAsync(lens.id)
+                            toast.success(`Deleted ${lens.name_en || lens.id}`)
+                          } catch (error) {
+                            toast.error(error instanceof Error ? error.message : 'Could not delete Snap lens')
                           }
                         }}
                       />
@@ -547,12 +574,13 @@ function CreateSnapLensCard({
 }: {
   saving: boolean
   nextOrder: number
-  onCreate: (payload: Pick<AdminSnapLens, 'id' | 'lens_id' | 'name_match' | 'name_ar' | 'name_en' | 'access_type' | 'coin_cost' | 'sort_order' | 'is_active' | 'is_blocked'>) => Promise<void>
+  onCreate: (payload: Pick<AdminSnapLens, 'id' | 'lens_id' | 'name_match' | 'name_ar' | 'name_en' | 'icon_url' | 'access_type' | 'coin_cost' | 'sort_order' | 'is_active' | 'is_blocked'>) => Promise<void>
 }) {
   const [nameMatch, setNameMatch] = useState('')
   const [lensId, setLensId] = useState('')
   const [nameEn, setNameEn] = useState('')
   const [nameAr, setNameAr] = useState('')
+  const [iconUrl, setIconUrl] = useState('')
 
   const create = async () => {
     const match = nameMatch.trim()
@@ -567,6 +595,7 @@ function CreateSnapLensCard({
       name_match: match.toLowerCase(),
       name_ar: nameAr.trim() || nameEn.trim() || match,
       name_en: nameEn.trim() || match,
+      icon_url: iconUrl.trim() || null,
       access_type: 'free',
       coin_cost: 0,
       sort_order: Math.max(0, nextOrder),
@@ -577,6 +606,7 @@ function CreateSnapLensCard({
     setLensId('')
     setNameEn('')
     setNameAr('')
+    setIconUrl('')
   }
 
   return (
@@ -620,12 +650,21 @@ function CreateSnapLensCard({
             className="input-field w-full"
           />
         </label>
-        <label className="block md:col-span-3">
+        <label className="block md:col-span-2">
           <span className="block text-xs font-bold text-neutral-700 mb-1.5">Exact Snap lens ID (optional)</span>
           <input
             value={lensId}
             onChange={(event) => setLensId(event.target.value)}
             placeholder="Paste lens id if Snap shows it"
+            className="input-field w-full"
+          />
+        </label>
+        <label className="block">
+          <span className="block text-xs font-bold text-neutral-700 mb-1.5">Icon URL (optional)</span>
+          <input
+            value={iconUrl}
+            onChange={(event) => setIconUrl(event.target.value)}
+            placeholder="https://..."
             className="input-field w-full"
           />
         </label>
@@ -646,17 +685,23 @@ function CreateSnapLensCard({
 function SnapLensCard({
   item,
   saving,
+  deleting,
   onSave,
+  onDelete,
 }: {
   item: AdminSnapLens
   saving: boolean
-  onSave: (patch: Pick<AdminSnapLens, 'access_type' | 'coin_cost' | 'sort_order' | 'is_active' | 'is_blocked'>) => Promise<void>
+  deleting: boolean
+  onSave: (patch: Pick<AdminSnapLens, 'access_type' | 'coin_cost' | 'sort_order' | 'is_active' | 'is_blocked' | 'icon_url'>) => Promise<void>
+  onDelete: () => Promise<void>
 }) {
+  const [expanded, setExpanded] = useState(false)
   const [accessType, setAccessType] = useState<CatalogAccess>(item.access_type)
   const [isActive, setIsActive] = useState(item.is_active)
   const [isBlocked, setIsBlocked] = useState(item.is_blocked)
   const [coinCost, setCoinCost] = useState(Number(item.coin_cost || 0))
   const [sortOrder, setSortOrder] = useState(Number(item.sort_order || 0))
+  const [iconUrl, setIconUrl] = useState(item.icon_url || '')
 
   useEffect(() => {
     setAccessType(item.access_type)
@@ -664,6 +709,7 @@ function SnapLensCard({
     setIsBlocked(item.is_blocked)
     setCoinCost(Number(item.coin_cost || 0))
     setSortOrder(Number(item.sort_order || 0))
+    setIconUrl(item.icon_url || '')
   }, [item])
 
   const save = async () => {
@@ -678,11 +724,169 @@ function SnapLensCard({
       sort_order: Math.max(0, Math.floor(sortOrder)),
       is_active: isActive,
       is_blocked: isBlocked,
+      icon_url: iconUrl.trim() || null,
     })
   }
 
   const selectedAccess = ACCESS_OPTIONS.find((option) => option.value === accessType)
   const visible = isActive && !isBlocked
+  const previewIconUrl = iconUrl.trim() || item.icon_url
+
+  return (
+    <article className={cn('rounded-2xl border border-neutral-200 bg-white shadow-sm transition-opacity', !visible && 'opacity-65')}>
+      <button
+        type="button"
+        onClick={() => setExpanded((value) => !value)}
+        className="flex w-full items-center gap-3 px-4 py-3 text-start"
+      >
+        <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-sky-50 text-sky-600">
+          {previewIconUrl ? (
+            <img src={previewIconUrl} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <Camera className="h-5 w-5" />
+          )}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-extrabold text-neutral-950">
+            {item.name_en || item.name_ar || item.name_match || item.id}
+          </span>
+          <span className="mt-0.5 block truncate font-mono text-[11px] text-neutral-500">
+            {item.lens_id || `match: ${item.name_match}`}
+          </span>
+        </span>
+        <span className={cn(
+          'hidden rounded-full px-2.5 py-1 text-[11px] font-bold sm:inline-flex',
+          accessType === 'coins' ? 'bg-amber-100 text-amber-800' : accessType === 'reward' ? 'bg-purple-100 text-purple-800' : 'bg-green-100 text-green-800',
+        )}>
+          {accessType === 'coins' ? `${coinCost} coins` : selectedAccess?.label}
+        </span>
+        <span className={cn(
+          'hidden rounded-full px-2.5 py-1 text-[11px] font-bold sm:inline-flex',
+          visible ? 'bg-green-100 text-green-800' : 'bg-neutral-200 text-neutral-700',
+        )}>
+          {visible ? 'Shown' : 'Hidden'}
+        </span>
+        {expanded ? <ChevronDown className="h-5 w-5 flex-shrink-0 text-neutral-400" /> : <ChevronRight className="h-5 w-5 flex-shrink-0 text-neutral-400" />}
+      </button>
+
+      {expanded && (
+        <div className="border-t border-neutral-100 px-4 pb-4 pt-3">
+          {item.notes && (
+            <p className="mb-4 rounded-xl border border-sky-100 bg-sky-50 p-3 text-xs text-sky-950">
+              {item.notes}
+            </p>
+          )}
+
+          <div className="grid gap-3 md:grid-cols-4">
+            <label className="block md:col-span-2">
+              <span className="mb-1.5 block text-xs font-bold text-neutral-700">Unlock mode</span>
+              <select
+                value={accessType}
+                onChange={(event) => setAccessType(event.target.value as CatalogAccess)}
+                className="input-field w-full"
+              >
+                {ACCESS_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+              <span className="mt-1 block text-[11px] text-neutral-600">{selectedAccess?.hint}</span>
+            </label>
+
+            <label className="block">
+              <span className="mb-1.5 flex items-center gap-1 text-xs font-bold text-neutral-800">
+                <Coins className="h-4 w-4 text-amber-500" /> Price
+              </span>
+              <input
+                type="number"
+                min={accessType === 'coins' ? 1 : 0}
+                step="1"
+                disabled={accessType !== 'coins'}
+                value={accessType === 'coins' ? coinCost : 0}
+                onChange={(event) => setCoinCost(Number(event.target.value || 0))}
+                className="input-field w-full disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400"
+              />
+            </label>
+
+            <label className="block">
+              <span className="mb-1.5 flex items-center gap-1 text-xs font-bold text-neutral-800">
+                <SlidersHorizontal className="h-4 w-4 text-primary" /> Order
+              </span>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={sortOrder}
+                onChange={(event) => setSortOrder(Number(event.target.value || 0))}
+                className="input-field w-full"
+              />
+            </label>
+          </div>
+
+          <label className="mt-3 block">
+            <span className="mb-1.5 block text-xs font-bold text-neutral-700">Card icon URL</span>
+            <input
+              value={iconUrl}
+              onChange={(event) => setIconUrl(event.target.value)}
+              placeholder="https://..."
+              className="input-field w-full"
+            />
+            <span className="mt-1 block text-[11px] text-neutral-500">
+              Optional: use a Lens Studio thumbnail/exported image so the admin card and app list look polished.
+            </span>
+          </label>
+
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <button
+              type="button"
+              onClick={() => setIsActive((value) => !value)}
+              className={cn(
+                'rounded-xl border px-3 py-2 text-start transition-colors',
+                isActive ? 'border-sky-300 bg-sky-50 text-sky-900' : 'border-neutral-300 bg-neutral-100 text-neutral-700',
+              )}
+            >
+              <span className="mb-1 block text-xs opacity-75">Visibility</span>
+              <span className="flex items-center gap-1.5 font-extrabold">
+                {isActive ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                {isActive ? 'Active' : 'Inactive'}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsBlocked((value) => !value)}
+              className={cn(
+                'rounded-xl border px-3 py-2 text-start transition-colors',
+                isBlocked ? 'border-red-300 bg-red-50 text-red-800' : 'border-green-300 bg-green-50 text-green-900',
+              )}
+            >
+              <span className="mb-1 block text-xs opacity-75">Safety</span>
+              <span className="font-extrabold">{isBlocked ? 'Blocked' : 'Allowed'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => void onDelete()}
+              disabled={saving || deleting}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2 font-extrabold text-red-700 transition hover:bg-red-100 disabled:cursor-wait disabled:opacity-60"
+            >
+              {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              Delete
+            </button>
+
+            <button
+              type="button"
+              onClick={() => void save()}
+              disabled={saving || deleting}
+              className="btn-primary inline-flex items-center justify-center gap-2 px-4 py-2"
+            >
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              Save
+            </button>
+          </div>
+        </div>
+      )}
+    </article>
+  )
 
   return (
     <article className={cn('card transition-opacity', !visible && 'opacity-65')}>
@@ -690,7 +894,7 @@ function SnapLensCard({
         <div className="flex items-center gap-3 min-w-0">
           <div className="w-14 h-14 flex-shrink-0 rounded-2xl bg-sky-50 text-sky-600 flex items-center justify-center overflow-hidden">
             {item.icon_url ? (
-              <img src={item.icon_url} alt="" className="h-full w-full object-cover" />
+              <img src={item.icon_url ?? undefined} alt="" className="h-full w-full object-cover" />
             ) : (
               <Camera className="w-7 h-7" />
             )}
