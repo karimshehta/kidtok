@@ -74,6 +74,15 @@ const ACCESS_OPTIONS: Array<{
 
 const RARITY_OPTIONS: ThemeRarity[] = ['common', 'rare', 'epic', 'legendary', 'mythic']
 
+function slugifyLensId(value: string) {
+  const slug = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+  return slug ? `snap-${slug}` : `snap-lens-${Date.now()}`
+}
+
 export default function AdminAvatars() {
   const queryClient = useQueryClient()
   const [tab, setTab] = useState<CatalogTab>('frames')
@@ -187,6 +196,21 @@ export default function AdminAvatars() {
     },
   })
 
+  const createSnapLens = useMutation({
+    mutationFn: async (payload: Pick<AdminSnapLens, 'id' | 'lens_id' | 'name_match' | 'name_ar' | 'name_en' | 'access_type' | 'coin_cost' | 'sort_order' | 'is_active' | 'is_blocked'>) => {
+      const { error } = await supabase
+        .from('snap_lens_catalog')
+        .insert(payload)
+      if (error) throw error
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['admin', 'snap-lens-catalog'] }),
+        queryClient.invalidateQueries({ queryKey: ['snap-lens-catalog'] }),
+      ])
+    },
+  })
+
   const activeQuery = tab === 'voices' ? voicesQuery : tab === 'themes' ? themesQuery : tab === 'snap' ? snapLensesQuery : framesQuery
   const activeItems =
     tab === 'voices'
@@ -243,6 +267,21 @@ export default function AdminAvatars() {
             onClick={() => setTab('snap')}
           />
         </div>
+
+        {tab === 'snap' && (
+          <CreateSnapLensCard
+            saving={createSnapLens.isPending}
+            nextOrder={(snapLensesQuery.data || []).length * 10 + 10}
+            onCreate={async (payload) => {
+              try {
+                await createSnapLens.mutateAsync(payload)
+                toast.success(`Added ${payload.name_en || payload.id}`)
+              } catch (error) {
+                toast.error(error instanceof Error ? error.message : 'Could not add Snap lens')
+              }
+            }}
+          />
+        )}
 
         {activeQuery.isLoading ? (
           <div className="flex justify-center py-16">
@@ -498,6 +537,109 @@ function CatalogCard({
         </button>
       </div>
     </article>
+  )
+}
+
+function CreateSnapLensCard({
+  saving,
+  nextOrder,
+  onCreate,
+}: {
+  saving: boolean
+  nextOrder: number
+  onCreate: (payload: Pick<AdminSnapLens, 'id' | 'lens_id' | 'name_match' | 'name_ar' | 'name_en' | 'access_type' | 'coin_cost' | 'sort_order' | 'is_active' | 'is_blocked'>) => Promise<void>
+}) {
+  const [nameMatch, setNameMatch] = useState('')
+  const [lensId, setLensId] = useState('')
+  const [nameEn, setNameEn] = useState('')
+  const [nameAr, setNameAr] = useState('')
+
+  const create = async () => {
+    const match = nameMatch.trim()
+    if (!match) {
+      toast.error('Add a lens name match, for example: CamKit Distort')
+      return
+    }
+    const id = slugifyLensId(nameEn || match)
+    await onCreate({
+      id,
+      lens_id: lensId.trim() || null,
+      name_match: match.toLowerCase(),
+      name_ar: nameAr.trim() || nameEn.trim() || match,
+      name_en: nameEn.trim() || match,
+      access_type: 'free',
+      coin_cost: 0,
+      sort_order: Math.max(0, nextOrder),
+      is_active: true,
+      is_blocked: false,
+    })
+    setNameMatch('')
+    setLensId('')
+    setNameEn('')
+    setNameAr('')
+  }
+
+  return (
+    <section className="rounded-2xl border border-sky-200 bg-sky-50 p-4 mb-5">
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div>
+          <h2 className="text-base font-extrabold text-sky-950 flex items-center gap-2">
+            <Sparkles className="w-5 h-5" />
+            Add Snap lens rule
+          </h2>
+          <p className="text-xs text-sky-900 mt-1">
+            Add any new Lens Studio/Snap lens by its name match. If you know the exact Snap lens ID, add it too.
+          </p>
+        </div>
+      </div>
+      <div className="grid gap-3 md:grid-cols-4">
+        <label className="block md:col-span-2">
+          <span className="block text-xs font-bold text-neutral-700 mb-1.5">Lens name contains *</span>
+          <input
+            value={nameMatch}
+            onChange={(event) => setNameMatch(event.target.value)}
+            placeholder="CamKit Distort"
+            className="input-field w-full"
+          />
+        </label>
+        <label className="block">
+          <span className="block text-xs font-bold text-neutral-700 mb-1.5">English label</span>
+          <input
+            value={nameEn}
+            onChange={(event) => setNameEn(event.target.value)}
+            placeholder="Cartoon Eyes"
+            className="input-field w-full"
+          />
+        </label>
+        <label className="block">
+          <span className="block text-xs font-bold text-neutral-700 mb-1.5">Arabic label</span>
+          <input
+            value={nameAr}
+            onChange={(event) => setNameAr(event.target.value)}
+            placeholder="عيون كرتون"
+            className="input-field w-full"
+          />
+        </label>
+        <label className="block md:col-span-3">
+          <span className="block text-xs font-bold text-neutral-700 mb-1.5">Exact Snap lens ID (optional)</span>
+          <input
+            value={lensId}
+            onChange={(event) => setLensId(event.target.value)}
+            placeholder="Paste lens id if Snap shows it"
+            className="input-field w-full"
+          />
+        </label>
+        <button
+          type="button"
+          onClick={() => void create()}
+          disabled={saving}
+          className="btn-primary inline-flex items-center justify-center gap-2 px-4 py-2 self-end"
+        >
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+          Add lens
+        </button>
+      </div>
+    </section>
   )
 }
 
