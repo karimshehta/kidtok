@@ -65,7 +65,7 @@ export default function AdminLayout({ children }: Props) {
     { to: '/admin/plans', label: t('admin.nav.plans'), icon: CreditCard },
     { to: '/admin/revenue', label: 'Revenue', icon: TrendingUp },
     { to: '/admin/ads', label: t('admin.nav.ads'), icon: Megaphone },
-    { to: '/admin/avatars', label: i18n.language === 'ar' ? 'الإطارات والأصوات' : 'Frames & Voices', icon: Frame },
+    { to: '/admin/avatars', label: i18n.language === 'ar' ? 'المتجر وعدسات Snap' : 'Shop & Snap AR', icon: Frame },
     { to: '/admin/social', label: 'Social Media', icon: Share2 },
     { to: '/admin/app-version', label: t('admin.nav.appVersion'), icon: Smartphone },
     { to: '/admin/security', label: t('admin.nav.security'), icon: Shield },
