@@ -72,6 +72,15 @@ const ACCESS_OPTIONS: Array<{
   { value: 'coins', label: 'كوينز + إعلان Reward', hint: 'شراء دائم أو استخدام واحد بعد الإعلان' },
 ]
 
+const SNAP_LENS_ACCESS_OPTIONS: Array<{
+  value: Extract<CatalogAccess, 'free' | 'coins'>
+  label: string
+  hint: string
+}> = [
+  { value: 'free', label: 'Free preview + free record', hint: 'The lens appears in camera and records without charging coins.' },
+  { value: 'coins', label: 'Coins per video', hint: 'Kids can preview it for free, then pay this price only when they press Record.' },
+]
+
 const RARITY_OPTIONS: ThemeRarity[] = ['common', 'rare', 'epic', 'legendary', 'mythic']
 
 function slugifyLensId(value: string) {
@@ -696,7 +705,7 @@ function SnapLensCard({
   onDelete: () => Promise<void>
 }) {
   const [expanded, setExpanded] = useState(false)
-  const [accessType, setAccessType] = useState<CatalogAccess>(item.access_type)
+  const [accessType, setAccessType] = useState<Extract<CatalogAccess, 'free' | 'coins'>>(item.access_type === 'coins' ? 'coins' : 'free')
   const [isActive, setIsActive] = useState(item.is_active)
   const [isBlocked, setIsBlocked] = useState(item.is_blocked)
   const [coinCost, setCoinCost] = useState(Number(item.coin_cost || 0))
@@ -704,7 +713,7 @@ function SnapLensCard({
   const [iconUrl, setIconUrl] = useState(item.icon_url || '')
 
   useEffect(() => {
-    setAccessType(item.access_type)
+    setAccessType(item.access_type === 'coins' ? 'coins' : 'free')
     setIsActive(item.is_active)
     setIsBlocked(item.is_blocked)
     setCoinCost(Number(item.coin_cost || 0))
@@ -714,7 +723,7 @@ function SnapLensCard({
 
   const save = async () => {
     if (accessType === 'coins' && coinCost < 1) {
-      toast.error('Set a coin price of at least 1, or make the lens free/reward.')
+      toast.error('Set a coin price of at least 1, or make the lens free.')
       return
     }
 
@@ -728,7 +737,7 @@ function SnapLensCard({
     })
   }
 
-  const selectedAccess = ACCESS_OPTIONS.find((option) => option.value === accessType)
+  const selectedAccess = SNAP_LENS_ACCESS_OPTIONS.find((option) => option.value === accessType)
   const visible = isActive && !isBlocked
   const previewIconUrl = iconUrl.trim() || item.icon_url
 
@@ -756,9 +765,9 @@ function SnapLensCard({
         </span>
         <span className={cn(
           'hidden rounded-full px-2.5 py-1 text-[11px] font-bold sm:inline-flex',
-          accessType === 'coins' ? 'bg-amber-100 text-amber-800' : accessType === 'reward' ? 'bg-purple-100 text-purple-800' : 'bg-green-100 text-green-800',
+          accessType === 'coins' ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800',
         )}>
-          {accessType === 'coins' ? `${coinCost} coins` : selectedAccess?.label}
+          {accessType === 'coins' ? `${coinCost} coins/video` : selectedAccess?.label}
         </span>
         <span className={cn(
           'hidden rounded-full px-2.5 py-1 text-[11px] font-bold sm:inline-flex',
@@ -782,10 +791,10 @@ function SnapLensCard({
               <span className="mb-1.5 block text-xs font-bold text-neutral-700">Unlock mode</span>
               <select
                 value={accessType}
-                onChange={(event) => setAccessType(event.target.value as CatalogAccess)}
+                onChange={(event) => setAccessType(event.target.value as Extract<CatalogAccess, 'free' | 'coins'>)}
                 className="input-field w-full"
               >
-                {ACCESS_OPTIONS.map((option) => (
+                {SNAP_LENS_ACCESS_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>{option.label}</option>
                 ))}
               </select>
@@ -794,7 +803,7 @@ function SnapLensCard({
 
             <label className="block">
               <span className="mb-1.5 flex items-center gap-1 text-xs font-bold text-neutral-800">
-                <Coins className="h-4 w-4 text-amber-500" /> Price
+                <Coins className="h-4 w-4 text-amber-500" /> Price per video
               </span>
               <input
                 type="number"
@@ -923,10 +932,10 @@ function SnapLensCard({
           <span className="block text-xs font-bold text-neutral-700 mb-1.5">Unlock mode</span>
           <select
             value={accessType}
-            onChange={(event) => setAccessType(event.target.value as CatalogAccess)}
+            onChange={(event) => setAccessType(event.target.value as Extract<CatalogAccess, 'free' | 'coins'>)}
             className="input-field w-full"
           >
-            {ACCESS_OPTIONS.map((option) => (
+            {SNAP_LENS_ACCESS_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>{option.label}</option>
             ))}
           </select>
