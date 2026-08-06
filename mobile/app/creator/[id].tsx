@@ -9,6 +9,7 @@ import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/stores/auth'
 import { useIsFollowing, useToggleFollow } from '@/hooks/useSocial'
+import { useIsAdminBlockedUser } from '@/hooks/useAdminBlockedUsers'
 import { colors, spacing, fontSize, radius } from '@/lib/theme'
 import VerifiedBadge, { KidTokBadge } from '@/components/VerifiedBadge'
 
@@ -21,6 +22,10 @@ export default function CreatorProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const myId = useAuth((s) => s.user?.id)
   const isOwnProfile = myId === id
+  const { data: isAdminBlocked = false, isLoading: isAdminBlockedLoading } = useIsAdminBlockedUser(
+    id || '',
+    !!id && !isOwnProfile,
+  )
 
   const { data: profile, isLoading } = useQuery({
     queryKey: ['creator-profile', id],
@@ -78,10 +83,32 @@ export default function CreatorProfileScreen() {
   const { data: isFollowing } = useIsFollowing(id || '')
   const toggleFollow = useToggleFollow()
 
-  if (isLoading) {
+  if (isLoading || isAdminBlockedLoading) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center' }}>
         <ActivityIndicator color={colors.primary} />
+      </SafeAreaView>
+    )
+  }
+
+  if (!isOwnProfile && isAdminBlocked) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center', padding: spacing.xl }}>
+        <Ionicons name="lock-closed-outline" size={60} color={colors.grey300} />
+        <Text style={{ marginTop: spacing.md, color: colors.grey900, fontSize: fontSize.lg, fontWeight: '900', textAlign: 'center' }}>
+          {i18n.language === 'ar' ? 'هذا الحساب غير متاح' : 'This profile is unavailable'}
+        </Text>
+        <Text style={{ marginTop: spacing.xs, color: colors.grey500, fontSize: fontSize.sm, textAlign: 'center' }}>
+          {i18n.language === 'ar' ? 'تم إخفاء هذا الحساب بواسطة الإدارة.' : 'This account has been hidden by moderation.'}
+        </Text>
+        <Pressable
+          onPress={() => router.back()}
+          style={{ marginTop: spacing.lg, backgroundColor: colors.primary, paddingHorizontal: spacing.xl, paddingVertical: spacing.md, borderRadius: radius.pill }}
+        >
+          <Text style={{ color: colors.white, fontWeight: '900' }}>
+            {i18n.language === 'ar' ? 'رجوع' : 'Go back'}
+          </Text>
+        </Pressable>
       </SafeAreaView>
     )
   }

@@ -125,8 +125,8 @@ export default function CameraRecordScreen() {
 
       Toast.show({
         type: 'success',
-        text1: ar ? 'تم رفع الفيديو ✓' : 'Video uploaded ✓',
-        text2: ar ? 'سيظهر بعد المراجعة' : 'Will appear after review',
+        text1: 'تم نشر الفيديو 🎬',
+        text2: 'سيظهر بعد المراجعة',
       })
       router.back()
     } catch (err) {

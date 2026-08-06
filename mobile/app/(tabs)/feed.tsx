@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   View,
   Text,
@@ -31,6 +31,7 @@ import { colors, spacing, fontSize, radius } from '@/lib/theme'
 import { onHeaderPageChange, headerAnimHeight, HEADER_BAR_HEIGHT } from '@/lib/headerScroll'
 import { usePlanLimits } from '@/hooks/usePlanLimits'
 import { useIsFollowing, useToggleFollow } from '@/hooks/useSocial'
+import { useAdminBlockedUserIds } from '@/hooks/useAdminBlockedUsers'
 import { useAdMob } from '@/hooks/useAdMob'
 import DailyRewardModal from '@/components/DailyRewardModal'
 import ReelNativeVideo from '@/components/ReelNativeVideo'
@@ -77,9 +78,12 @@ export default function FeedScreen() {
   const userId = useAuth((s) => s.user?.id)
   const router = useRouter()
   const insets = useSafeAreaInsets()
+  const { data: adminBlockedUserIds = [] } = useAdminBlockedUserIds()
+  const adminBlockedSignature = adminBlockedUserIds.join(',')
+  const adminBlockedSet = useMemo(() => new Set(adminBlockedUserIds), [adminBlockedSignature])
 
   const { data: videos = [], isLoading, refetch, isFetching } = useQuery({
-    queryKey: ['feed', tab, userId],
+    queryKey: ['feed', tab, userId, adminBlockedSignature],
     queryFn: async (): Promise<FeedVideo[]> => {
       if (tab === 'following') {
         const { data: follows, error: followsError } = await supabase
@@ -87,7 +91,9 @@ export default function FeedScreen() {
           .select('following_id')
           .eq('follower_id', userId)
         if (followsError) throw followsError
-        const ids = (follows || []).map((f: any) => f.following_id)
+        const ids = (follows || [])
+          .map((f: any) => f.following_id)
+          .filter((id: string) => !adminBlockedSet.has(id))
         if (ids.length === 0) return []
         const { data, error } = await supabase
           .from('videos')
@@ -98,7 +104,7 @@ export default function FeedScreen() {
           .order('created_at', { ascending: false })
           .limit(50)
         if (error) throw error
-        return (data || []) as FeedVideo[]
+        return ((data || []) as FeedVideo[]).filter((v) => !v.creator_id || !adminBlockedSet.has(v.creator_id))
       }
       const { data, error } = await supabase
         .from('videos')
@@ -108,7 +114,7 @@ export default function FeedScreen() {
         .order('created_at', { ascending: false })
         .limit(50)
       if (error) throw error
-      return (data || []) as FeedVideo[]
+      return ((data || []) as FeedVideo[]).filter((v) => !v.creator_id || !adminBlockedSet.has(v.creator_id))
     },
   })
 
@@ -822,6 +828,9 @@ function DiscoverUsers() {
   const { i18n } = useTranslation()
   const ar = i18n.language === 'ar'
   const myId = useAuth((s) => s.user?.id)
+  const { data: adminBlockedUserIds = [] } = useAdminBlockedUserIds()
+  const adminBlockedSignature = adminBlockedUserIds.join(',')
+  const adminBlockedSet = useMemo(() => new Set(adminBlockedUserIds), [adminBlockedSignature])
 
   const { data: myFollowingIds = [] } = useQuery({
     queryKey: ['my-following-ids', myId],
@@ -836,7 +845,7 @@ function DiscoverUsers() {
   })
 
   const { data: topUsers = [] } = useQuery({
-    queryKey: ['top-creators', myId],
+    queryKey: ['top-creators', myId, adminBlockedSignature],
     staleTime: 2 * 60_000,
     queryFn: async () => {
       const { data } = await supabase
@@ -846,7 +855,9 @@ function DiscoverUsers() {
         .limit(20)  // fetch more, then filter client-side
       return data || []
     },
-    select: (data) => data.filter((u: any) => u.id !== myId && !myFollowingIds.includes(u.id)).slice(0, 5),
+    select: (data) => data
+      .filter((u: any) => u.id !== myId && !myFollowingIds.includes(u.id) && !adminBlockedSet.has(u.id))
+      .slice(0, 5),
   })
 
   return (

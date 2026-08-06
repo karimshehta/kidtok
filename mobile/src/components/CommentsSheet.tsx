@@ -10,43 +10,68 @@ import {
   KeyboardAvoidingView,
   Platform,
   Modal,
+  Alert,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import Toast from 'react-native-toast-message'
 import { useTranslation } from 'react-i18next'
 
-import { useComments, useAddComment } from '@/hooks/useSocial'
+import {
+  useComments,
+  useAddComment,
+  useDeleteComment,
+  useReportComment,
+} from '@/hooks/useSocial'
+import { useAuth } from '@/stores/auth'
+import { useMyRole } from '@/hooks/useMyRole'
 import BannerAd from '@/components/BannerAd'
 import { colors, spacing, fontSize, radius } from '@/lib/theme'
 
-// ─── Relative time helper ────────────────────────────────────────────────────
 function formatRelativeTime(dateStr: string, lang: string): string {
   const now = Date.now()
   const then = new Date(dateStr).getTime()
   const diff = Math.max(0, Math.floor((now - then) / 1000))
 
   if (lang === 'ar') {
-    if (diff < 60)      return 'الآن'
-    if (diff < 3600)    return `${Math.floor(diff / 60)}د`
-    if (diff < 86400)   return `${Math.floor(diff / 3600)}س`
-    if (diff < 604800)  return `${Math.floor(diff / 86400)}ي`
+    if (diff < 60) return 'الآن'
+    if (diff < 3600) return `${Math.floor(diff / 60)}د`
+    if (diff < 86400) return `${Math.floor(diff / 3600)}س`
+    if (diff < 604800) return `${Math.floor(diff / 86400)}ي`
     if (diff < 2592000) return `${Math.floor(diff / 604800)}أ`
     return `${Math.floor(diff / 2592000)}ش`
-  } else {
-    if (diff < 60)      return 'now'
-    if (diff < 3600)    return `${Math.floor(diff / 60)}m`
-    if (diff < 86400)   return `${Math.floor(diff / 3600)}h`
-    if (diff < 604800)  return `${Math.floor(diff / 86400)}d`
-    if (diff < 2592000) return `${Math.floor(diff / 604800)}w`
-    return `${Math.floor(diff / 2592000)}mo`
   }
+
+  if (diff < 60) return 'now'
+  if (diff < 3600) return `${Math.floor(diff / 60)}m`
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h`
+  if (diff < 604800) return `${Math.floor(diff / 86400)}d`
+  if (diff < 2592000) return `${Math.floor(diff / 604800)}w`
+  return `${Math.floor(diff / 2592000)}mo`
 }
 
-// ─── Single comment item ─────────────────────────────────────────────────────
-function CommentItem({ item, lang }: { item: any; lang: string }) {
-  const profile = item?.profile || { name: 'مستخدم', avatar_url: null }
-  const timeLabel = item.created_at ? formatRelativeTime(item.created_at, lang) : ''
+function CommentItem({
+  item,
+  lang,
+  currentUserId,
+  isAdmin,
+  busy,
+  onDelete,
+  onReport,
+}: {
+  item: any
+  lang: string
+  currentUserId?: string
+  isAdmin: boolean
+  busy: boolean
+  onDelete: (item: any) => void
+  onReport: (item: any) => void
+}) {
   const isRTL = lang === 'ar'
+  const profile = item?.profile || { name: isRTL ? 'مستخدم' : 'User', avatar_url: null }
+  const timeLabel = item.created_at ? formatRelativeTime(item.created_at, lang) : ''
+  const isOwn = !!currentUserId && item.user_id === currentUserId
+  const canDelete = isOwn || isAdmin
+  const canReport = !!currentUserId && !isOwn
 
   return (
     <View
@@ -57,7 +82,6 @@ function CommentItem({ item, lang }: { item: any; lang: string }) {
         paddingHorizontal: spacing.md,
       }}
     >
-      {/* Avatar */}
       <View
         style={{
           width: 40,
@@ -77,7 +101,6 @@ function CommentItem({ item, lang }: { item: any; lang: string }) {
         )}
       </View>
 
-      {/* Body */}
       <View style={{ flex: 1 }}>
         <View
           style={{
@@ -105,39 +128,85 @@ function CommentItem({ item, lang }: { item: any; lang: string }) {
         >
           {item.content}
         </Text>
-      </View>
 
-      {/* Like */}
-      <View style={{ alignItems: 'center', justifyContent: 'flex-start', paddingTop: 4 }}>
-        <Ionicons name="heart-outline" size={16} color={colors.grey400} />
+        {(canDelete || canReport) ? (
+          <View
+            style={{
+              flexDirection: isRTL ? 'row-reverse' : 'row',
+              gap: 10,
+              marginTop: 8,
+              alignItems: 'center',
+            }}
+          >
+            {canDelete ? (
+              <Pressable
+                disabled={busy}
+                onPress={() => onDelete(item)}
+                style={{
+                  flexDirection: isRTL ? 'row-reverse' : 'row',
+                  alignItems: 'center',
+                  gap: 4,
+                  opacity: busy ? 0.5 : 1,
+                }}
+              >
+                <Ionicons name="trash-outline" size={14} color="#F43F5E" />
+                <Text style={{ color: '#F43F5E', fontSize: 11, fontWeight: '800' }}>
+                  {isRTL ? 'حذف' : 'Delete'}
+                </Text>
+              </Pressable>
+            ) : null}
+
+            {canReport ? (
+              <Pressable
+                disabled={busy}
+                onPress={() => onReport(item)}
+                style={{
+                  flexDirection: isRTL ? 'row-reverse' : 'row',
+                  alignItems: 'center',
+                  gap: 4,
+                  opacity: busy ? 0.5 : 1,
+                }}
+              >
+                <Ionicons name="flag-outline" size={14} color={colors.grey500} />
+                <Text style={{ color: colors.grey500, fontSize: 11, fontWeight: '800' }}>
+                  {isRTL ? 'إبلاغ' : 'Report'}
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
       </View>
     </View>
   )
 }
 
-// ─── Separator ───────────────────────────────────────────────────────────────
 function Separator() {
-  return (
-    <View style={{ height: 1, backgroundColor: colors.grey100, marginHorizontal: spacing.md }} />
-  )
+  return <View style={{ height: 1, backgroundColor: colors.grey100, marginHorizontal: spacing.md }} />
 }
 
-// ─── Main sheet ──────────────────────────────────────────────────────────────
 export default function CommentsSheet({
   videoId,
   visible,
   onClose,
+  onCommentDeleted,
 }: {
   videoId: string
   visible: boolean
   onClose: () => void
+  onCommentDeleted?: () => void
 }) {
   const { data: comments = [], isLoading } = useComments(videoId)
   const addMut = useAddComment()
+  const deleteMut = useDeleteComment()
+  const reportMut = useReportComment()
+  const currentUserId = useAuth((s) => s.user?.id)
+  const { data: role } = useMyRole()
   const [text, setText] = useState('')
   const { i18n } = useTranslation()
   const lang = i18n.language
   const isRTL = lang === 'ar'
+  const isAdmin = role === 'admin'
+  const actionBusy = deleteMut.isPending || reportMut.isPending
 
   const handleSend = async () => {
     if (!text.trim()) return
@@ -145,8 +214,74 @@ export default function CommentsSheet({
       await addMut.mutateAsync({ videoId, comment: text.trim() })
       setText('')
     } catch (err) {
-      Toast.show({ type: 'error', text1: (err as Error).message })
+      Toast.show({
+        type: 'error',
+        text1: isRTL ? 'تعذر إرسال التعليق' : 'Comment failed',
+        text2: (err as Error).message,
+      })
     }
+  }
+
+  const handleDelete = (comment: any) => {
+    Alert.alert(
+      isRTL ? 'حذف التعليق؟' : 'Delete comment?',
+      isRTL ? 'هل أنت متأكد أنك تريد حذف هذا التعليق؟' : 'Are you sure you want to delete this comment?',
+      [
+        { text: isRTL ? 'إلغاء' : 'Cancel', style: 'cancel' },
+        {
+          text: isRTL ? 'حذف' : 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteMut.mutateAsync({ commentId: comment.id, videoId })
+              onCommentDeleted?.()
+              Toast.show({
+                type: 'success',
+                text1: isRTL ? 'تم حذف التعليق' : 'Comment deleted',
+              })
+            } catch (err) {
+              Toast.show({
+                type: 'error',
+                text1: isRTL ? 'تعذر حذف التعليق' : 'Delete failed',
+                text2: (err as Error).message,
+              })
+            }
+          },
+        },
+      ],
+    )
+  }
+
+  const handleReport = (comment: any) => {
+    Alert.alert(
+      isRTL ? 'إبلاغ عن التعليق؟' : 'Report comment?',
+      isRTL
+        ? 'سيصل البلاغ إلى فريق المراجعة في لوحة التحكم.'
+        : 'This will send the comment to the moderation team.',
+      [
+        { text: isRTL ? 'إلغاء' : 'Cancel', style: 'cancel' },
+        {
+          text: isRTL ? 'إبلاغ' : 'Report',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await reportMut.mutateAsync({ commentId: comment.id, videoId })
+              Toast.show({
+                type: 'success',
+                text1: isRTL ? 'وصل البلاغ للمراجعة' : 'Report sent',
+                text2: isRTL ? 'سنراجعه في أسرع وقت.' : 'We will review it shortly.',
+              })
+            } catch (err) {
+              Toast.show({
+                type: 'error',
+                text1: isRTL ? 'تعذر إرسال البلاغ' : 'Report failed',
+                text2: (err as Error).message,
+              })
+            }
+          },
+        },
+      ],
+    )
   }
 
   return (
@@ -165,7 +300,6 @@ export default function CommentsSheet({
               overflow: 'hidden',
             }}
           >
-            {/* ── Header ── */}
             <View
               style={{
                 alignItems: 'center',
@@ -196,7 +330,6 @@ export default function CommentsSheet({
               </Pressable>
             </View>
 
-            {/* ── List ── */}
             {isLoading ? (
               <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.xl }} />
             ) : comments.length === 0 ? (
@@ -210,24 +343,33 @@ export default function CommentsSheet({
               >
                 <Ionicons name="chatbubble-ellipses-outline" size={52} color={colors.grey200} />
                 <Text style={{ color: colors.grey700, fontWeight: '700', fontSize: fontSize.base }}>
-                  {isRTL ? 'لا تعليقات بعد' : 'No comments yet'}
+                  {isRTL ? 'لا توجد تعليقات بعد' : 'No comments yet'}
                 </Text>
                 <Text style={{ color: colors.grey400, fontSize: fontSize.xs }}>
-                  {isRTL ? 'كن أول من يعلّق!' : 'Be the first to comment!'}
+                  {isRTL ? 'كن أول من يعلق!' : 'Be the first to comment!'}
                 </Text>
               </View>
             ) : (
               <FlatList
                 data={comments}
                 keyExtractor={(c) => c.id}
-                renderItem={({ item }) => <CommentItem item={item} lang={lang} />}
+                renderItem={({ item }) => (
+                  <CommentItem
+                    item={item}
+                    lang={lang}
+                    currentUserId={currentUserId}
+                    isAdmin={isAdmin}
+                    busy={actionBusy}
+                    onDelete={handleDelete}
+                    onReport={handleReport}
+                  />
+                )}
                 ItemSeparatorComponent={Separator}
                 contentContainerStyle={{ paddingBottom: 8 }}
                 showsVerticalScrollIndicator={false}
               />
             )}
 
-            {/* ── Input bar ── */}
             <View
               style={{
                 flexDirection: isRTL ? 'row-reverse' : 'row',
@@ -242,7 +384,7 @@ export default function CommentsSheet({
               <TextInput
                 value={text}
                 onChangeText={setText}
-                placeholder={isRTL ? 'أضف تعليقاً...' : 'Add a comment...'}
+                placeholder={isRTL ? 'أضف تعليقًا...' : 'Add a comment...'}
                 placeholderTextColor={colors.grey400}
                 textAlign={isRTL ? 'right' : 'left'}
                 style={{

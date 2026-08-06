@@ -197,7 +197,7 @@ export default function UploadScreen() {
 
       setUploadPhase('done')
       setProgress(100)
-      Toast.show({ type: 'success', text1: '✅ تم رفع الفيديو', text2: 'سيظهر بعد المراجعة' })
+      Toast.show({ type: 'success', text1: 'تم نشر الفيديو 🎬', text2: 'سيظهر بعد المراجعة' })
       setTimeout(() => router.back(), 800)
     } catch (err: any) {
       const isCancel = String(err?.message || '').includes('تم الإلغاء')

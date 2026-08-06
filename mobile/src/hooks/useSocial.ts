@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/stores/auth'
+import { fetchAdminBlockedUserIds } from '@/lib/adminBlocks'
 
 export type VideoInteraction = 'like' | 'dislike' | null
 
@@ -132,8 +133,13 @@ export function useComments(videoId: string) {
       }
       if (!comments || comments.length === 0) return []
 
+      const adminBlockedIds = await fetchAdminBlockedUserIds()
+      const adminBlockedSet = new Set(adminBlockedIds)
+      const visibleComments = comments.filter((c) => !adminBlockedSet.has(c.user_id))
+      if (visibleComments.length === 0) return []
+
       // 2. Fetch profiles for each commenter
-      const userIds = [...new Set(comments.map((c) => c.user_id))]
+      const userIds = [...new Set(visibleComments.map((c) => c.user_id))]
       const { data: profiles } = await supabase
         .from('profiles')
         .select('id, name, avatar_url')
@@ -141,10 +147,48 @@ export function useComments(videoId: string) {
 
       const profileMap = Object.fromEntries((profiles || []).map((p) => [p.id, p]))
 
-      return comments.map((c) => ({
+      return visibleComments.map((c) => ({
         ...c,
         profile: profileMap[c.user_id] || { name: 'مستخدم', avatar_url: null },
       }))
+    },
+  })
+}
+
+/** Delete own comment, or any comment when current user is admin */
+export function useDeleteComment() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ commentId }: { commentId: string; videoId: string }) => {
+      const { error } = await supabase.rpc('delete_video_comment', { p_comment_id: commentId })
+      if (error) throw error
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['comments', vars.videoId] })
+      qc.invalidateQueries({ queryKey: ['feed'] })
+    },
+  })
+}
+
+/** Report a comment to moderation */
+export function useReportComment() {
+  return useMutation({
+    mutationFn: async ({
+      commentId,
+      reason = 'unsafe_comment',
+      description = null,
+    }: {
+      commentId: string
+      videoId: string
+      reason?: string
+      description?: string | null
+    }) => {
+      const { error } = await supabase.rpc('report_video_comment', {
+        p_comment_id: commentId,
+        p_reason: reason,
+        p_description: description,
+      })
+      if (error) throw error
     },
   })
 }
