@@ -39,6 +39,31 @@ interface NotificationHistory {
   created_at: string
 }
 
+async function readFunctionError(error: any, data?: any) {
+  const details: string[] = []
+
+  if (data?.error || data?.detail || data?.message) {
+    details.push([data.error, data.detail || data.message].filter(Boolean).join(' — '))
+  }
+
+  try {
+    const ctx = error?.context
+    const response = ctx?.response || ctx
+    if (response?.clone) {
+      const cloned = response.clone()
+      const body = await cloned.json().catch(async () => {
+        return { detail: await response.clone().text().catch(() => '') }
+      })
+      const code = body?.error || body?.code || ''
+      const msg = body?.detail || body?.message || ''
+      const status = response.status ? `HTTP ${response.status}` : ''
+      details.push([status, code, msg].filter(Boolean).join(' — '))
+    }
+  } catch {}
+
+  return details.filter(Boolean).join(' | ') || error?.message || 'Notification send failed'
+}
+
 export default function AdminNotifications() {
   const { i18n } = useTranslation()
   const isAr = i18n.language === 'ar'
@@ -108,21 +133,7 @@ export default function AdminNotifications() {
       }
       const { data, error } = await supabase.functions.invoke('send-push', { body: payload })
       if (error) {
-        // supabase-js hides the response body — read it ourselves to surface
-        // the real reason (FORBIDDEN / DB_INSERT_FAILED / MISSING_FIELDS / ...).
-        let detail = ''
-        try {
-          const ctx: any = (error as any).context
-          if (ctx?.response) {
-            const body = await ctx.response.clone().json().catch(async () => {
-              return { detail: await ctx.response.clone().text().catch(() => '') }
-            })
-            const code = body?.error || ''
-            const msg  = body?.detail || ''
-            detail = code && msg ? `${code} — ${msg}` : (code || msg || '')
-          }
-        } catch {}
-        throw new Error(detail ? `${error.message}: ${detail}` : error.message)
+        throw new Error(await readFunctionError(error, data))
       }
       return data
     },
@@ -138,7 +149,7 @@ export default function AdminNotifications() {
       qc.invalidateQueries({ queryKey: ['notification-history'] })
     },
     onError: (err: Error) => {
-      toast.error(err.message)
+      toast.error(err.message, { duration: 9000 })
     },
   })
 

@@ -40,6 +40,9 @@ Deno.serve(async (req) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
+  let historyId: string | null = null
+  const admin = createClient(SUPABASE_URL, SERVICE_ROLE)
+
   try {
     // ── Auth: verify the caller is an authenticated admin ─────────────
     const authHeader = req.headers.get('Authorization')
@@ -56,7 +59,6 @@ Deno.serve(async (req) => {
     }
 
     // Verify admin role
-    const admin = createClient(SUPABASE_URL, SERVICE_ROLE)
     const { data: profile } = await admin
       .from('profiles')
       .select('role')
@@ -104,6 +106,7 @@ Deno.serve(async (req) => {
     if (histErr || !history) {
       return json({ error: 'DB_INSERT_FAILED', detail: histErr?.message }, 500)
     }
+    historyId = history.id
 
     // ── Fetch matching push tokens ────────────────────────────────────
     // NOTE: PostgREST caps un-paginated SELECT at ~1000 rows. Without
@@ -184,6 +187,15 @@ Deno.serve(async (req) => {
       title_ar, body_ar, title_en, body_en, image_url, deep_link, data,
     })
   } catch (err) {
+    if (historyId) {
+      try {
+        await admin.from('notification_history').update({
+          status: 'failed',
+          failed_count: 1,
+          sent_at: new Date().toISOString(),
+        }).eq('id', historyId)
+      } catch {}
+    }
     return json({ error: 'INTERNAL', detail: (err as Error).message }, 500)
   }
 })
@@ -211,8 +223,30 @@ async function sendBatch(
     return json({ ok: true, sent: 0 })
   }
 
+  const validTokens = tokens.filter((t) => isExpoPushToken(t.expo_token))
+  const invalidTokens = tokens.filter((t) => !isExpoPushToken(t.expo_token)).map((t) => t.expo_token).filter(Boolean)
+
+  if (invalidTokens.length > 0) {
+    try {
+      await admin
+        .from('push_tokens')
+        .update({ is_active: false, updated_at: new Date().toISOString() })
+        .in('expo_token', invalidTokens)
+    } catch { /* best-effort cleanup; don't fail the send */ }
+  }
+
+  if (validTokens.length === 0) {
+    await admin.from('notification_history').update({
+      status: 'sent',
+      sent_count: 0,
+      failed_count: invalidTokens.length,
+      sent_at: new Date().toISOString(),
+    }).eq('id', historyId)
+    return json({ ok: true, sent: 0, failed: invalidTokens.length, total: tokens.length })
+  }
+
   // Build Expo push messages — pick AR or EN per recipient
-  const messages = tokens.map((t) => {
+  const messages = validTokens.map((t) => {
     const useEn = t.language === 'en'
     const title = useEn ? (msg.title_en || msg.title_ar) : msg.title_ar
     const body = useEn ? (msg.body_en || msg.body_ar) : msg.body_ar
@@ -249,6 +283,11 @@ async function sendBatch(
       })
 
       const result = await resp.json()
+      if (!resp.ok) {
+        console.error('[send-push] Expo batch failed', resp.status, result)
+        failed += chunk.length
+        continue
+      }
       const tickets = result?.data || []
       // tickets[i] aligns with chunk[i] — same order. Track which tokens are
       // dead so we can deactivate them in one batched query at the end.
@@ -285,7 +324,7 @@ async function sendBatch(
   // dispatch_push=false because we already sent the Expo push above —
   // otherwise the notifications trigger would re-send it (duplicate push).
   try {
-    const uniqueUserIds = [...new Set(tokens.map((t) => t.user_id).filter(Boolean))]
+    const uniqueUserIds = [...new Set(validTokens.map((t) => t.user_id).filter(Boolean))]
     if (uniqueUserIds.length > 0) {
       const rows = uniqueUserIds.map((uid) => ({
         user_id:       uid,
@@ -306,11 +345,11 @@ async function sendBatch(
   await admin.from('notification_history').update({
     status: failed === messages.length ? 'failed' : 'sent',
     sent_count: sent,
-    failed_count: failed,
+    failed_count: failed + invalidTokens.length,
     sent_at: new Date().toISOString(),
   }).eq('id', historyId)
 
-  return json({ ok: true, sent, failed, total: messages.length })
+  return json({ ok: true, sent, failed: failed + invalidTokens.length, total: tokens.length })
 }
 
 function json(body: unknown, status = 200): Response {
@@ -365,3 +404,8 @@ const DEAD_TOKEN_ERRORS = new Set([
   'MismatchSenderId',
   'MessageTooBig',
 ])
+
+function isExpoPushToken(token: unknown): token is string {
+  return typeof token === 'string'
+    && /^(ExpoPushToken|ExponentPushToken)\[[A-Za-z0-9_-]+\]$/.test(token)
+}

@@ -456,7 +456,7 @@ export default function AdminUsers() {
         </div>
 
         {/* Users Table */}
-        <div className="rounded-xl border border-neutral-200 overflow-hidden bg-white">
+        <div className="rounded-xl border border-neutral-200 overflow-visible bg-white">
           <table className="w-full">
             <thead className="bg-neutral-50 border-b border-neutral-200">
               <tr className="text-left text-xs font-bold text-neutral-600 uppercase tracking-wide">
@@ -540,7 +540,7 @@ export default function AdminUsers() {
                         {formatDate(user.created_at)}
                       </td>
                       {/* Actions */}
-                      <td className="px-4 py-3 relative">
+                      <td className={cn('px-4 py-3 relative overflow-visible', openMenuId === user.id && 'z-50')}>
                         <button
                           onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === user.id ? null : user.id) }}
                           className="p-1 hover:bg-neutral-200 rounded"
@@ -550,7 +550,7 @@ export default function AdminUsers() {
                         {openMenuId === user.id && (
                           <>
                             <div className="fixed inset-0 z-10" onClick={() => setOpenMenuId(null)} />
-                            <div className="absolute right-0 top-10 z-20 bg-white border border-neutral-200 rounded-lg shadow-lg py-1 min-w-[180px]">
+                            <div className="absolute right-2 top-10 z-[80] bg-white border border-neutral-200 rounded-lg shadow-xl py-1 min-w-[190px]">
                               <MenuItem icon={UserIcon} label="View details" onClick={() => { setSelectedUser(user); setOpenMenuId(null) }} />
                               <MenuItem icon={Copy} label="Copy ID" onClick={() => { navigator.clipboard.writeText(user.id); toast.success('ID copied'); setOpenMenuId(null) }} />
                               <hr className="my-1 border-neutral-100" />
