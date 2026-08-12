@@ -32,9 +32,16 @@ jobs:
           echo "Secrets OK. Project: $SUPABASE_PROJECT_ID"
 
       - name: Install Supabase CLI
-        uses: supabase/setup-cli@v2
-        with:
-          version: 2.6.8
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3 4 5; do
+            if npm install -g supabase@2.6.8; then
+              supabase --version
+              exit 0
+            fi
+            sleep $((attempt * 10))
+          done
+          exit 1
 
       - name: Deploy all functions
         run: |
