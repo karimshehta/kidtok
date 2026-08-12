@@ -20,10 +20,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js 24
+      - name: Setup Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: '22'
 
       - name: Verify secrets present
         run: |
@@ -35,8 +35,9 @@ jobs:
         run: |
           set -euo pipefail
           for attempt in 1 2 3 4 5; do
-            if npm install -g supabase@2.6.8; then
-              supabase --version
+            if npm install --no-save supabase@2.6.8; then
+              echo "$PWD/node_modules/.bin" >> "$GITHUB_PATH"
+              ./node_modules/.bin/supabase --version
               exit 0
             fi
             sleep $((attempt * 10))
