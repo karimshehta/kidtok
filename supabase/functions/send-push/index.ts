@@ -1,38 +1,33 @@
 /**
- * send-push — Admin endpoint to send push notifications to KidTok users.
+ * send-push — Admin endpoint to queue a broadcast push.
  *
- * Body (JSON):
- * {
- *   "title_ar": "...",
- *   "body_ar": "...",
- *   "title_en"?: "...",
- *   "body_en"?: "...",
- *   "image_url"?: "...",
- *   "deep_link"?: "/playlist/abc/play",
- *   "data"?: { ... },
- *   "target_type": "all" | "language" | "subscribed" | "free" | "user" | "role",
- *   "target_value"?: "ar" | "en" | "<user_id>" | "creator" | "admin"
- * }
+ * Heavy Expo sending is intentionally NOT done here. Large sends used to
+ * hit Supabase Edge Function resource limits (HTTP 546). This function now:
+ *   1. Verifies the caller is an admin.
+ *   2. Inserts notification_history with status='queued'.
+ *   3. Finds matching active push tokens.
+ *   4. Inserts delivery rows into notification_delivery_queue.
+ *   5. Fans out the in-app inbox rows once per user.
  *
- * Strategy:
- *   1. Verify the caller is an admin (RLS via service_role + role check).
- *   2. Insert a row in notification_history (status='sending').
- *   3. Fetch matching push_tokens.
- *   4. Group tokens by language so we can send the right localized text.
- *   5. POST to https://exp.host/--/api/v2/push/send in batches of 100.
- *   6. Update notification_history with sent_count + status='sent'.
+ * The admin dashboard then calls process-push-queue repeatedly to drain
+ * the queue in small safe batches.
  */
 
 import { createClient } from 'jsr:@supabase/supabase-js@^2.45.4'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
+}
+
+type TokenRow = {
+  expo_token: string
+  language: string | null
+  user_id: string | null
 }
 
 Deno.serve(async (req) => {
@@ -44,32 +39,9 @@ Deno.serve(async (req) => {
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE)
 
   try {
-    // ── Auth: verify the caller is an authenticated admin ─────────────
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      return json({ error: 'UNAUTHENTICATED' }, 401)
-    }
+    const auth = await requireAdmin(req, admin)
+    if (auth.error) return auth.error
 
-    const userClient = createClient(SUPABASE_URL, SERVICE_ROLE, {
-      global: { headers: { Authorization: authHeader } },
-    })
-    const { data: userRes, error: userErr } = await userClient.auth.getUser()
-    if (userErr || !userRes.user) {
-      return json({ error: 'UNAUTHENTICATED' }, 401)
-    }
-
-    // Verify admin role
-    const { data: profile } = await admin
-      .from('profiles')
-      .select('role')
-      .eq('id', userRes.user.id)
-      .single()
-
-    if (profile?.role !== 'admin') {
-      return json({ error: 'FORBIDDEN' }, 403)
-    }
-
-    // ── Parse body ────────────────────────────────────────────────────
     const body = await req.json()
     const {
       title_ar,
@@ -87,18 +59,28 @@ Deno.serve(async (req) => {
       return json({ error: 'MISSING_FIELDS', detail: 'title_ar and body_ar are required' }, 400)
     }
 
-    // ── Record in history (status='sending') ──────────────────────────
+    const message = {
+      title_ar,
+      body_ar,
+      title_en: title_en || title_ar,
+      body_en: body_en || body_ar,
+      image_url: image_url || null,
+      deep_link: deep_link || null,
+      data: data || {},
+    }
+
     const { data: history, error: histErr } = await admin
       .from('notification_history')
       .insert({
-        title_ar, body_ar,
-        title_en: title_en || title_ar,
-        body_en: body_en || body_ar,
-        image_url, deep_link,
-        data: data || {},
-        target_type, target_value,
-        status: 'sending',
-        created_by: userRes.user.id,
+        ...message,
+        target_type,
+        target_value,
+        status: 'queued',
+        sent_count: 0,
+        failed_count: 0,
+        queued_count: 0,
+        last_error: null,
+        created_by: auth.userId,
       })
       .select('id')
       .single()
@@ -108,90 +90,71 @@ Deno.serve(async (req) => {
     }
     historyId = history.id
 
-    // ── Fetch matching push tokens ────────────────────────────────────
-    // NOTE: PostgREST caps un-paginated SELECT at ~1000 rows. Without
-    // explicit pagination, this used to return only the first 1000
-    // tokens even when 5,000+ existed — which is why past sends
-    // reported ~900 delivered on a base of 5,641 devices. We now
-    // paginate through every matching row.
-    const buildTokenQuery = () => admin
-      .from('push_tokens')
-      .select('expo_token, language, user_id')
-      .eq('is_active', true)
+    const tokens = await fetchTargetTokens(admin, target_type, target_value)
+    const validTokens = tokens.filter((t) => isExpoPushToken(t.expo_token))
+    const invalidTokens = tokens
+      .filter((t) => !isExpoPushToken(t.expo_token))
+      .map((t) => t.expo_token)
+      .filter(Boolean)
 
-    let tokenFilter: 'none' | 'language' | 'user' | 'in' | 'free' = 'none'
-    let tokenFilterValue: any = null
-
-    if (target_type === 'language' && target_value) {
-      tokenFilter = 'language'
-      tokenFilterValue = target_value === 'en' ? 'en' : 'ar'
-    } else if (target_type === 'user' && target_value) {
-      tokenFilter = 'user'
-      tokenFilterValue = target_value
-    } else if (target_type === 'role' && target_value) {
-      // Get user_ids with this role first (also paginated — role tables
-      // can be small but we paginate for safety)
-      const users = await fetchAll((from, to) =>
-        admin.from('profiles').select('id').eq('role', target_value).range(from, to)
-      )
-      const ids = users.map((u: any) => u.id)
-      if (ids.length === 0) {
-        await admin.from('notification_history').update({
-          status: 'sent', sent_count: 0, sent_at: new Date().toISOString(),
-        }).eq('id', history.id)
-        return json({ ok: true, sent: 0, message: 'No users with that role' })
-      }
-      tokenFilter = 'in'
-      tokenFilterValue = ids
-    } else if (target_type === 'subscribed') {
-      const subs = await fetchAll((from, to) =>
-        admin.from('subscriptions').select('user_id')
-          .eq('status', 'active')
-          .gt('expires_at', new Date().toISOString())
-          .range(from, to)
-      )
-      const ids = [...new Set(subs.map((s: any) => s.user_id))]
-      if (ids.length === 0) {
-        await admin.from('notification_history').update({
-          status: 'sent', sent_count: 0, sent_at: new Date().toISOString(),
-        }).eq('id', history.id)
-        return json({ ok: true, sent: 0, message: 'No subscribed users' })
-      }
-      tokenFilter = 'in'
-      tokenFilterValue = ids
-    } else if (target_type === 'free') {
-      const subs = await fetchAll((from, to) =>
-        admin.from('subscriptions').select('user_id')
-          .eq('status', 'active')
-          .gt('expires_at', new Date().toISOString())
-          .range(from, to)
-      )
-      const subIds = new Set(subs.map((s: any) => s.user_id))
-      const allTokens = await fetchAll((from, to) => buildTokenQuery().range(from, to))
-      const filtered = allTokens.filter((t: any) => !subIds.has(t.user_id))
-      return await sendBatch(admin, history.id, filtered, {
-        title_ar, body_ar, title_en, body_en, image_url, deep_link, data,
-      })
+    if (invalidTokens.length > 0) {
+      await deactivateTokens(admin, invalidTokens)
     }
 
-    // Fetch tokens (fully paginated — no more silent 1000-row cap)
-    const tokens = await fetchAll((from, to) => {
-      let q = buildTokenQuery().range(from, to)
-      if (tokenFilter === 'language') q = q.eq('language', tokenFilterValue)
-      else if (tokenFilter === 'user') q = q.eq('user_id', tokenFilterValue)
-      else if (tokenFilter === 'in') q = q.in('user_id', tokenFilterValue)
-      return q
-    })
+    const queueRows = validTokens.map((t) => ({
+      history_id: history.id,
+      user_id: t.user_id,
+      expo_token: t.expo_token,
+      language: t.language === 'en' ? 'en' : 'ar',
+      status: 'queued',
+    }))
 
-    return await sendBatch(admin, history.id, tokens, {
-      title_ar, body_ar, title_en, body_en, image_url, deep_link, data,
+    await insertInChunks(admin, 'notification_delivery_queue', queueRows)
+
+    const inboxRows = [...new Set(validTokens.map((t) => t.user_id).filter(Boolean))]
+      .map((uid) => ({
+        user_id: uid,
+        type: 'broadcast',
+        title_ar: message.title_ar,
+        body_ar: message.body_ar,
+        title_en: message.title_en || null,
+        body_en: message.body_en || null,
+        image_url: message.image_url,
+        deep_link: message.deep_link,
+        data: message.data,
+        dispatch_push: false,
+      }))
+
+    await insertInChunks(admin, 'notifications', inboxRows)
+
+    const terminalStatus = queueRows.length > 0
+      ? 'queued'
+      : invalidTokens.length > 0 ? 'failed' : 'sent'
+
+    await admin
+      .from('notification_history')
+      .update({
+        status: terminalStatus,
+        queued_count: queueRows.length,
+        failed_count: invalidTokens.length,
+        sent_at: queueRows.length > 0 ? null : new Date().toISOString(),
+      })
+      .eq('id', history.id)
+
+    return json({
+      ok: true,
+      queued: queueRows.length,
+      failed: invalidTokens.length,
+      total: tokens.length,
+      history_id: history.id,
+      message: queueRows.length > 0 ? 'Notification queued for delivery' : 'No active push tokens',
     })
   } catch (err) {
     if (historyId) {
       try {
         await admin.from('notification_history').update({
           status: 'failed',
-          failed_count: 1,
+          last_error: (err as Error).message,
           sent_at: new Date().toISOString(),
         }).eq('id', historyId)
       } catch {}
@@ -200,190 +163,136 @@ Deno.serve(async (req) => {
   }
 })
 
-async function sendBatch(
+async function requireAdmin(req: Request, admin: any): Promise<{ userId: string; error?: Response }> {
+  const authHeader = req.headers.get('Authorization')
+  if (!authHeader) {
+    return { userId: '', error: json({ error: 'UNAUTHENTICATED' }, 401) }
+  }
+
+  const userClient = createClient(SUPABASE_URL, SERVICE_ROLE, {
+    global: { headers: { Authorization: authHeader } },
+  })
+  const { data: userRes, error: userErr } = await userClient.auth.getUser()
+  if (userErr || !userRes.user) {
+    return { userId: '', error: json({ error: 'UNAUTHENTICATED' }, 401) }
+  }
+
+  const { data: profile } = await admin
+    .from('profiles')
+    .select('role')
+    .eq('id', userRes.user.id)
+    .single()
+
+  if (profile?.role !== 'admin') {
+    return { userId: '', error: json({ error: 'FORBIDDEN' }, 403) }
+  }
+
+  return { userId: userRes.user.id }
+}
+
+async function fetchTargetTokens(
   admin: any,
-  historyId: string,
-  tokens: { expo_token: string; language: string; user_id?: string }[],
-  msg: {
-    title_ar: string
-    body_ar: string
-    title_en?: string
-    body_en?: string
-    image_url?: string
-    deep_link?: string
-    data?: any
-  }
-): Promise<Response> {
-  if (tokens.length === 0) {
-    await admin.from('notification_history').update({
-      status: 'sent',
-      sent_count: 0,
-      sent_at: new Date().toISOString(),
-    }).eq('id', historyId)
-    return json({ ok: true, sent: 0 })
+  targetType: string,
+  targetValue?: string,
+): Promise<TokenRow[]> {
+  const buildTokenQuery = () => admin
+    .from('push_tokens')
+    .select('expo_token, language, user_id')
+    .eq('is_active', true)
+
+  if (targetType === 'language' && targetValue) {
+    const language = targetValue === 'en' ? 'en' : 'ar'
+    return await fetchAll((from, to) => buildTokenQuery().eq('language', language).range(from, to))
   }
 
-  const validTokens = tokens.filter((t) => isExpoPushToken(t.expo_token))
-  const invalidTokens = tokens.filter((t) => !isExpoPushToken(t.expo_token)).map((t) => t.expo_token).filter(Boolean)
+  if (targetType === 'user' && targetValue) {
+    return await fetchAll((from, to) => buildTokenQuery().eq('user_id', targetValue).range(from, to))
+  }
 
-  if (invalidTokens.length > 0) {
-    try {
-      await admin
+  if (targetType === 'role' && targetValue) {
+    const users = await fetchAll<{ id: string }>((from, to) =>
+      admin.from('profiles').select('id').eq('role', targetValue).range(from, to)
+    )
+    return await fetchTokensByUserIds(admin, users.map((u) => u.id))
+  }
+
+  if (targetType === 'subscribed') {
+    const subs = await fetchAll<{ user_id: string }>((from, to) =>
+      admin.from('subscriptions').select('user_id')
+        .eq('status', 'active')
+        .gt('expires_at', new Date().toISOString())
+        .range(from, to)
+    )
+    return await fetchTokensByUserIds(admin, [...new Set(subs.map((s) => s.user_id))])
+  }
+
+  if (targetType === 'free') {
+    const subs = await fetchAll<{ user_id: string }>((from, to) =>
+      admin.from('subscriptions').select('user_id')
+        .eq('status', 'active')
+        .gt('expires_at', new Date().toISOString())
+        .range(from, to)
+    )
+    const subIds = new Set(subs.map((s) => s.user_id))
+    const tokens = await fetchAll<TokenRow>((from, to) => buildTokenQuery().range(from, to))
+    return tokens.filter((t) => !subIds.has(String(t.user_id || '')))
+  }
+
+  return await fetchAll((from, to) => buildTokenQuery().range(from, to))
+}
+
+async function fetchTokensByUserIds(admin: any, userIds: string[]): Promise<TokenRow[]> {
+  const ids = [...new Set(userIds.filter(Boolean))]
+  if (ids.length === 0) return []
+
+  const out: TokenRow[] = []
+  for (let i = 0; i < ids.length; i += 400) {
+    const chunk = ids.slice(i, i + 400)
+    const tokens = await fetchAll<TokenRow>((from, to) =>
+      admin
         .from('push_tokens')
-        .update({ is_active: false, updated_at: new Date().toISOString() })
-        .in('expo_token', invalidTokens)
-    } catch { /* best-effort cleanup; don't fail the send */ }
+        .select('expo_token, language, user_id')
+        .eq('is_active', true)
+        .in('user_id', chunk)
+        .range(from, to)
+    )
+    out.push(...tokens)
   }
-
-  if (validTokens.length === 0) {
-    await admin.from('notification_history').update({
-      status: 'sent',
-      sent_count: 0,
-      failed_count: invalidTokens.length,
-      sent_at: new Date().toISOString(),
-    }).eq('id', historyId)
-    return json({ ok: true, sent: 0, failed: invalidTokens.length, total: tokens.length })
-  }
-
-  // Build Expo push messages — pick AR or EN per recipient
-  const messages = validTokens.map((t) => {
-    const useEn = t.language === 'en'
-    const title = useEn ? (msg.title_en || msg.title_ar) : msg.title_ar
-    const body = useEn ? (msg.body_en || msg.body_ar) : msg.body_ar
-    return {
-      to: t.expo_token,
-      title,
-      body,
-      sound: 'default',
-      priority: 'high',
-      data: {
-        ...(msg.data || {}),
-        deep_link: msg.deep_link,
-      },
-      ...(msg.image_url ? { richContent: { image: msg.image_url } } : {}),
-      channelId: 'default',
-    }
-  })
-
-  let sent = 0
-  let failed = 0
-  const batchSize = 100
-
-  for (let i = 0; i < messages.length; i += batchSize) {
-    const chunk = messages.slice(i, i + batchSize)
-    try {
-      const resp = await fetch(EXPO_PUSH_URL, {
-        method: 'POST',
-        headers: {
-          'Accept': 'application/json',
-          'Accept-Encoding': 'gzip, deflate',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(chunk),
-      })
-
-      const result = await resp.json()
-      if (!resp.ok) {
-        console.error('[send-push] Expo batch failed', resp.status, result)
-        failed += chunk.length
-        continue
-      }
-      const tickets = result?.data || []
-      // tickets[i] aligns with chunk[i] — same order. Track which tokens are
-      // dead so we can deactivate them in one batched query at the end.
-      const deadTokens: string[] = []
-      for (let j = 0; j < tickets.length; j++) {
-        const tk = tickets[j]
-        if (tk?.status === 'ok') sent++
-        else {
-          failed++
-          // Any of the dead-token error codes → deactivate so we
-          // never waste another push on this token.
-          const errCode = tk?.details?.error
-          if (errCode && DEAD_TOKEN_ERRORS.has(errCode)) {
-            const deadTo = chunk[j]?.to
-            if (typeof deadTo === 'string' && deadTo) deadTokens.push(deadTo)
-          }
-        }
-      }
-      // Batch-deactivate dead tokens
-      if (deadTokens.length > 0) {
-        try {
-          await admin
-            .from('push_tokens')
-            .update({ is_active: false, updated_at: new Date().toISOString() })
-            .in('expo_token', deadTokens)
-        } catch { /* best-effort cleanup; don't fail the send */ }
-      }
-    } catch {
-      failed += chunk.length
-    }
-  }
-
-  // ── Fanout to per-user inbox so the in-app notifications tab shows it.
-  // dispatch_push=false because we already sent the Expo push above —
-  // otherwise the notifications trigger would re-send it (duplicate push).
-  try {
-    const uniqueUserIds = [...new Set(validTokens.map((t) => t.user_id).filter(Boolean))]
-    if (uniqueUserIds.length > 0) {
-      const rows = uniqueUserIds.map((uid) => ({
-        user_id:       uid,
-        type:          'broadcast',
-        title_ar:      msg.title_ar,
-        body_ar:       msg.body_ar,
-        title_en:      msg.title_en || null,
-        body_en:       msg.body_en  || null,
-        image_url:     msg.image_url || null,
-        deep_link:     msg.deep_link || null,
-        data:          msg.data || {},
-        dispatch_push: false,        // ← already sent above
-      }))
-      await admin.from('notifications').insert(rows)
-    }
-  } catch { /* inbox fanout is best-effort; don't fail the send */ }
-
-  await admin.from('notification_history').update({
-    status: failed === messages.length ? 'failed' : 'sent',
-    sent_count: sent,
-    failed_count: failed + invalidTokens.length,
-    sent_at: new Date().toISOString(),
-  }).eq('id', historyId)
-
-  return json({ ok: true, sent, failed: failed + invalidTokens.length, total: tokens.length })
+  return out
 }
 
-function json(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  })
+async function insertInChunks(admin: any, table: string, rows: any[], chunkSize = 500) {
+  for (let i = 0; i < rows.length; i += chunkSize) {
+    const chunk = rows.slice(i, i + chunkSize)
+    if (chunk.length === 0) continue
+    const { error } = await admin.from(table).insert(chunk)
+    if (error) throw new Error(`${table} insert failed: ${error.message}`)
+  }
 }
 
-/**
- * Paginate through a Supabase query, gathering every row.
- *
- * PostgREST caps un-paginated selects at ~1000 rows. Any table that
- * grows past that ceiling (push_tokens, notification_history, etc.)
- * silently truncates results without pagination. This helper walks
- * page-by-page in 1000-row windows until it sees a short page or an
- * error, then returns the full set.
- */
+async function deactivateTokens(admin: any, tokens: string[]) {
+  const unique = [...new Set(tokens.filter(Boolean))]
+  for (let i = 0; i < unique.length; i += 500) {
+    await admin
+      .from('push_tokens')
+      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .in('expo_token', unique.slice(i, i + 500))
+  }
+}
+
 async function fetchAll<T = any>(
   makeQuery: (from: number, to: number) => any,
   pageSize = 1000,
 ): Promise<T[]> {
   const out: T[] = []
   let from = 0
-  // Hard ceiling — refuses to try more than 200k rows to avoid runaway
-  // loops. Push_tokens rarely goes past 100k for KidTok's scale; if we
-  // ever cross this we'll notice from the log and paginate on read.
   const maxPages = 200
+
   for (let page = 0; page < maxPages; page++) {
     const to = from + pageSize - 1
     const { data, error } = await makeQuery(from, to)
     if (error) {
-      console.error('[fetchAll] error at page', page, error)
-      break
+      throw new Error(`fetchAll failed at page ${page}: ${error.message}`)
     }
     if (!data || data.length === 0) break
     out.push(...data)
@@ -393,19 +302,14 @@ async function fetchAll<T = any>(
   return out
 }
 
-/**
- * Expo returns a handful of ticket-level error codes that all mean the
- * token is dead and should never be pushed again. Kept as a single set
- * so we deactivate on any of them, not just the two most common.
- */
-const DEAD_TOKEN_ERRORS = new Set([
-  'DeviceNotRegistered',
-  'InvalidCredentials',
-  'MismatchSenderId',
-  'MessageTooBig',
-])
-
 function isExpoPushToken(token: unknown): token is string {
   return typeof token === 'string'
     && /^(ExpoPushToken|ExponentPushToken)\[[A-Za-z0-9_-]+\]$/.test(token)
+}
+
+function json(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  })
 }

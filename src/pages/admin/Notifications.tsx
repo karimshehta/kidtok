@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import {
@@ -35,6 +35,8 @@ interface NotificationHistory {
   target_value: string | null
   sent_count: number
   failed_count: number
+  queued_count?: number
+  last_error?: string | null
   status: string
   created_at: string
 }
@@ -68,6 +70,7 @@ export default function AdminNotifications() {
   const { i18n } = useTranslation()
   const isAr = i18n.language === 'ar'
   const qc = useQueryClient()
+  const processingRef = useRef(false)
 
   const [titleAr, setTitleAr] = useState('')
   const [bodyAr, setBodyAr] = useState('')
@@ -113,6 +116,53 @@ export default function AdminNotifications() {
     },
   })
 
+  const processQueue = async (historyId?: string | null) => {
+    const { data, error } = await supabase.functions.invoke('process-push-queue', {
+      body: {
+        history_id: historyId || undefined,
+        limit: 250,
+      },
+    })
+    if (error) {
+      throw new Error(await readFunctionError(error, data))
+    }
+    return data
+  }
+
+  const drainQueueOnce = async (historyId?: string | null) => {
+    if (processingRef.current) return null
+    processingRef.current = true
+    try {
+      const result = await processQueue(historyId)
+      await qc.invalidateQueries({ queryKey: ['notification-history'] })
+      return result
+    } finally {
+      processingRef.current = false
+    }
+  }
+
+  useEffect(() => {
+    const hasActiveQueue = history.some((n) => n.status === 'queued' || n.status === 'sending')
+    if (!hasActiveQueue) return
+
+    let stopped = false
+    const tick = async () => {
+      if (stopped) return
+      try {
+        await drainQueueOnce()
+      } catch (err) {
+        console.warn('[notifications] queue processing failed', err)
+      }
+    }
+
+    tick()
+    const timer = window.setInterval(tick, 2500)
+    return () => {
+      stopped = true
+      window.clearInterval(timer)
+    }
+  }, [history, qc])
+
   // Send mutation
   const sendMut = useMutation({
     mutationFn: async () => {
@@ -140,9 +190,12 @@ export default function AdminNotifications() {
     onSuccess: (data: any) => {
       toast.success(
         isAr
-          ? `تم الإرسال إلى ${data?.sent || 0} مستخدم`
-          : `Sent to ${data?.sent || 0} users`
+          ? `تم وضع ${data?.queued || 0} إشعار في طابور الإرسال`
+          : `Queued ${data?.queued || 0} push notifications`
       )
+      drainQueueOnce(data?.history_id).catch((err) => {
+        toast.error(err.message, { duration: 9000 })
+      })
       // Reset
       setTitleAr(''); setBodyAr(''); setTitleEn(''); setBodyEn('')
       setImageUrl(''); setDeepLink(''); setTargetValue('')
@@ -297,7 +350,7 @@ export default function AdminNotifications() {
             ) : (
               <Send className="w-5 h-5" />
             )}
-            {sendMut.isPending ? (isAr ? 'جارٍ الإرسال...' : 'Sending...') : (isAr ? 'إرسال الإشعار' : 'Send Notification')}
+            {sendMut.isPending ? (isAr ? 'جارٍ تجهيز الطابور...' : 'Queueing...') : (isAr ? 'إرسال الإشعار' : 'Send Notification')}
           </button>
         </div>
 
@@ -361,6 +414,14 @@ function HistoryRow({ n, isAr }: { n: NotificationHistory; isAr: boolean }) {
     n.status === 'sent' ? <CheckCircle2 className="w-4 h-4 text-green-500" />
     : n.status === 'failed' ? <AlertCircle className="w-4 h-4 text-red-500" />
     : <Clock className="w-4 h-4 text-amber-500" />
+  const total = Math.max(n.queued_count || 0, n.sent_count + n.failed_count)
+  const processed = Math.min(total || n.sent_count + n.failed_count, n.sent_count + n.failed_count)
+  const isActive = n.status === 'queued' || n.status === 'sending'
+  const statusLabel =
+    n.status === 'sent' ? (isAr ? 'اكتمل' : 'Sent')
+    : n.status === 'failed' ? (isAr ? 'فشل' : 'Failed')
+    : n.status === 'queued' ? (isAr ? 'في الطابور' : 'Queued')
+    : isAr ? 'جارٍ الإرسال' : 'Sending'
 
   return (
     <div className="flex items-start gap-3 p-3 rounded-xl border border-neutral-100 hover:bg-neutral-50 transition-colors">
@@ -371,9 +432,14 @@ function HistoryRow({ n, isAr }: { n: NotificationHistory; isAr: boolean }) {
           {n.title_en && <div className="text-xs text-neutral-500 truncate">{n.title_en}</div>}
         </div>
         <div className="text-sm text-neutral-700 truncate mt-0.5">{n.body_ar}</div>
-        <div className="flex items-center gap-3 mt-1 text-xs text-neutral-500">
+        <div className="flex flex-wrap items-center gap-3 mt-1 text-xs text-neutral-500">
+          <span className={cn('font-bold', isActive ? 'text-amber-600' : n.status === 'sent' ? 'text-green-600' : 'text-neutral-500')}>
+            {statusLabel}
+          </span>
           <span>📬 {n.sent_count} {isAr ? 'تم الإرسال' : 'sent'}</span>
+          {total > 0 && isActive && <span>{processed}/{total}</span>}
           {n.failed_count > 0 && <span className="text-red-500">⚠ {n.failed_count}</span>}
+          {n.last_error && <span className="text-red-500 truncate max-w-[220px]">{n.last_error}</span>}
           <span>•</span>
           <span>
             {formatDistanceToNow(new Date(n.created_at), {
