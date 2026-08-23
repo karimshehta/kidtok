@@ -103,16 +103,24 @@ $$;
 revoke all on function public.kidtok_refresh_richest_verified_trigger() from public;
 revoke all on function public.kidtok_refresh_richest_verified_trigger() from anon, authenticated;
 
-drop trigger if exists trg_user_coins_refresh_richest_verified on public.user_coins;
-create trigger trg_user_coins_refresh_richest_verified
-after insert or update or delete on public.user_coins
-for each statement
-execute function public.kidtok_refresh_richest_verified_trigger();
-
-drop trigger if exists trg_profiles_refresh_richest_verified on public.profiles;
-create trigger trg_profiles_refresh_richest_verified
-after update or delete on public.profiles
-for each statement
-execute function public.kidtok_refresh_richest_verified_trigger();
+-- Avoid DROP TRIGGER on hot production tables. The previous form could
+-- deadlock while users/admins were updating coin balances during CI deploys.
+-- The trigger is created only if it is missing, which keeps this migration
+-- idempotent without taking an unnecessary exclusive lock.
+do $$
+begin
+  if to_regclass('public.user_coins') is not null
+     and not exists (
+       select 1
+         from pg_trigger
+        where tgname = 'trg_user_coins_refresh_richest_verified'
+          and tgrelid = 'public.user_coins'::regclass
+     ) then
+    create trigger trg_user_coins_refresh_richest_verified
+    after insert or update or delete on public.user_coins
+    for each statement
+    execute function public.kidtok_refresh_richest_verified_trigger();
+  end if;
+end $$;
 
 select public.kidtok_refresh_richest_verified();
