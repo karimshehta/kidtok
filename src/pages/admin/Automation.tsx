@@ -256,8 +256,8 @@ export default function AdminAutomation() {
           icon={<Heart className="w-6 h-6" />}
           title={ar ? 'الأتمتة: المشاهدات واللايكات' : 'Engagement Automation'}
           subtitle={ar
-            ? 'يضيف مشاهدات ولايكات على فيديوهات المُنشئين الجديدة كل 3 ساعات'
-            : 'Adds views + likes to recent creator videos every 3 hours'}
+            ? 'يضيف مشاهدات ولايكات على فيديوهات المُنشئين المنشورة خلال آخر 24 ساعة فقط'
+            : 'Adds views + likes only to creator videos published in the last 24 hours'}
           enabled={!!form.engagement_boost_enabled}
           onToggle={() => toggleFlag('engagement_boost_enabled')}
           stats={[
@@ -319,14 +319,12 @@ export default function AdminAutomation() {
               min={10} max={5000}
             />
           </div>
-          <NumberField
-            label={ar ? 'أقصى عمر للفيديو (أيام)' : 'Max video age (days)'}
-            value={form.engagement_boost_max_age_days ?? 14}
-            onChange={(v) => set('engagement_boost_max_age_days', v)}
-            min={1} max={90}
+          <LockedInfo
+            label={ar ? 'الفيديوهات المؤهلة' : 'Eligible videos'}
+            value={ar ? 'آخر 24 ساعة فقط' : 'Last 24 hours only'}
             hint={ar
-              ? 'الفيديوهات الأقدم من ده لا يتم تعزيزها'
-              : 'Videos older than this are skipped'}
+              ? 'أي فيديو أقدم من 24 ساعة لن يحصل على مشاهدات أو لايكات من الأتمتة، حتى لو تم تشغيلها يدويًا.'
+              : 'Videos older than 24 hours will never receive automated views or likes, even from a manual run.'}
           />
         </BoostCard>
 
@@ -572,6 +570,22 @@ function NumberField({
       />
       {hint && <span className="mt-1 block text-xs text-neutral-700">{hint}</span>}
     </label>
+  )
+}
+
+function LockedInfo({
+  label, value, hint,
+}: {
+  label: string
+  value: string
+  hint?: string
+}) {
+  return (
+    <div className="rounded-xl border border-neutral-300 bg-neutral-50 px-3 py-2">
+      <div className="text-sm font-medium text-neutral-900">{label}</div>
+      <div className="mt-1 font-semibold text-primary">{value}</div>
+      {hint && <div className="mt-1 text-xs text-neutral-700">{hint}</div>}
+    </div>
   )
 }
 
