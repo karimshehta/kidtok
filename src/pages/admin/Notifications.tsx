@@ -71,6 +71,8 @@ export default function AdminNotifications() {
   const isAr = i18n.language === 'ar'
   const qc = useQueryClient()
   const processingRef = useRef(false)
+  const [queueError, setQueueError] = useState<string | null>(null)
+  const [manualDrainId, setManualDrainId] = useState<string | null>(null)
 
   const [titleAr, setTitleAr] = useState('')
   const [bodyAr, setBodyAr] = useState('')
@@ -114,13 +116,14 @@ export default function AdminNotifications() {
         .limit(20)
       return (data || []) as NotificationHistory[]
     },
+    refetchInterval: 5000,
   })
 
   const processQueue = async (historyId?: string | null) => {
     const { data, error } = await supabase.functions.invoke('process-push-queue', {
       body: {
         history_id: historyId || undefined,
-        limit: 250,
+        limit: 100,
       },
     })
     if (error) {
@@ -150,7 +153,9 @@ export default function AdminNotifications() {
       if (stopped) return
       try {
         await drainQueueOnce()
+        setQueueError(null)
       } catch (err) {
+        setQueueError((err as Error).message)
         console.warn('[notifications] queue processing failed', err)
       }
     }
@@ -194,6 +199,7 @@ export default function AdminNotifications() {
           : `Queued ${data?.queued || 0} push notifications`
       )
       drainQueueOnce(data?.history_id).catch((err) => {
+        setQueueError(err.message)
         toast.error(err.message, { duration: 9000 })
       })
       // Reset
@@ -205,6 +211,38 @@ export default function AdminNotifications() {
       toast.error(err.message, { duration: 9000 })
     },
   })
+
+  const resumeQueue = async (historyId: string) => {
+    if (manualDrainId) return
+    setManualDrainId(historyId)
+    setQueueError(null)
+
+    try {
+      let processed = 0
+      let remaining: number | null = null
+
+      for (let i = 0; i < 4; i++) {
+        const result = await drainQueueOnce(historyId)
+        if (!result) break
+        processed += Number(result.processed || 0)
+        remaining = Number(result.remaining || 0)
+        if (remaining <= 0 || Number(result.processed || 0) <= 0) break
+      }
+
+      toast.success(
+        isAr
+          ? `تم تحريك الطابور (${processed} معالجة${remaining !== null ? `، المتبقي ${remaining}` : ''})`
+          : `Queue advanced (${processed} processed${remaining !== null ? `, ${remaining} remaining` : ''})`
+      )
+      await qc.invalidateQueries({ queryKey: ['notification-history'] })
+    } catch (err) {
+      const message = (err as Error).message
+      setQueueError(message)
+      toast.error(message, { duration: 9000 })
+    } finally {
+      setManualDrainId(null)
+    }
+  }
 
   return (
     <AdminLayout>
@@ -355,6 +393,17 @@ export default function AdminNotifications() {
         </div>
 
         {/* History */}
+        {queueError && (
+          <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <div>
+                <div className="font-bold">{isAr ? 'مشكلة في استكمال إرسال الطابور' : 'Queue processing issue'}</div>
+                <div className="mt-1 break-words">{queueError}</div>
+              </div>
+            </div>
+          </div>
+        )}
         <div className="bg-white rounded-2xl border border-neutral-200 p-6">
           <h2 className="text-lg font-bold mb-4">{isAr ? 'سجل الإشعارات' : 'Recent Notifications'}</h2>
           {history.length === 0 ? (
@@ -363,9 +412,15 @@ export default function AdminNotifications() {
               <p>{isAr ? 'لا توجد إشعارات بعد' : 'No notifications yet'}</p>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className={cn('space-y-2', history.length > 4 && 'max-h-[440px] overflow-y-auto pr-2')}>
               {history.map((n) => (
-                <HistoryRow key={n.id} n={n} isAr={isAr} />
+                <HistoryRow
+                  key={n.id}
+                  n={n}
+                  isAr={isAr}
+                  onResume={() => resumeQueue(n.id)}
+                  resumeBusy={manualDrainId === n.id}
+                />
               ))}
             </div>
           )}
@@ -409,7 +464,17 @@ function TargetBtn({ icon, label, active, onClick }: { icon: React.ReactNode; la
   )
 }
 
-function HistoryRow({ n, isAr }: { n: NotificationHistory; isAr: boolean }) {
+function HistoryRow({
+  n,
+  isAr,
+  onResume,
+  resumeBusy,
+}: {
+  n: NotificationHistory
+  isAr: boolean
+  onResume: () => void
+  resumeBusy: boolean
+}) {
   const statusIcon =
     n.status === 'sent' ? <CheckCircle2 className="w-4 h-4 text-green-500" />
     : n.status === 'failed' ? <AlertCircle className="w-4 h-4 text-red-500" />
@@ -448,6 +513,17 @@ function HistoryRow({ n, isAr }: { n: NotificationHistory; isAr: boolean }) {
             })}
           </span>
         </div>
+        {isActive && (
+          <button
+            type="button"
+            onClick={onResume}
+            disabled={resumeBusy}
+            className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-xs font-bold text-white shadow-sm transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {resumeBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+            {isAr ? 'استكمال الإرسال' : 'Resume sending'}
+          </button>
+        )}
       </div>
     </div>
   )

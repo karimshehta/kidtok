@@ -24,6 +24,8 @@ type QueueRow = {
   user_id: string | null
   expo_token: string
   language: string | null
+  platform?: string | null
+  app_version?: string | null
 }
 
 type HistoryRow = {
@@ -52,7 +54,7 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}))
     const historyId = typeof body?.history_id === 'string' ? body.history_id : null
-    const limit = Math.max(50, Math.min(Number(body?.limit || 250), 500))
+    const limit = Math.max(25, Math.min(Number(body?.limit || 100), 100))
 
     await admin
       .from('notification_delivery_queue')
@@ -81,7 +83,7 @@ Deno.serve(async (req) => {
       return json({ ok: true, history_id: activeHistoryId, processed: 0, sent: 0, failed: 0, remaining })
     }
 
-    const selected = rows as QueueRow[]
+    const selected = await attachPushTokenMetadata(admin, rows as QueueRow[])
     const selectedIds = selected.map((r) => r.id)
 
     const { error: markErr } = await admin
@@ -148,12 +150,14 @@ async function sendExpoBatch(
   let lastError: string | null = null
   const deadTokens = new Set<string>()
 
-  for (let i = 0; i < rows.length; i += 100) {
-    const chunkRows = rows.slice(i, i + 100)
-    const result = await sendExpoRows(admin, chunkRows, history, deadTokens)
-    sent += result.sent
-    failed += result.failed
-    lastError = result.lastError || lastError
+  for (const groupRows of groupRowsByProjectHint(rows)) {
+    for (let i = 0; i < groupRows.length; i += 100) {
+      const chunkRows = groupRows.slice(i, i + 100)
+      const result = await sendExpoRows(admin, chunkRows, history, deadTokens)
+      sent += result.sent
+      failed += result.failed
+      lastError = result.lastError || lastError
+    }
   }
 
   if (deadTokens.size > 0) {
@@ -167,6 +171,48 @@ async function sendExpoBatch(
   }
 
   return { sent, failed, lastError }
+}
+
+async function attachPushTokenMetadata(admin: any, rows: QueueRow[]): Promise<QueueRow[]> {
+  const tokens = [...new Set(rows.map((row) => row.expo_token).filter(Boolean))]
+  if (tokens.length === 0) return rows
+
+  const metadata = new Map<string, { platform: string | null; app_version: string | null }>()
+  for (let i = 0; i < tokens.length; i += 500) {
+    const { data, error } = await admin
+      .from('push_tokens')
+      .select('expo_token, platform, app_version')
+      .eq('is_active', true)
+      .in('expo_token', tokens.slice(i, i + 500))
+
+    if (error) continue
+    for (const row of data || []) {
+      if (typeof row?.expo_token !== 'string') continue
+      metadata.set(row.expo_token, {
+        platform: row.platform || null,
+        app_version: row.app_version || null,
+      })
+    }
+  }
+
+  return rows.map((row) => ({
+    ...row,
+    platform: metadata.get(row.expo_token)?.platform || null,
+    app_version: metadata.get(row.expo_token)?.app_version || null,
+  }))
+}
+
+function groupRowsByProjectHint(rows: QueueRow[]): QueueRow[][] {
+  const buckets = new Map<string, QueueRow[]>()
+
+  for (const row of rows) {
+    const key = `${row.platform || 'unknown'}:${row.app_version || 'unknown'}`
+    const bucket = buckets.get(key) || []
+    bucket.push(row)
+    buckets.set(key, bucket)
+  }
+
+  return [...buckets.values()]
 }
 
 async function sendExpoRows(
