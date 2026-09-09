@@ -92,6 +92,7 @@ Deno.serve(async (req) => {
 
     const tokens = await fetchTargetTokens(admin, target_type, target_value)
     const validTokens = tokens.filter((t) => isExpoPushToken(t.expo_token))
+    const uniqueValidTokens = dedupeTokenRows(validTokens)
     const invalidTokens = tokens
       .filter((t) => !isExpoPushToken(t.expo_token))
       .map((t) => t.expo_token)
@@ -101,7 +102,7 @@ Deno.serve(async (req) => {
       await deactivateTokens(admin, invalidTokens)
     }
 
-    const queueRows = validTokens.map((t) => ({
+    const queueRows = uniqueValidTokens.map((t) => ({
       history_id: history.id,
       user_id: t.user_id,
       expo_token: t.expo_token,
@@ -111,7 +112,7 @@ Deno.serve(async (req) => {
 
     await insertInChunks(admin, 'notification_delivery_queue', queueRows)
 
-    const inboxRows = [...new Set(validTokens.map((t) => t.user_id).filter(Boolean))]
+    const inboxRows = [...new Set(uniqueValidTokens.map((t) => t.user_id).filter(Boolean))]
       .map((uid) => ({
         user_id: uid,
         type: 'broadcast',
@@ -146,6 +147,7 @@ Deno.serve(async (req) => {
       queued: queueRows.length,
       failed: invalidTokens.length,
       total: tokens.length,
+      duplicates: validTokens.length - uniqueValidTokens.length,
       history_id: history.id,
       message: queueRows.length > 0 ? 'Notification queued for delivery' : 'No active push tokens',
     })
@@ -199,6 +201,7 @@ async function fetchTargetTokens(
     .from('push_tokens')
     .select('expo_token, language, user_id')
     .eq('is_active', true)
+    .order('id', { ascending: true })
 
   if (targetType === 'language' && targetValue) {
     const language = targetValue === 'en' ? 'en' : 'ar'
@@ -211,7 +214,7 @@ async function fetchTargetTokens(
 
   if (targetType === 'role' && targetValue) {
     const users = await fetchAll<{ id: string }>((from, to) =>
-      admin.from('profiles').select('id').eq('role', targetValue).range(from, to)
+      admin.from('profiles').select('id').eq('role', targetValue).order('id', { ascending: true }).range(from, to)
     )
     return await fetchTokensByUserIds(admin, users.map((u) => u.id))
   }
@@ -221,6 +224,7 @@ async function fetchTargetTokens(
       admin.from('subscriptions').select('user_id')
         .eq('status', 'active')
         .gt('expires_at', new Date().toISOString())
+        .order('user_id', { ascending: true })
         .range(from, to)
     )
     return await fetchTokensByUserIds(admin, [...new Set(subs.map((s) => s.user_id))])
@@ -231,6 +235,7 @@ async function fetchTargetTokens(
       admin.from('subscriptions').select('user_id')
         .eq('status', 'active')
         .gt('expires_at', new Date().toISOString())
+        .order('user_id', { ascending: true })
         .range(from, to)
     )
     const subIds = new Set(subs.map((s) => s.user_id))
@@ -254,6 +259,7 @@ async function fetchTokensByUserIds(admin: any, userIds: string[]): Promise<Toke
         .select('expo_token, language, user_id')
         .eq('is_active', true)
         .in('user_id', chunk)
+        .order('id', { ascending: true })
         .range(from, to)
     )
     out.push(...tokens)
@@ -305,6 +311,19 @@ async function fetchAll<T = any>(
 function isExpoPushToken(token: unknown): token is string {
   return typeof token === 'string'
     && /^(ExpoPushToken|ExponentPushToken)\[[A-Za-z0-9_-]+\]$/.test(token)
+}
+
+function dedupeTokenRows(tokens: TokenRow[]): TokenRow[] {
+  const seen = new Set<string>()
+  const out: TokenRow[] = []
+
+  for (const token of tokens) {
+    if (seen.has(token.expo_token)) continue
+    seen.add(token.expo_token)
+    out.push(token)
+  }
+
+  return out
 }
 
 function json(body: unknown, status = 200): Response {

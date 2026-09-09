@@ -146,90 +146,202 @@ async function sendExpoBatch(
   let sent = 0
   let failed = 0
   let lastError: string | null = null
-  const deadTokens: string[] = []
+  const deadTokens = new Set<string>()
 
   for (let i = 0; i < rows.length; i += 100) {
     const chunkRows = rows.slice(i, i + 100)
-    const messages = chunkRows.map((r) => {
-      const useEn = r.language === 'en'
-      return {
-        to: r.expo_token,
-        title: useEn ? (history.title_en || history.title_ar) : history.title_ar,
-        body: useEn ? (history.body_en || history.body_ar) : history.body_ar,
-        sound: 'default',
-        priority: 'high',
-        channelId: 'default',
-        data: {
-          ...(history.data || {}),
-          notification_id: history.id,
-          deep_link: history.deep_link,
-          type: 'broadcast',
-        },
-        ...(history.image_url ? { richContent: { image: history.image_url } } : {}),
-      }
-    })
-
-    try {
-      const resp = await fetch(EXPO_PUSH_URL, {
-        method: 'POST',
-        headers: {
-          Accept: 'application/json',
-          'Accept-Encoding': 'gzip, deflate',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(messages),
-      })
-
-      const payload = await resp.json().catch(() => ({}))
-      if (!resp.ok) {
-        const detail = payload?.errors?.[0]?.message || payload?.message || `Expo HTTP ${resp.status}`
-        lastError = detail
-        failed += chunkRows.length
-        await markRows(admin, chunkRows.map((r) => r.id), 'failed', 'EXPO_HTTP', detail)
-        continue
-      }
-
-      const tickets = Array.isArray(payload?.data) ? payload.data : []
-      const sentIds: string[] = []
-      const failedItems: { id: string; code: string; detail: string; token: string }[] = []
-
-      for (let j = 0; j < chunkRows.length; j++) {
-        const ticket = tickets[j]
-        if (ticket?.status === 'ok') {
-          sentIds.push(chunkRows[j].id)
-          sent++
-        } else {
-          const code = ticket?.details?.error || 'EXPO_TICKET_FAILED'
-          const detail = ticket?.message || code
-          failedItems.push({ id: chunkRows[j].id, code, detail, token: chunkRows[j].expo_token })
-          failed++
-          lastError = detail
-          if (DEAD_TOKEN_ERRORS.has(code)) deadTokens.push(chunkRows[j].expo_token)
-        }
-      }
-
-      await markRows(admin, sentIds, 'sent')
-      for (const item of failedItems) {
-        await markRows(admin, [item.id], 'failed', item.code, item.detail)
-      }
-    } catch (err) {
-      const detail = (err as Error).message
-      lastError = detail
-      failed += chunkRows.length
-      await markRows(admin, chunkRows.map((r) => r.id), 'failed', 'EXPO_FETCH_FAILED', detail)
-    }
+    const result = await sendExpoRows(admin, chunkRows, history, deadTokens)
+    sent += result.sent
+    failed += result.failed
+    lastError = result.lastError || lastError
   }
 
-  if (deadTokens.length > 0) {
-    for (let i = 0; i < deadTokens.length; i += 500) {
+  if (deadTokens.size > 0) {
+    const tokens = [...deadTokens]
+    for (let i = 0; i < tokens.length; i += 500) {
       await admin
         .from('push_tokens')
         .update({ is_active: false, updated_at: new Date().toISOString() })
-        .in('expo_token', deadTokens.slice(i, i + 500))
+        .in('expo_token', tokens.slice(i, i + 500))
     }
   }
 
   return { sent, failed, lastError }
+}
+
+async function sendExpoRows(
+  admin: any,
+  rows: QueueRow[],
+  history: HistoryRow,
+  deadTokens: Set<string>,
+): Promise<{ sent: number; failed: number; lastError: string | null }> {
+  if (rows.length === 0) return { sent: 0, failed: 0, lastError: null }
+
+  const messages = rows.map((r) => buildExpoMessage(r, history))
+
+  try {
+    const resp = await fetch(EXPO_PUSH_URL, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Accept-Encoding': 'gzip, deflate',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(messages),
+    })
+
+    const payload = await resp.json().catch(() => ({}))
+    const detail = getExpoErrorDetail(payload, resp.status)
+
+    if (!resp.ok) {
+      if (rows.length > 1 && isProjectMismatchError(payload, detail)) {
+        const expoGroups = getProjectMismatchGroups(payload, rows)
+        if (expoGroups.length > 1) {
+          return await retryExpoGroups(admin, expoGroups, history, deadTokens)
+        }
+        return await splitAndRetryExpoRows(admin, rows, history, deadTokens)
+      }
+
+      await markRows(admin, rows.map((r) => r.id), 'failed', 'EXPO_HTTP', detail)
+      return { sent: 0, failed: rows.length, lastError: detail }
+    }
+
+    const tickets = Array.isArray(payload?.data) ? payload.data : []
+    const sentIds: string[] = []
+    const failedItems: { id: string; code: string; detail: string; token: string }[] = []
+    let sent = 0
+    let failed = 0
+    let lastError: string | null = null
+
+    for (let j = 0; j < rows.length; j++) {
+      const ticket = tickets[j]
+      if (ticket?.status === 'ok') {
+        sentIds.push(rows[j].id)
+        sent++
+      } else {
+        const code = ticket?.details?.error || 'EXPO_TICKET_FAILED'
+        const itemDetail = ticket?.message || code
+        failedItems.push({ id: rows[j].id, code, detail: itemDetail, token: rows[j].expo_token })
+        failed++
+        lastError = itemDetail
+        if (DEAD_TOKEN_ERRORS.has(code)) deadTokens.add(rows[j].expo_token)
+      }
+    }
+
+    await markRows(admin, sentIds, 'sent')
+    for (const item of failedItems) {
+      await markRows(admin, [item.id], 'failed', item.code, item.detail)
+    }
+
+    return { sent, failed, lastError }
+  } catch (err) {
+    const detail = (err as Error).message
+    await markRows(admin, rows.map((r) => r.id), 'failed', 'EXPO_FETCH_FAILED', detail)
+    return { sent: 0, failed: rows.length, lastError: detail }
+  }
+}
+
+async function splitAndRetryExpoRows(
+  admin: any,
+  rows: QueueRow[],
+  history: HistoryRow,
+  deadTokens: Set<string>,
+): Promise<{ sent: number; failed: number; lastError: string | null }> {
+  if (rows.length <= 1) {
+    const detail = 'Expo rejected this token because it belongs to a different project/experience.'
+    await markRows(admin, rows.map((r) => r.id), 'failed', 'PUSH_TOO_MANY_EXPERIENCE_IDS', detail)
+    return { sent: 0, failed: rows.length, lastError: detail }
+  }
+
+  const mid = Math.ceil(rows.length / 2)
+  const left = await sendExpoRows(admin, rows.slice(0, mid), history, deadTokens)
+  const right = await sendExpoRows(admin, rows.slice(mid), history, deadTokens)
+  return {
+    sent: left.sent + right.sent,
+    failed: left.failed + right.failed,
+    lastError: right.lastError || left.lastError,
+  }
+}
+
+async function retryExpoGroups(
+  admin: any,
+  groups: QueueRow[][],
+  history: HistoryRow,
+  deadTokens: Set<string>,
+): Promise<{ sent: number; failed: number; lastError: string | null }> {
+  let sent = 0
+  let failed = 0
+  let lastError: string | null = null
+
+  for (const group of groups) {
+    const result = await sendExpoRows(admin, group, history, deadTokens)
+    sent += result.sent
+    failed += result.failed
+    lastError = result.lastError || lastError
+  }
+
+  return { sent, failed, lastError }
+}
+
+function buildExpoMessage(row: QueueRow, history: HistoryRow) {
+  const useEn = row.language === 'en'
+  return {
+    to: row.expo_token,
+    title: useEn ? (history.title_en || history.title_ar) : history.title_ar,
+    body: useEn ? (history.body_en || history.body_ar) : history.body_ar,
+    sound: 'default',
+    priority: 'high',
+    channelId: 'default',
+    data: {
+      ...(history.data || {}),
+      notification_id: history.id,
+      deep_link: history.deep_link,
+      type: 'broadcast',
+    },
+    ...(history.image_url ? { richContent: { image: history.image_url } } : {}),
+  }
+}
+
+function getExpoErrorDetail(payload: any, status: number): string {
+  const errors = Array.isArray(payload?.errors) ? payload.errors : []
+  const parts = errors.flatMap((e: any) => [
+    e?.code,
+    e?.details?.error,
+    e?.message,
+  ])
+  if (payload?.message) parts.push(payload.message)
+  return parts.filter(Boolean).join(' — ') || `Expo HTTP ${status}`
+}
+
+function isProjectMismatchError(payload: any, detail: string): boolean {
+  const haystack = `${JSON.stringify(payload || {})} ${detail}`.toLowerCase()
+  return haystack.includes('push_too_many_experience_ids')
+    || haystack.includes('same project')
+    || haystack.includes('conflicting tokens')
+    || haystack.includes('different expo experiences')
+}
+
+function getProjectMismatchGroups(payload: any, rows: QueueRow[]): QueueRow[][] {
+  const errors = Array.isArray(payload?.errors) ? payload.errors : []
+  const details = errors.find((e: any) => e?.details && typeof e.details === 'object')?.details
+  if (!details || Array.isArray(details)) return []
+
+  const groups: QueueRow[][] = []
+  const matched = new Set<string>()
+
+  for (const tokens of Object.values(details)) {
+    if (!Array.isArray(tokens)) continue
+    const tokenSet = new Set(tokens.filter((token): token is string => typeof token === 'string'))
+    const group = rows.filter((row) => tokenSet.has(row.expo_token))
+    if (group.length === 0) continue
+    groups.push(group)
+    for (const row of group) matched.add(row.id)
+  }
+
+  const unmatched = rows.filter((row) => !matched.has(row.id))
+  if (unmatched.length > 0) groups.push(unmatched)
+
+  return groups
 }
 
 async function markRows(

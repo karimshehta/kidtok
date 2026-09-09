@@ -231,7 +231,10 @@ export default function AdminAutomation() {
             label={ar ? 'متابعات لكل ساعة/مستخدم' : 'Follows per hour / user'}
             value={form.follow_boost_per_cycle ?? 5}
             onChange={(v) => set('follow_boost_per_cycle', v)}
-            min={1} max={50}
+            min={0} max={50}
+            hint={ar
+              ? '0 يعني إيقاف الإضافة مؤقتًا بدون إغلاق الأتمتة.'
+              : '0 pauses adding follows without turning automation off.'}
           />
           <NumberField
             label={ar ? 'الحد الأقصى للمتابعات لكل مستخدم' : 'Max followers per user (cap)'}
@@ -243,10 +246,10 @@ export default function AdminAutomation() {
             label={ar ? 'عدد المستخدمين لكل دورة' : 'Users processed per cycle'}
             value={form.follow_boost_max_sources ?? 500}
             onChange={(v) => set('follow_boost_max_sources', v)}
-            min={50} max={5000}
+            min={1} max={500}
             hint={ar
-              ? 'الأكبر = أسرع لكن أثقل على الـ DB'
-              : 'Higher = faster to cap but heavier on DB'}
+              ? 'أقصى حد آمن للدورة الواحدة 500 عشان الداتا بيز ما تعملش timeout'
+              : 'Safe runtime cap is 500 receivers per run to avoid DB timeouts'}
           />
         </BoostCard>
 
