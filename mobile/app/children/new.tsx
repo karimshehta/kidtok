@@ -186,7 +186,7 @@ export default function AddChildScreen() {
         Toast.show({
           type: 'error',
           text1: lang === 'ar' ? `وصلت للحد الأقصى (${planLimits?.max_children} أطفال)` : `Child limit reached (${planLimits?.max_children})`,
-          text2: lang === 'ar' ? 'يرجى ترقية خطتك للإضافة المزيد' : 'Upgrade your plan to add more',
+          text2: lang === 'ar' ? 'وصلت للحد الحالي. يمكنك إدارة الحدود من لوحة التحكم.' : 'You reached the current limit. Manage limits from the dashboard.',
         })
         setSaving(false)
         return
@@ -410,7 +410,9 @@ export default function AddChildScreen() {
                           marginBottom: 8,
                         }}
                       >
-                        <Image source={getInterestImage(interest)} style={{ width: 54, height: 54 }} resizeMode="contain" />
+                        {interest.image_url && !looksCorrupted(interest.image_url)
+                          ? <Image source={{ uri: interest.image_url }} style={{ width: 54, height: 54 }} resizeMode="contain" />
+                          : <Text style={{ fontSize: 38 }}>{interest.icon || '🌟'}</Text>}
                       </View>
                       <Text
                         style={{ color: active ? colors.primary : colors.grey900, fontWeight: '800', fontSize: fontSize.xs, textAlign: 'center' }}

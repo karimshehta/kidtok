@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { View, Text, ActivityIndicator, Pressable } from 'react-native'
 import { useRouter, useLocalSearchParams } from 'expo-router'
+import { useTranslation } from 'react-i18next'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { LinearGradient } from 'expo-linear-gradient'
@@ -10,6 +11,8 @@ import { colors, spacing, fontSize, radius } from '@/lib/theme'
 
 export default function AuthCallback() {
   const router = useRouter()
+  const { i18n } = useTranslation()
+  const ar = i18n.language === 'ar'
   const params = useLocalSearchParams<{
     access_token?: string; refresh_token?: string
     code?: string; error?: string; error_description?: string
@@ -37,7 +40,7 @@ export default function AuthCallback() {
           setStatus('error')
           setMessage(
             params.error === 'access_denied'
-              ? 'تم إلغاء تسجيل الدخول'
+              ? (ar ? 'تم إلغاء تسجيل الدخول' : 'Sign-in cancelled')
               : String(params.error_description || params.error)
           )
           return
@@ -93,14 +96,14 @@ export default function AuthCallback() {
               router.replace('/(tabs)/feed')
             } else {
               setStatus('error')
-              setMessage('انتهت صلاحية الرابط')
+              setMessage(ar ? 'انتهت صلاحية الرابط' : 'The link has expired')
             }
           })
         }, 4000)
 
       } catch (err: any) {
         setStatus('error')
-        setMessage(err.message || 'حدث خطأ غير متوقع')
+        setMessage(err.message || (ar ? 'حدث خطأ غير متوقع' : 'An unexpected error occurred'))
       }
     })()
   }, [])
@@ -113,7 +116,7 @@ export default function AuthCallback() {
           <>
             <ActivityIndicator size="large" color={colors.white} />
             <Text style={{ color: colors.white, fontSize: fontSize.lg, fontWeight: '700', marginTop: spacing.md }}>
-              جارٍ تأكيد الحساب...
+              {ar ? 'جارٍ تأكيد الحساب...' : 'Confirming account...'}
             </Text>
           </>
         )}
@@ -128,10 +131,10 @@ export default function AuthCallback() {
               <Ionicons name="checkmark" size={56} color={colors.white} />
             </View>
             <Text style={{ color: colors.white, fontSize: fontSize['2xl'], fontWeight: '900' }}>
-              تم بنجاح ✓
+              {ar ? 'تم بنجاح ✓' : 'Success ✓'}
             </Text>
             <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: fontSize.base, marginTop: 4 }}>
-              جارٍ تحويلك للتطبيق...
+              {ar ? 'جارٍ تحويلك للتطبيق...' : 'Redirecting you to the app...'}
             </Text>
           </>
         )}
@@ -146,7 +149,7 @@ export default function AuthCallback() {
               <Ionicons name="alert" size={56} color={colors.white} />
             </View>
             <Text style={{ color: colors.white, fontSize: fontSize['2xl'], fontWeight: '900' }}>
-              فشل التسجيل
+              {ar ? 'فشل التسجيل' : 'Registration failed'}
             </Text>
             <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: fontSize.sm, marginTop: 4, textAlign: 'center' }}>
               {message}
@@ -159,7 +162,7 @@ export default function AuthCallback() {
                 borderRadius: radius.pill,
               }}
             >
-              <Text style={{ color: colors.primary, fontWeight: '800' }}>تسجيل الدخول</Text>
+              <Text style={{ color: colors.primary, fontWeight: '800' }}>{ar ? 'تسجيل الدخول' : 'Sign in'}</Text>
             </Pressable>
           </>
         )}

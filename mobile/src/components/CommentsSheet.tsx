@@ -16,62 +16,61 @@ import { Ionicons } from '@expo/vector-icons'
 import Toast from 'react-native-toast-message'
 import { useTranslation } from 'react-i18next'
 
-import {
-  useComments,
-  useAddComment,
-  useDeleteComment,
-  useReportComment,
-} from '@/hooks/useSocial'
+import { useComments, useAddComment, useDeleteComment, useReportComment } from '@/hooks/useSocial'
+import BannerAd from '@/components/BannerAd'
+import ChildSafetyReminderModal from '@/components/ChildSafetyReminderModal'
+import { detectPersonalInfoRisk, hasSeenChildSafetyReminder, markChildSafetyReminderSeen } from '@/lib/childSafety'
 import { useAuth } from '@/stores/auth'
 import { useMyRole } from '@/hooks/useMyRole'
-import BannerAd from '@/components/BannerAd'
 import { colors, spacing, fontSize, radius } from '@/lib/theme'
 
+// ─── Relative time helper ────────────────────────────────────────────────────
 function formatRelativeTime(dateStr: string, lang: string): string {
   const now = Date.now()
   const then = new Date(dateStr).getTime()
   const diff = Math.max(0, Math.floor((now - then) / 1000))
 
   if (lang === 'ar') {
-    if (diff < 60) return 'الآن'
-    if (diff < 3600) return `${Math.floor(diff / 60)}د`
-    if (diff < 86400) return `${Math.floor(diff / 3600)}س`
-    if (diff < 604800) return `${Math.floor(diff / 86400)}ي`
+    if (diff < 60)      return 'الآن'
+    if (diff < 3600)    return `${Math.floor(diff / 60)}د`
+    if (diff < 86400)   return `${Math.floor(diff / 3600)}س`
+    if (diff < 604800)  return `${Math.floor(diff / 86400)}ي`
     if (diff < 2592000) return `${Math.floor(diff / 604800)}أ`
     return `${Math.floor(diff / 2592000)}ش`
+  } else {
+    if (diff < 60)      return 'now'
+    if (diff < 3600)    return `${Math.floor(diff / 60)}m`
+    if (diff < 86400)   return `${Math.floor(diff / 3600)}h`
+    if (diff < 604800)  return `${Math.floor(diff / 86400)}d`
+    if (diff < 2592000) return `${Math.floor(diff / 604800)}w`
+    return `${Math.floor(diff / 2592000)}mo`
   }
-
-  if (diff < 60) return 'now'
-  if (diff < 3600) return `${Math.floor(diff / 60)}m`
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h`
-  if (diff < 604800) return `${Math.floor(diff / 86400)}d`
-  if (diff < 2592000) return `${Math.floor(diff / 604800)}w`
-  return `${Math.floor(diff / 2592000)}mo`
 }
 
+// ─── Single comment item ─────────────────────────────────────────────────────
 function CommentItem({
   item,
   lang,
   currentUserId,
   isAdmin,
-  busy,
   onDelete,
   onReport,
+  busy,
 }: {
   item: any
   lang: string
-  currentUserId?: string
+  currentUserId?: string | null
   isAdmin: boolean
-  busy: boolean
   onDelete: (item: any) => void
   onReport: (item: any) => void
+  busy?: boolean
 }) {
-  const isRTL = lang === 'ar'
-  const profile = item?.profile || { name: isRTL ? 'مستخدم' : 'User', avatar_url: null }
+  const profile = item?.profile || { name: 'مستخدم', avatar_url: null }
   const timeLabel = item.created_at ? formatRelativeTime(item.created_at, lang) : ''
-  const isOwn = !!currentUserId && item.user_id === currentUserId
-  const canDelete = isOwn || isAdmin
-  const canReport = !!currentUserId && !isOwn
+  const isRTL = lang === 'ar'
+  const isMine = !!currentUserId && item?.user_id === currentUserId
+  const canDelete = isMine || isAdmin
+  const canReport = !isMine
 
   return (
     <View
@@ -82,6 +81,7 @@ function CommentItem({
         paddingHorizontal: spacing.md,
       }}
     >
+      {/* Avatar */}
       <View
         style={{
           width: 40,
@@ -101,6 +101,7 @@ function CommentItem({
         )}
       </View>
 
+      {/* Body */}
       <View style={{ flex: 1 }}>
         <View
           style={{
@@ -129,103 +130,110 @@ function CommentItem({
           {item.content}
         </Text>
 
-        {(canDelete || canReport) ? (
+        {(canDelete || canReport) && (
           <View
             style={{
               flexDirection: isRTL ? 'row-reverse' : 'row',
               gap: 10,
               marginTop: 8,
-              alignItems: 'center',
             }}
           >
-            {canDelete ? (
+            {canDelete && (
               <Pressable
-                disabled={busy}
                 onPress={() => onDelete(item)}
-                style={{
+                disabled={busy}
+                hitSlop={8}
+                style={({ pressed }) => ({
                   flexDirection: isRTL ? 'row-reverse' : 'row',
                   alignItems: 'center',
                   gap: 4,
-                  opacity: busy ? 0.5 : 1,
-                }}
+                  opacity: pressed || busy ? 0.55 : 1,
+                })}
               >
-                <Ionicons name="trash-outline" size={14} color="#F43F5E" />
-                <Text style={{ color: '#F43F5E', fontSize: 11, fontWeight: '800' }}>
+                <Ionicons name="trash-outline" size={14} color="#EF4444" />
+                <Text style={{ color: '#EF4444', fontSize: 11, fontWeight: '800' }}>
                   {isRTL ? 'حذف' : 'Delete'}
                 </Text>
               </Pressable>
-            ) : null}
-
-            {canReport ? (
+            )}
+            {canReport && (
               <Pressable
-                disabled={busy}
                 onPress={() => onReport(item)}
-                style={{
+                disabled={busy}
+                hitSlop={8}
+                style={({ pressed }) => ({
                   flexDirection: isRTL ? 'row-reverse' : 'row',
                   alignItems: 'center',
                   gap: 4,
-                  opacity: busy ? 0.5 : 1,
-                }}
+                  opacity: pressed || busy ? 0.55 : 1,
+                })}
               >
                 <Ionicons name="flag-outline" size={14} color={colors.grey500} />
                 <Text style={{ color: colors.grey500, fontSize: 11, fontWeight: '800' }}>
                   {isRTL ? 'إبلاغ' : 'Report'}
                 </Text>
               </Pressable>
-            ) : null}
+            )}
           </View>
-        ) : null}
+        )}
       </View>
+
+      <View style={{ width: 18 }} />
     </View>
   )
 }
 
+// ─── Separator ───────────────────────────────────────────────────────────────
 function Separator() {
-  return <View style={{ height: 1, backgroundColor: colors.grey100, marginHorizontal: spacing.md }} />
+  return (
+    <View style={{ height: 1, backgroundColor: colors.grey100, marginHorizontal: spacing.md }} />
+  )
 }
 
+// ─── Main sheet ──────────────────────────────────────────────────────────────
 export default function CommentsSheet({
   videoId,
   visible,
   onClose,
+  onCommentAdded,
   onCommentDeleted,
 }: {
   videoId: string
   visible: boolean
   onClose: () => void
+  onCommentAdded?: () => void
   onCommentDeleted?: () => void
 }) {
   const { data: comments = [], isLoading } = useComments(videoId)
   const addMut = useAddComment()
   const deleteMut = useDeleteComment()
   const reportMut = useReportComment()
-  const currentUserId = useAuth((s) => s.user?.id)
-  const { data: role } = useMyRole()
   const [text, setText] = useState('')
+  const [safetyVisible, setSafetyVisible] = useState(false)
+  const [personalInfoRisk, setPersonalInfoRisk] = useState<ReturnType<typeof detectPersonalInfoRisk>>(null)
+  const userId = useAuth((s) => s.user?.id)
+  const { data: role } = useMyRole()
   const { i18n } = useTranslation()
   const lang = i18n.language
   const isRTL = lang === 'ar'
   const isAdmin = role === 'admin'
   const actionBusy = deleteMut.isPending || reportMut.isPending
 
-  const handleSend = async () => {
+  const submitComment = async () => {
     if (!text.trim()) return
     try {
       await addMut.mutateAsync({ videoId, comment: text.trim() })
       setText('')
+      onCommentAdded?.()   // bump the feed's comment counter instantly
     } catch (err) {
-      Toast.show({
-        type: 'error',
-        text1: isRTL ? 'تعذر إرسال التعليق' : 'Comment failed',
-        text2: (err as Error).message,
-      })
+      Toast.show({ type: 'error', text1: (err as Error).message })
     }
   }
 
-  const handleDelete = (comment: any) => {
+  const deleteComment = (item: any) => {
     Alert.alert(
-      isRTL ? 'حذف التعليق؟' : 'Delete comment?',
-      isRTL ? 'هل أنت متأكد أنك تريد حذف هذا التعليق؟' : 'Are you sure you want to delete this comment?',
+      isRTL ? 'حذف التعليق' : 'Delete comment',
+      isRTL ? 'هل أنت متأكد من حذف التعليق؟' : 'Are you sure you want to delete this comment?',
       [
         { text: isRTL ? 'إلغاء' : 'Cancel', style: 'cancel' },
         {
@@ -233,17 +241,19 @@ export default function CommentsSheet({
           style: 'destructive',
           onPress: async () => {
             try {
-              await deleteMut.mutateAsync({ commentId: comment.id, videoId })
+              await deleteMut.mutateAsync({ commentId: item.id, videoId })
               onCommentDeleted?.()
               Toast.show({
-                type: 'success',
+                type: 'kidReward',
                 text1: isRTL ? 'تم حذف التعليق' : 'Comment deleted',
+                props: { icon: '🗑️', accent: 'blue' },
               })
-            } catch (err) {
+            } catch (err: any) {
               Toast.show({
-                type: 'error',
-                text1: isRTL ? 'تعذر حذف التعليق' : 'Delete failed',
-                text2: (err as Error).message,
+                type: 'kidReward',
+                text1: isRTL ? 'تعذر حذف التعليق' : 'Could not delete comment',
+                text2: String(err?.message || err).slice(0, 120),
+                props: { icon: '⚠️', accent: 'purple' },
               })
             }
           },
@@ -252,12 +262,10 @@ export default function CommentsSheet({
     )
   }
 
-  const handleReport = (comment: any) => {
+  const reportComment = (item: any) => {
     Alert.alert(
-      isRTL ? 'إبلاغ عن التعليق؟' : 'Report comment?',
-      isRTL
-        ? 'سيصل البلاغ إلى فريق المراجعة في لوحة التحكم.'
-        : 'This will send the comment to the moderation team.',
+      isRTL ? 'الإبلاغ عن التعليق' : 'Report comment',
+      isRTL ? 'هنبعت التعليق لفريق المراجعة عشان نحافظ على KidTok آمن.' : 'We will send this comment to moderation to keep KidTok safe.',
       [
         { text: isRTL ? 'إلغاء' : 'Cancel', style: 'cancel' },
         {
@@ -265,17 +273,19 @@ export default function CommentsSheet({
           style: 'destructive',
           onPress: async () => {
             try {
-              await reportMut.mutateAsync({ commentId: comment.id, videoId })
+              await reportMut.mutateAsync({ commentId: item.id, videoId })
               Toast.show({
-                type: 'success',
-                text1: isRTL ? 'وصل البلاغ للمراجعة' : 'Report sent',
-                text2: isRTL ? 'سنراجعه في أسرع وقت.' : 'We will review it shortly.',
+                type: 'kidReward',
+                text1: isRTL ? 'تم إرسال البلاغ' : 'Report sent',
+                text2: isRTL ? 'شكرًا إنك بتساعدنا نخلي كيدتوك آمن.' : 'Thanks for helping keep KidTok safe.',
+                props: { icon: '🚩', accent: 'blue' },
               })
-            } catch (err) {
+            } catch (err: any) {
               Toast.show({
-                type: 'error',
-                text1: isRTL ? 'تعذر إرسال البلاغ' : 'Report failed',
-                text2: (err as Error).message,
+                type: 'kidReward',
+                text1: isRTL ? 'تعذر إرسال البلاغ' : 'Could not send report',
+                text2: String(err?.message || err).slice(0, 120),
+                props: { icon: '⚠️', accent: 'purple' },
               })
             }
           },
@@ -284,22 +294,47 @@ export default function CommentsSheet({
     )
   }
 
+  const handleSend = async () => {
+    if (!text.trim()) return
+
+    const risk = detectPersonalInfoRisk(text)
+    if (risk) {
+      setPersonalInfoRisk(risk)
+      return
+    }
+
+    const seen = await hasSeenChildSafetyReminder(userId, 'comment')
+    if (!seen) {
+      setSafetyVisible(true)
+      return
+    }
+
+    await submitComment()
+  }
+
+  const confirmSafety = async () => {
+    await markChildSafetyReminderSeen(userId, 'comment')
+    setSafetyVisible(false)
+    await submitComment()
+  }
+
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' }}>
+    <>
+      <Modal visible={visible} animationType="slide" transparent statusBarTranslucent onRequestClose={onClose}>
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={{ height: '72%' }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' }}
         >
           <View
             style={{
-              flex: 1,
+              height: '72%',
               backgroundColor: colors.white,
               borderTopLeftRadius: 24,
               borderTopRightRadius: 24,
               overflow: 'hidden',
             }}
           >
+            {/* ── Header ── */}
             <View
               style={{
                 alignItems: 'center',
@@ -330,6 +365,7 @@ export default function CommentsSheet({
               </Pressable>
             </View>
 
+            {/* ── List ── */}
             {isLoading ? (
               <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.xl }} />
             ) : comments.length === 0 ? (
@@ -343,10 +379,10 @@ export default function CommentsSheet({
               >
                 <Ionicons name="chatbubble-ellipses-outline" size={52} color={colors.grey200} />
                 <Text style={{ color: colors.grey700, fontWeight: '700', fontSize: fontSize.base }}>
-                  {isRTL ? 'لا توجد تعليقات بعد' : 'No comments yet'}
+                  {isRTL ? 'لا تعليقات بعد' : 'No comments yet'}
                 </Text>
                 <Text style={{ color: colors.grey400, fontSize: fontSize.xs }}>
-                  {isRTL ? 'كن أول من يعلق!' : 'Be the first to comment!'}
+                  {isRTL ? 'كن أول من يعلّق!' : 'Be the first to comment!'}
                 </Text>
               </View>
             ) : (
@@ -357,11 +393,11 @@ export default function CommentsSheet({
                   <CommentItem
                     item={item}
                     lang={lang}
-                    currentUserId={currentUserId}
+                    currentUserId={userId}
                     isAdmin={isAdmin}
+                    onDelete={deleteComment}
+                    onReport={reportComment}
                     busy={actionBusy}
-                    onDelete={handleDelete}
-                    onReport={handleReport}
                   />
                 )}
                 ItemSeparatorComponent={Separator}
@@ -370,6 +406,7 @@ export default function CommentsSheet({
               />
             )}
 
+            {/* ── Input bar ── */}
             <View
               style={{
                 flexDirection: isRTL ? 'row-reverse' : 'row',
@@ -384,7 +421,7 @@ export default function CommentsSheet({
               <TextInput
                 value={text}
                 onChangeText={setText}
-                placeholder={isRTL ? 'أضف تعليقًا...' : 'Add a comment...'}
+                placeholder={isRTL ? 'أضف تعليقاً...' : 'Add a comment...'}
                 placeholderTextColor={colors.grey400}
                 textAlign={isRTL ? 'right' : 'left'}
                 style={{
@@ -429,7 +466,25 @@ export default function CommentsSheet({
           </View>
           <BannerAd variant="inline" />
         </KeyboardAvoidingView>
-      </View>
-    </Modal>
+      </Modal>
+
+      <ChildSafetyReminderModal
+        visible={safetyVisible}
+        ar={isRTL}
+        mode="reminder"
+        surface="comment"
+        onCancel={() => setSafetyVisible(false)}
+        onConfirm={confirmSafety}
+      />
+      <ChildSafetyReminderModal
+        visible={!!personalInfoRisk}
+        ar={isRTL}
+        mode="personalInfo"
+        surface="comment"
+        riskLabel={isRTL ? personalInfoRisk?.labelAr : personalInfoRisk?.labelEn}
+        onCancel={() => setPersonalInfoRisk(null)}
+        onConfirm={() => setPersonalInfoRisk(null)}
+      />
+    </>
   )
 }

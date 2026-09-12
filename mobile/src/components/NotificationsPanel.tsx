@@ -7,10 +7,13 @@ import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { useQueryClient } from '@tanstack/react-query'
 
 import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/stores/auth'
 import { colors, spacing, fontSize, radius } from '@/lib/theme'
 import { HEADER_BAR_HEIGHT } from '@/lib/headerScroll'
+import { getNotificationTargetPath } from '@/lib/notificationNavigation'
 
 const PAGE = 3
 const { width: SCREEN_W } = Dimensions.get('window')
@@ -18,8 +21,12 @@ const PANEL_W = Math.min(SCREEN_W - 32, 360)
 
 type NotifItem = {
   id: string
+  type?: string
   title_ar: string; title_en: string | null
-  body_ar: string;  body_en: string | null
+  body_ar:  string; body_en:  string | null
+  image_url?: string | null
+  data?: any
+  is_read?: boolean
   created_at: string
   deep_link: string | null
 }
@@ -34,6 +41,8 @@ export default function NotificationsPanel({ visible, onClose }: Props) {
   const ar = i18n.language === 'ar'
   const router = useRouter()
   const insets = useSafeAreaInsets()
+  const userId = useAuth((s) => s.user?.id)
+  const qc = useQueryClient()
 
   const [items, setItems]         = useState<NotifItem[]>([])
   const [loading, setLoading]     = useState(false)
@@ -48,9 +57,8 @@ export default function NotificationsPanel({ visible, onClose }: Props) {
   const fetchPage = useCallback(async (offset: number, replace = false) => {
     if (offset === 0) setLoading(true); else setLM(true)
     const { data } = await supabase
-      .from('notification_history')
-      .select('id, title_ar, title_en, body_ar, body_en, created_at, deep_link')
-      .eq('status', 'sent')
+      .from('notifications')
+      .select('id, type, title_ar, title_en, body_ar, body_en, image_url, deep_link, data, is_read, created_at')
       .order('created_at', { ascending: false })
       .range(offset, offset + PAGE - 1)
 
@@ -69,6 +77,17 @@ export default function NotificationsPanel({ visible, onClose }: Props) {
       setItems([])
       setHasMore(true)
       fetchPage(0, true)
+      if (userId) {
+        qc.setQueryData(['unread-count', userId], 0)
+        qc.setQueryData(['notifications', userId], (old: any) => {
+          if (!Array.isArray(old)) return old
+          return old.map((x: any) => x.is_read ? x : { ...x, is_read: true })
+        })
+        ;(async () => {
+          try { await supabase.rpc('mark_all_notifications_read') }
+          catch { qc.invalidateQueries({ queryKey: ['unread-count', userId] }) }
+        })()
+      }
       Animated.parallel([
         Animated.spring(panelY, { toValue: 0, useNativeDriver: true, speed: 20, bounciness: 6 }),
         Animated.timing(panelOpacity, { toValue: 1, duration: 180, useNativeDriver: true }),
@@ -79,7 +98,7 @@ export default function NotificationsPanel({ visible, onClose }: Props) {
         Animated.timing(panelOpacity, { toValue: 0, duration: 150, useNativeDriver: true }),
       ]).start()
     }
-  }, [visible])
+  }, [fetchPage, panelOpacity, panelY, qc, userId, visible])
 
   const formatTime = (iso: string) => {
     const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
@@ -87,6 +106,17 @@ export default function NotificationsPanel({ visible, onClose }: Props) {
     if (diff < 3600) return ar ? `${Math.floor(diff/60)}د` : `${Math.floor(diff/60)}m`
     if (diff < 86400) return ar ? `${Math.floor(diff/3600)}س` : `${Math.floor(diff/3600)}h`
     return ar ? `${Math.floor(diff/86400)}ي` : `${Math.floor(diff/86400)}d`
+  }
+
+  const iconFor = (type?: string): keyof typeof Ionicons.glyphMap => {
+    switch (type) {
+      case 'comment': return 'chatbubble-ellipses'
+      case 'like': return 'heart'
+      case 'follow': return 'person-add'
+      case 'gift': return 'gift'
+      case 'broadcast': return 'megaphone'
+      default: return 'notifications'
+    }
   }
 
   // panel top = insets.top + HEADER_BAR_HEIGHT + 6px gap
@@ -178,7 +208,7 @@ export default function NotificationsPanel({ visible, onClose }: Props) {
                   <Pressable
                     onPress={() => {
                       onClose()
-                      if (item.deep_link) router.push(item.deep_link as any)
+                      router.push(getNotificationTargetPath(item) as any)
                     }}
                     style={({ pressed }) => ({
                       flexDirection: ar ? 'row-reverse' : 'row',
@@ -195,7 +225,7 @@ export default function NotificationsPanel({ visible, onClose }: Props) {
                       backgroundColor: `${colors.primary}15`,
                       alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                     }}>
-                      <Ionicons name="notifications" size={18} color={colors.primary} />
+                      <Ionicons name={iconFor(item.type)} size={18} color={item.type === 'gift' ? colors.secondary : colors.primary} />
                     </View>
 
                     {/* Text */}

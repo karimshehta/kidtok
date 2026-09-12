@@ -1,0 +1,33 @@
+diff --git a/node_modules/react-native-vision-camera/src/hooks/internal/useTorchModeUpdater.ts b/node_modules/react-native-vision-camera/src/hooks/internal/useTorchModeUpdater.ts
+index f263ad1..a83e0bd 100644
+--- a/node_modules/react-native-vision-camera/src/hooks/internal/useTorchModeUpdater.ts
++++ b/node_modules/react-native-vision-camera/src/hooks/internal/useTorchModeUpdater.ts
+@@ -10,6 +10,27 @@ export function useTorchModeUpdater(
+     if (controller == null) return
+     if (torchMode == null) return
+ 
+-    controller.setTorchMode(torchMode)
++    // setTorchMode rejects while the session is (re)configuring — e.g. right
++    // after flipping between cameras — or when the active device has no flash
++    // unit. Retry briefly for the transient case and swallow the rest instead
++    // of surfacing an unhandled promise rejection.
++    let cancelled = false
++    const apply = (attempt: number): void => {
++      controller.setTorchMode(torchMode).catch((error) => {
++        if (cancelled) return
++        if (attempt < 3) {
++          setTimeout(() => {
++            if (!cancelled) apply(attempt + 1)
++          }, 150 * (attempt + 1))
++          return
++        }
++        console.warn(`[VisionCamera] Failed to set torch mode to '${torchMode}':`, error)
++      })
++    }
++    apply(0)
++
++    return () => {
++      cancelled = true
++    }
+   }, [controller, torchMode])
+ }

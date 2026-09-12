@@ -9,11 +9,13 @@ import Toast from 'react-native-toast-message'
 
 import { colors, spacing, radius, fontSize } from '@/lib/theme'
 import GoogleSignInButton from '@/components/GoogleSignInButton'
+import AppleSignInButton from '@/components/AppleSignInButton'
 import { useAuth } from '@/stores/auth'
 import { getAuthRedirectUrl } from '@/lib/links'
 
 export default function Signup() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const ar = i18n.language === 'ar'
   const router = useRouter()
   const signUp = useAuth((s) => s.signUp)
 
@@ -98,11 +100,14 @@ export default function Signup() {
         {/* Divider */}
         <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: spacing.lg, gap: spacing.sm }}>
           <View style={{ flex: 1, height: 1, backgroundColor: colors.grey100 }} />
-          <Text style={{ color: colors.grey400, fontSize: fontSize.xs, fontWeight: '600' }}>أو</Text>
+          <Text style={{ color: colors.grey400, fontSize: fontSize.xs, fontWeight: '600' }}>{ar ? 'أو' : 'or'}</Text>
           <View style={{ flex: 1, height: 1, backgroundColor: colors.grey100 }} />
         </View>
 
         <GoogleSignInButton mode="signup" onSuccess={() => router.replace('/(tabs)/feed')} />
+
+        <View style={{ height: spacing.sm }} />
+        <AppleSignInButton mode="signup" onSuccess={() => router.replace('/(tabs)/feed')} />
 
         <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: spacing.xl, gap: spacing.xs }}>
           <Text style={{ color: colors.grey600 }}>{t('auth.haveAccount')}</Text>

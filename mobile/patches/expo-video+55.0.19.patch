@@ -1,0 +1,25 @@
+diff --git a/node_modules/expo-video/android/src/main/java/expo/modules/video/player/DefaultLoadControl.java b/node_modules/expo-video/android/src/main/java/expo/modules/video/player/DefaultLoadControl.java
+index 9ac55d6..aefed7e 100644
+--- a/node_modules/expo-video/android/src/main/java/expo/modules/video/player/DefaultLoadControl.java
++++ b/node_modules/expo-video/android/src/main/java/expo/modules/video/player/DefaultLoadControl.java
+@@ -393,6 +393,20 @@ public class DefaultLoadControl implements LoadControl {
+     return allocator;
+   }
+ 
++  /**
++   * Binary compatibility bridge for newer Media3 releases.
++   *
++   * <p>Expo Video keeps this class as a locally-modifiable copy of Media3's
++   * {@code DefaultLoadControl}. Recent Media3 versions ask the load control
++   * for an allocator per player. This implementation deliberately shares the
++   * same allocator between its tracked players, so the player id does not
++   * change the returned instance.
++   */
++  @SuppressWarnings("unused")
++  public Allocator getAllocator(PlayerId playerId) {
++    return getAllocator();
++  }
++
+   @Override
+   public long getBackBufferDurationUs(PlayerId playerId) {
+     return backBufferDurationUs;

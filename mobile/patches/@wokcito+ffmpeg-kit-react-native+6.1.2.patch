@@ -1,0 +1,16 @@
+diff --git a/node_modules/@wokcito/ffmpeg-kit-react-native/ffmpeg-kit-react-native.podspec b/node_modules/@wokcito/ffmpeg-kit-react-native/ffmpeg-kit-react-native.podspec
+index 889d3e8..69aad04 100644
+--- a/node_modules/@wokcito/ffmpeg-kit-react-native/ffmpeg-kit-react-native.podspec
++++ b/node_modules/@wokcito/ffmpeg-kit-react-native/ffmpeg-kit-react-native.podspec
+@@ -3,7 +3,10 @@ require "json"
+ package = JSON.parse(File.read(File.join(__dir__, "package.json")))
+ 
+ Pod::Spec.new do |s|
+-  s.name         = package["name"]
++  # CocoaPods treats "/" in scoped npm package names as a subspec separator
++  # (e.g. "@wokcito/ffmpeg-kit-react-native" becomes pod "@wokcito").
++  # Keep the native pod name unscoped so iOS pod install can resolve it.
++  s.name         = "ffmpeg-kit-react-native"
+   s.version      = package["version"]
+   s.summary      = package["description"]
+   s.homepage     = package["homepage"]

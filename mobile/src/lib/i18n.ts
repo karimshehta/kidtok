@@ -15,7 +15,7 @@ const resources = {
       },
       lang: { arabic: 'العربية', english: 'English' },
       landing: {
-        title: 'KidTok', subtitle: 'محتوى يوتيوب آمن لأطفالك',
+        title: 'KidTok', subtitle: 'محتوى آمن لأطفالك',
         feature1: 'كنترول كامل على ما يشاهده طفلك',
         feature2: 'حدّ زمني يومي للمشاهدة', feature3: 'إحصائيات تفصيلية',
         getStarted: 'ابدأ الآن', haveAccount: 'لدي حساب بالفعل',
@@ -34,13 +34,13 @@ const resources = {
       tabs: { feed: 'الرئيسية', search: 'بحث', children: 'أطفالي', profile: 'حسابي' },
       onboarding: {
         welcome: 'مرحباً في KidTok!', subtitle: 'محتوى آمن لأطفالك',
-        watchAd: 'شاهد إعلاناً قصيراً', watchAdHint: 'احصل على عملات تستخدمها في الاشتراك',
+        watchAd: 'شاهد إعلاناً قصيراً', watchAdHint: 'احصل على عملات للهدايا والفريمات داخل KidTok',
         login: 'تسجيل الدخول', loginHint: 'وصول كامل لكل الميزات', skip: 'تصفح بدون حساب',
       },
       coins: { myCoins: 'رصيد العملات', watchAd: 'شاهد إعلان واكسب {{n}} عملة', earned: 'كسبت +{{n}} عملة! 🪙' },
       profile: {
         editProfile: 'تعديل الحساب', language: 'اللغة', logout: 'تسجيل الخروج',
-        subscription: 'الاشتراك', free: 'مجاني', active: 'مفعّل',
+        subscription: 'المكافآت', free: 'مجاني', active: 'مفعّل',
         settings: 'الإعدادات', tapToChangePhoto: 'اضغط لتغيير الصورة',
       },
       username: {
@@ -78,7 +78,7 @@ const resources = {
       },
       lang: { arabic: 'العربية', english: 'English' },
       landing: {
-        title: 'KidTok', subtitle: 'Safe YouTube content for your kids',
+        title: 'KidTok', subtitle: 'Safe content for your kids',
         feature1: 'Full control over what your child watches',
         feature2: 'Daily time limits', feature3: 'Detailed statistics',
         getStarted: 'Get Started', haveAccount: 'I already have an account',
@@ -95,13 +95,13 @@ const resources = {
       tabs: { feed: 'Feed', search: 'Search', children: 'Children', profile: 'Profile' },
       onboarding: {
         welcome: 'Welcome to KidTok!', subtitle: 'Safe content for your kids',
-        watchAd: 'Watch a short ad', watchAdHint: 'Earn coins to use toward subscriptions',
+        watchAd: 'Watch a short ad', watchAdHint: 'Earn coins for gifts and profile frames',
         login: 'Sign in', loginHint: 'Full access to all features', skip: 'Browse without account',
       },
       coins: { myCoins: 'My coins', watchAd: 'Watch ad & earn {{n}} coins', earned: 'You earned +{{n}} coins! 🪙' },
       profile: {
         editProfile: 'Edit profile', language: 'Language', logout: 'Logout',
-        subscription: 'Subscription', free: 'Free', active: 'Active',
+        subscription: 'Rewards', free: 'Free', active: 'Active',
         settings: 'Settings', tapToChangePhoto: 'Tap to change photo',
       },
       username: {

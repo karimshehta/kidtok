@@ -14,13 +14,14 @@ import { useAuth } from '@/stores/auth'
 import { colors, spacing, fontSize, radius } from '@/lib/theme'
 
 export default function ProfileEditScreen() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const ar = i18n.language === 'ar'
   const router = useRouter()
   const userId = useAuth((s) => s.user?.id)
   const qc = useQueryClient()
 
   const { data: profile, isLoading } = useQuery({
-    queryKey: ['profile', userId],
+    queryKey: ['profile-edit', userId],
     enabled: !!userId,
     queryFn: async () => {
       const { data } = await supabase
@@ -76,7 +77,7 @@ export default function ProfileEditScreen() {
   const pickAvatar = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync()
     if (!perm.granted) {
-      Alert.alert('السماح بالوصول', 'يلزم الإذن بالوصول للصور لتغيير الأفاتار.')
+      Alert.alert(ar ? 'السماح بالوصول' : 'Allow access', ar ? 'يلزم الإذن بالوصول للصور لتغيير الأفاتار.' : 'Photo library access is required to change your avatar.')
       return
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -136,7 +137,7 @@ export default function ProfileEditScreen() {
       await qc.invalidateQueries({ queryKey: ['profile'] })
       await qc.invalidateQueries({ queryKey: ['profile', userId] })
       await qc.invalidateQueries({ queryKey: ['creator-profile', userId] })
-      Toast.show({ type: 'success', text1: 'تم حفظ التعديلات' })
+      Toast.show({ type: 'success', text1: ar ? 'تم حفظ التعديلات' : 'Changes saved' })
       router.back()
     } catch (err) {
       Toast.show({ type: 'error', text1: (err as Error).message })
@@ -170,17 +171,20 @@ export default function ProfileEditScreen() {
   }[usernameStatus]
 
   return (
-    <KeyboardScreen variant="form" style={{ flex: 1, backgroundColor: colors.white  }}>
+    <KeyboardScreen variant="simple" style={{ flex: 1, backgroundColor: colors.white  }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', padding: spacing.lg, gap: spacing.md }}>
         <Pressable onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={28} color={colors.grey900} />
         </Pressable>
         <Text style={{ fontSize: fontSize.xl, fontWeight: '900', color: colors.grey900 }}>
-          تعديل الحساب
-        </Text>
+          {ar ? 'تعديل الحساب' : 'Edit profile'}        </Text>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 100 }}>
+      <ScrollView
+        contentContainerStyle={{ padding: spacing.lg, paddingBottom: 140 }}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
         {/* Avatar */}
         <View style={{ alignItems: 'center', marginBottom: spacing.xl }}>
           <Pressable onPress={pickAvatar} disabled={uploading}>
@@ -203,15 +207,13 @@ export default function ProfileEditScreen() {
             </View>
           </Pressable>
           <Text style={{ marginTop: spacing.sm, fontSize: fontSize.xs, color: colors.grey600 }}>
-            اضغط لتغيير الصورة
-          </Text>
+            {ar ? 'اضغط لتغيير الصورة' : 'Tap to change photo'}          </Text>
         </View>
 
         {/* Username — special field with @ prefix and availability check */}
         <View style={{ marginBottom: spacing.md }}>
           <Text style={{ fontSize: fontSize.sm, fontWeight: '700', color: colors.grey700, marginBottom: 6 }}>
-            اسم المستخدم
-          </Text>
+            {ar ? 'اسم المستخدم' : 'Username'}          </Text>
           <View style={{
             flexDirection: 'row', alignItems: 'center',
             backgroundColor: colors.grey50,
@@ -239,9 +241,9 @@ export default function ProfileEditScreen() {
           </Text>
         </View>
 
-        <Field label="الاسم" value={name} onChange={setName} icon="person" />
-        <Field label="رقم الموبايل" value={phone} onChange={setPhone} icon="call" keyboardType="phone-pad" />
-        <Field label="نبذة عنك" value={bio} onChange={setBio} icon="document-text" multiline />
+        <Field label={ar ? 'الاسم' : 'Name'} value={name} onChange={setName} icon="person" />
+        <Field label={ar ? 'رقم الموبايل' : 'Phone number'} value={phone} onChange={setPhone} icon="call" keyboardType="phone-pad" />
+        <Field label={ar ? 'نبذة عنك' : 'About you'} value={bio} onChange={setBio} icon="document-text" multiline />
 
         <Pressable
           onPress={handleSave}
@@ -258,7 +260,7 @@ export default function ProfileEditScreen() {
             <ActivityIndicator color={colors.white} />
           ) : (
             <Text style={{ color: colors.white, fontWeight: '800', fontSize: fontSize.base }}>
-              حفظ التعديلات
+              {ar ? 'حفظ التعديلات' : 'Save changes'}
             </Text>
           )}
         </Pressable>

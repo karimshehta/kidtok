@@ -18,6 +18,8 @@ import { supabase } from '@/lib/supabase'
 import { usePlanLimits } from '@/hooks/usePlanLimits'
 
 const RESERVED_HEIGHT = 60   // reserve space so layout never shifts
+const TEST_BANNER_ANDROID = 'ca-app-pub-3940256099942544/6300978111'
+const TEST_BANNER_IOS = 'ca-app-pub-3940256099942544/2934735716'
 
 function getAdModule() {
   try { return require('react-native-google-mobile-ads') }
@@ -38,7 +40,8 @@ function useBannerSettings() {
       return {
         androidUnitId: m['admob_android_banner'] || '',
         iosUnitId:     m['admob_ios_banner']     || '',
-        enabled:       m['admob_banner_enabled'] === 'true',
+        // Default enabled=true — only disabled when admin explicitly sets 'false'
+        enabled:       m['admob_banner_enabled'] !== 'false',
       }
     },
   })
@@ -49,16 +52,25 @@ interface Props {
   variant?: 'inline' | 'sticky'
   /** Extra spacing around the banner */
   margin?: number
+  /** For sticky variant — pixels to lift the banner off the screen edge
+   *  (e.g. tab bar height when rendered above a bottom tab bar). */
+  bottomOffset?: number
 }
 
-function BannerAdImpl({ variant = 'inline', margin = 0 }: Props) {
+function BannerAdImpl({ variant = 'inline', margin = 0, bottomOffset = 0 }: Props) {
   const { data: settings }   = useBannerSettings()
   const { data: planLimits } = usePlanLimits()
   const insets               = useSafeAreaInsets()
   const adModule             = useRef(getAdModule()).current
   const [loaded, setLoaded]  = useState(false)
   const [failed, setFailed]  = useState(false)
+  // Forces remount of the inner <BannerAd> when we want a retry. Each
+  // change of this counter is a fresh ad request from AdMob — needed
+  // because the SDK won't auto-retry once setFailed has hidden it.
+  const [retryKey, setRetryKey] = useState(0)
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // ✅ Always use admin IDs from Supabase — no test fallback
   const adUnitId   = Platform.OS === 'android' ? settings?.androidUnitId : settings?.iosUnitId
   const eligible   = !!(
     settings?.enabled &&
@@ -68,6 +80,22 @@ function BannerAdImpl({ variant = 'inline', margin = 0 }: Props) {
     !adUnitId.includes('REPLACE')
   )
 
+  // Diagnostic logs — kept behind __DEV__ so prod console isn't noisy.
+  if (__DEV__) {
+    if (!eligible) {
+      console.log('[banner] not eligible', {
+        enabled:        settings?.enabled,
+        has_ads:        planLimits?.has_ads,
+        hasAdModule:    !!adModule,
+        adUnitId:       adUnitId || null,
+        platform:       Platform.OS,
+        settingsLoaded: settings !== undefined,
+        planLoaded:     planLimits !== undefined,
+      })
+    }
+    if (failed) console.warn('[banner] AdMob load failed earlier for', adUnitId)
+  }
+
   if (!eligible || failed) return null
 
   let banner: any = null
@@ -75,14 +103,44 @@ function BannerAdImpl({ variant = 'inline', margin = 0 }: Props) {
     const { BannerAd, BannerAdSize } = adModule
     banner = (
       <BannerAd
+        key={retryKey}            /* remount forces a new ad request */
         unitId={adUnitId}
         size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
-        requestOptions={{ requestNonPersonalizedAdsOnly: false }}
-        onAdLoaded={() => setLoaded(true)}
-        onAdFailedToLoad={() => setFailed(true)}
+        requestOptions={{ requestNonPersonalizedAdsOnly: true }}
+        onAdLoaded={() => {
+          if (__DEV__) console.log('[banner] ad LOADED for', adUnitId)
+          setLoaded(true)
+        }}
+        onAdFailedToLoad={(err: any) => {
+          if (__DEV__) {
+            console.warn('[banner] AdMob onAdFailedToLoad', {
+              unitId:  adUnitId,
+              code:    err?.code,
+              message: err?.message,
+            })
+          }
+          setFailed(true)
+
+          // 'no-fill' is transient — AdMob's inventory comes and goes,
+          // especially for kid-directed + G-rated + non-personalized
+          // requests in markets with thin advertiser pools. Schedule
+          // a remount in 60s so the banner gets another shot at filling.
+          // Hard errors (invalid request, network down) won't self-heal,
+          // so we don't retry those — the load will fail again.
+          const code = typeof err?.code === 'string' ? err.code : ''
+          if (code.includes('no-fill')) {
+            if (retryTimerRef.current) clearTimeout(retryTimerRef.current)
+            retryTimerRef.current = setTimeout(() => {
+              setFailed(false)
+              setLoaded(false)
+              setRetryKey((k) => k + 1)
+            }, 60_000)
+          }
+        }}
       />
     )
-  } catch {
+  } catch (e) {
+    if (__DEV__) console.warn('[banner] render threw', e)
     return null
   }
 
@@ -92,7 +150,11 @@ function BannerAdImpl({ variant = 'inline', margin = 0 }: Props) {
       <View
         style={[
           styles.sticky,
-          { paddingBottom: insets.bottom, minHeight: RESERVED_HEIGHT + insets.bottom },
+          {
+            bottom:        bottomOffset,
+            paddingBottom: bottomOffset > 0 ? 0 : insets.bottom,
+            minHeight:     RESERVED_HEIGHT + (bottomOffset > 0 ? 0 : insets.bottom),
+          },
         ]}
         pointerEvents="box-none"
       >

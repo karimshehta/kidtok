@@ -2,6 +2,7 @@ import BannerAd from '@/components/BannerAd'
 import { View, Text, ScrollView, Pressable, ActivityIndicator, Image, Alert } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter, useLocalSearchParams } from 'expo-router'
+import { useTranslation } from 'react-i18next'
 import { Ionicons } from '@expo/vector-icons'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import Toast from 'react-native-toast-message'
@@ -24,6 +25,8 @@ interface PlaylistVideo {
 
 export default function PlaylistDetailScreen() {
   const router = useRouter()
+  const { i18n } = useTranslation()
+  const ar = i18n.language === 'ar'
   const { id } = useLocalSearchParams<{ id: string }>()
   const qc = useQueryClient()
 
@@ -50,18 +53,18 @@ export default function PlaylistDetailScreen() {
 
   const handleRemove = (pvId: string) => {
     Alert.alert(
-      'حذف الفيديو',
-      'هل أنت متأكد؟',
+      ar ? 'حذف الفيديو' : 'Delete video',
+      ar ? 'هل أنت متأكد؟' : 'Are you sure?',
       [
-        { text: 'إلغاء', style: 'cancel' },
+        { text: ar ? 'إلغاء' : 'Cancel', style: 'cancel' },
         {
-          text: 'حذف',
+          text: ar ? 'حذف' : 'Delete',
           style: 'destructive',
           onPress: async () => {
             try {
               await supabase.from('playlist_videos').delete().eq('id', pvId)
               await qc.invalidateQueries({ queryKey: ['playlist-videos', id] })
-              Toast.show({ type: 'success', text1: 'تم الحذف' })
+              Toast.show({ type: 'success', text1: ar ? 'تم الحذف' : 'Deleted' })
             } catch (err) {
               Toast.show({ type: 'error', text1: (err as Error).message })
             }
@@ -82,7 +85,7 @@ export default function PlaylistDetailScreen() {
             {playlist?.name || '...'}
           </Text>
           <Text style={{ fontSize: fontSize.xs, color: colors.grey600 }}>
-            {videos.length} فيديو
+            {videos.length} {ar ? 'فيديو' : 'videos'}
           </Text>
         </View>
       </View>
@@ -92,7 +95,7 @@ export default function PlaylistDetailScreen() {
         <Pressable
           onPress={() => {
             if (videos.length === 0) {
-              Toast.show({ type: 'info', text1: 'لا توجد فيديوهات بعد' })
+              Toast.show({ type: 'info', text1: ar ? 'لا توجد فيديوهات بعد' : 'No videos yet' })
               return
             }
             router.push(`/playlist/${id}/play`)
@@ -107,7 +110,7 @@ export default function PlaylistDetailScreen() {
           })}
         >
           <Ionicons name="play" size={20} color={colors.white} />
-          <Text style={{ color: colors.white, fontWeight: '800' }}>تشغيل</Text>
+          <Text style={{ color: colors.white, fontWeight: '800' }}>{ar ? 'تشغيل' : 'Play'}</Text>
         </Pressable>
         <Pressable
           onPress={() => router.push(`/playlist/${id}/add`)}
@@ -122,7 +125,7 @@ export default function PlaylistDetailScreen() {
           })}
         >
           <Ionicons name="add" size={20} color={colors.primary} />
-          <Text style={{ color: colors.primary, fontWeight: '800' }}>إضافة</Text>
+          <Text style={{ color: colors.primary, fontWeight: '800' }}>{ar ? 'إضافة' : 'Add'}</Text>
         </Pressable>
       </View>
 
@@ -133,10 +136,10 @@ export default function PlaylistDetailScreen() {
           <View style={{ alignItems: 'center', padding: spacing.xl, marginTop: spacing.xl }}>
             <Ionicons name="videocam-outline" size={64} color={colors.grey200} />
             <Text style={{ color: colors.grey700, marginTop: spacing.md, fontSize: fontSize.base, fontWeight: '700' }}>
-              قائمة التشغيل فاضية
+              {ar ? 'قائمة التشغيل فاضية' : 'Playlist is empty'}
             </Text>
             <Text style={{ color: colors.grey600, fontSize: fontSize.sm, marginTop: 4, textAlign: 'center' }}>
-              اضغط "إضافة" لتضيف فيديوهات من YouTube
+              {ar ? 'اضغط "إضافة" لتضيف فيديوهات من YouTube' : 'Tap "Add" to add videos from YouTube'}
             </Text>
           </View>
         ) : (
@@ -175,29 +178,32 @@ export default function PlaylistDetailScreen() {
                       </Text>
                     </View>
                   </View>
-                  <View style={{ flex: 1, padding: spacing.sm, justifyContent: 'space-between' }}>
+                  <View style={{ flex: 1, padding: spacing.sm, justifyContent: 'space-between', gap: 4 }}>
                     <Text style={{ fontSize: fontSize.sm, fontWeight: '700', color: colors.grey900 }} numberOfLines={2}>
-                      {video.title || 'فيديو بدون عنوان'}
+                      {video.title || (ar ? 'فيديو بدون عنوان' : 'Untitled video')}
                     </Text>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <Text style={{ fontSize: fontSize.xs, color: colors.grey600 }} numberOfLines={1}>
-                        {video.channel_name || 'YouTube'}
-                      </Text>
-                      <Pressable
-                        onPress={() => handleRemove(pv.id)}
-                        hitSlop={8}
-                      >
-                        <Ionicons name="trash-outline" size={18} color={colors.red} />
-                      </Pressable>
-                    </View>
+                    <Text style={{ fontSize: fontSize.xs, color: colors.grey600 }} numberOfLines={1}>
+                      {video.channel_name || 'YouTube'}
+                    </Text>
                   </View>
+                  <Pressable
+                    onPress={() => handleRemove(pv.id)}
+                    hitSlop={10}
+                    style={({ pressed }) => ({
+                      width: 40, alignItems: 'center', justifyContent: 'center',
+                      backgroundColor: pressed ? '#FEE2E2' : 'transparent',
+                    })}
+                  >
+                    <Ionicons name="trash-outline" size={20} color={colors.red} />
+                  </Pressable>
                 </View>
               )
             })}
           </View>
         )}
       </ScrollView>
-          <BannerAd variant="sticky" />
-      </SafeAreaView>
+      
+      <BannerAd variant="sticky" />
+    </SafeAreaView>
   )
 }

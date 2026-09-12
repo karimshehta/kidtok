@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
+import { useQuery } from '@tanstack/react-query'
 /** Simple deterministic hash for PIN — no external package needed */
 function simpleHash(input: string): string {
   let hash = 5381
@@ -98,13 +99,22 @@ export function usePinVerify() {
 
 export function useHasPin() {
   const userId = useAuth((s) => s.user?.id)
-  const [hasPin, setHasPin] = useState<boolean | null>(null)
-
-  useEffect(() => {
-    if (!userId) return
-    supabase.from('profiles').select('child_mode_pin').eq('id', userId).single()
-      .then(({ data }) => setHasPin(!!data?.child_mode_pin))
-  }, [userId])
-
-  return hasPin
+  // Cached via react-query so we can invalidate from set-pin's success
+  // handler and have every consumer pick up the new value immediately.
+  // Returns true / false (loaded) or null (still loading) to match the
+  // original API.
+  const { data } = useQuery({
+    queryKey: ['has-pin', userId],
+    enabled: !!userId,
+    staleTime: 30_000,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('child_mode_pin')
+        .eq('id', userId)
+        .single()
+      return !!data?.child_mode_pin
+    },
+  })
+  return data === undefined ? null : data
 }

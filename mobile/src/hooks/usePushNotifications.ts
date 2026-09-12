@@ -9,6 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/stores/auth'
+import { getNotificationTargetPath } from '@/lib/notificationNavigation'
 
 // Show notifications even when the app is in the foreground
 Notifications.setNotificationHandler({
@@ -21,7 +22,23 @@ Notifications.setNotificationHandler({
 })
 
 const APP_VERSION = (Constants.expoConfig?.version || '1.0.0')
-const TOKEN_STORAGE_KEY = 'kidtok_push_token_v1'
+const TOKEN_STORAGE_KEY  = 'kidtok_push_token_v1'
+// Stable per-install device identifier. Generated once on first run and
+// kept across app launches. Wiped on uninstall, so reinstalls produce a
+// new device_id — that's intentional, the orphan token from the previous
+// install will be cleaned up by the next push attempt via the send-push
+// edge function or by the cleanup_stale_push_tokens RPC.
+const DEVICE_ID_KEY      = 'kidtok_device_id_v1'
+
+async function getOrCreateDeviceId(): Promise<string> {
+  let id = await AsyncStorage.getItem(DEVICE_ID_KEY)
+  if (id) return id
+  // Lightweight UUID without pulling in a new dep
+  id = 'd-' + Math.random().toString(36).slice(2) + Date.now().toString(36) +
+            Math.random().toString(36).slice(2)
+  await AsyncStorage.setItem(DEVICE_ID_KEY, id)
+  return id
+}
 
 /**
  * Registers the device for push notifications and syncs the Expo token
@@ -51,12 +68,14 @@ export function usePushNotifications() {
         if (last === current) return
 
         const platform = Platform.OS === 'ios' ? 'ios' : 'android'
+        const deviceId = await getOrCreateDeviceId()
         const { error } = await supabase.rpc('upsert_push_token', {
-          p_expo_token: token,
-          p_platform: platform,
-          p_language: i18n.language === 'en' ? 'en' : 'ar',
+          p_expo_token:  token,
+          p_platform:    platform,
+          p_language:    i18n.language === 'en' ? 'en' : 'ar',
           p_device_name: Device.modelName || null,
           p_app_version: APP_VERSION,
+          p_device_id:   deviceId,
         })
 
         if (!error) {
@@ -73,10 +92,12 @@ export function usePushNotifications() {
     responseListener.current = Notifications.addNotificationResponseReceivedListener(
       (response) => {
         const data: any = response.notification.request.content.data || {}
-        if (data?.deep_link && typeof data.deep_link === 'string') {
-          // deep_link should be an in-app path like "/playlist/abc/play"
-          try { router.push(data.deep_link as any) } catch {}
-        }
+        const target = getNotificationTargetPath({
+          type: data?.type,
+          deep_link: typeof data?.deep_link === 'string' ? data.deep_link : null,
+          data,
+        })
+        try { router.push(target as any) } catch {}
       }
     )
     return () => {

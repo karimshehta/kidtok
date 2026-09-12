@@ -1,5 +1,6 @@
-import { View, Text, ScrollView, Pressable, ActivityIndicator, RefreshControl, Alert } from 'react-native'
+import { View, Text, ScrollView, Pressable, ActivityIndicator, RefreshControl, Alert, Modal } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { LinearGradient } from 'expo-linear-gradient'
 import { useTranslation } from 'react-i18next'
 import { useFocusEffect } from 'expo-router'
 import { useCallback, useState } from 'react'
@@ -8,7 +9,7 @@ import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 
 import { supabase } from '@/lib/supabase'
-import { usePlanLimits, usePlanStatus, useLockedChildrenIds } from '@/hooks/usePlanLimits'
+import { usePlanLimits, useLockedChildrenIds } from '@/hooks/usePlanLimits'
 import { useAuth } from '@/stores/auth'
 import ChildAvatar from '@/components/ChildAvatar'
 import { colors, spacing, fontSize, radius } from '@/lib/theme'
@@ -32,7 +33,6 @@ export default function ChildrenScreen() {
   const [menuChild, setMenuChild] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
   const { data: planLimits } = usePlanLimits()
-  const { data: planStatus } = usePlanStatus()
   const { data: lockedIds = new Set<string>() } = useLockedChildrenIds()
 
   const onRefresh = useCallback(async () => {
@@ -81,7 +81,7 @@ export default function ChildrenScreen() {
             if (!error) {
               qc.invalidateQueries({ queryKey: ['children'] })
             } else {
-              Alert.alert('خطأ', error.message)
+              Alert.alert(lang === 'ar' ? 'خطأ' : 'Error', error.message)
             }
             setMenuChild(null)
             setDeleting(false)
@@ -92,34 +92,69 @@ export default function ChildrenScreen() {
   }
 
   return (
-    <Pressable style={{ flex: 1 }} onPress={() => setMenuChild(null)}>
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.white }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#FAFBFD' }}>
       <ScrollView
-        contentContainerStyle={{ padding: spacing.lg, paddingBottom: 100 }}
+        contentContainerStyle={{ padding: spacing.lg, paddingBottom: 160 }}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />
         }
       >
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', marginBottom: spacing.lg }}>
+        {/* ─── Hero header — professional gradient intro card ─────────────── */}
+        <LinearGradient
+          colors={['#03BBE5', '#0A8FB8']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={{
+            borderRadius: radius.xl,
+            padding: spacing.lg,
+            marginBottom: spacing.lg,
+            overflow: 'hidden',
+          }}
+        >
+          {/* Decorative bubbles */}
+          <View style={{ position: 'absolute', top: -30, right: -20, width: 120, height: 120, borderRadius: 60, backgroundColor: 'rgba(255,255,255,0.10)' }} />
+          <View style={{ position: 'absolute', bottom: -40, left: -30, width: 100, height: 100, borderRadius: 50, backgroundColor: 'rgba(255,255,255,0.08)' }} />
+
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+            <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.22)', alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name="people" size={20} color="#fff" />
+            </View>
+            <Text style={{ color: '#fff', fontWeight: '900', fontSize: fontSize['2xl'] }}>
+              {lang === 'ar' ? 'أطفالك' : 'Your children'}
+            </Text>
+          </View>
+          <Text style={{ color: 'rgba(255,255,255,0.95)', fontSize: fontSize.sm, fontWeight: '600', lineHeight: 20, textAlign: lang === 'ar' ? 'right' : 'left' }}>
+            {lang === 'ar'
+              ? 'أنشئ ملفاً لكل طفل وقم بإعداد قوائم تشغيل آمنة بنفسك لمحتوى يناسبه.'
+              : 'Create a profile for each child and curate safe playlists yourself for content that suits them.'}
+          </Text>
+        </LinearGradient>
+
+        {/* ─── Action row: Limit pill / Add button ───────────────────────── */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.lg }}>
+          <Text style={{ fontSize: fontSize.base, fontWeight: '800', color: colors.grey700 }}>
+            {lang === 'ar' ? `${children.length} ${children.length === 1 ? 'طفل' : 'أطفال'}` : `${children.length} ${children.length === 1 ? 'child' : 'children'}`}
+          </Text>
           {planLimits && children.length >= planLimits.max_children ? (
-            <Pressable
-              onPress={() => router.push('/subscription/plans')}
+            <View
               style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#FEF3C7', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: '#FCD34D' }}
             >
               <Ionicons name="lock-closed" size={14} color="#92400E" />
               <Text style={{ fontSize: 12, fontWeight: '800', color: '#92400E' }}>{children.length}/{planLimits.max_children}</Text>
-              <Text style={{ fontSize: 11, color: '#92400E' }}>ترقية</Text>
-            </Pressable>
+              <Text style={{ fontSize: 11, color: '#92400E' }}>{lang === 'ar' ? 'الحد الحالي' : 'Current limit'}</Text>
+            </View>
           ) : (
             <Pressable
               onPress={() => router.push('/children/new')}
               style={({ pressed }) => ({
-                width: 44, height: 44, borderRadius: 22,
-                backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center',
+                flexDirection: 'row', alignItems: 'center', gap: 6,
+                paddingHorizontal: 14, paddingVertical: 9, borderRadius: 999,
+                backgroundColor: colors.primary,
                 opacity: pressed ? 0.85 : 1,
               })}
             >
-              <Ionicons name="add" size={26} color={colors.white} />
+              <Ionicons name="add" size={18} color={colors.white} />
+              <Text style={{ color: colors.white, fontWeight: '800', fontSize: 13 }}>{lang === 'ar' ? 'إضافة طفل' : 'Add child'}</Text>
             </Pressable>
           )}
         </View>
@@ -142,11 +177,9 @@ export default function ChildrenScreen() {
               <Ionicons name="people-outline" size={48} color={colors.primary} />
             </View>
             <Text style={{ fontSize: fontSize.lg, fontWeight: '700', color: colors.grey900 }}>
-              لم تضف أطفالا بعد
-            </Text>
+              {lang === 'ar' ? 'لم تضف أطفالا بعد' : 'No children added yet'}            </Text>
             <Text style={{ fontSize: fontSize.sm, color: colors.grey600, marginTop: spacing.xs, textAlign: 'center' }}>
-              أضف طفلك الأول لتبدأ
-            </Text>
+              {lang === 'ar' ? 'أضف طفلك الأول لتبدأ' : 'Add your first child to get started'}            </Text>
             <Pressable
               onPress={() => router.push('/children/new')}
               style={{
@@ -157,7 +190,7 @@ export default function ChildrenScreen() {
                 borderRadius: radius.pill,
               }}
             >
-              <Text style={{ color: colors.white, fontWeight: '700' }}>+ إضافة طفل</Text>
+              <Text style={{ color: colors.white, fontWeight: '700' }}>{lang === 'ar' ? '+ إضافة طفل' : '+ Add child'}</Text>
             </Pressable>
           </View>
         ) : (
@@ -174,11 +207,10 @@ export default function ChildrenScreen() {
                     Alert.alert(
                       lang === 'ar' ? '🔒 مقفول' : '🔒 Locked',
                       lang === 'ar'
-                        ? `الباقة الحالية تسمح بـ ${planLimits?.max_children || 1} أطفال فقط. اشترك للوصول لجميع الأطفال.`
-                        : `Your current plan allows ${planLimits?.max_children || 1} children only. Upgrade to access all children.`,
+                        ? `الحد الحالي يسمح بـ ${planLimits?.max_children || 1} أطفال فقط.`
+                        : `The current limit allows ${planLimits?.max_children || 1} children only.`,
                       [
-                        { text: lang === 'ar' ? 'لاحقاً' : 'Later', style: 'cancel' },
-                        { text: lang === 'ar' ? 'ترقية الباقة' : 'Upgrade', onPress: () => router.push('/subscription') },
+                        { text: lang === 'ar' ? 'حسناً' : 'OK', style: 'cancel' },
                       ]
                     )
                     return
@@ -188,11 +220,17 @@ export default function ChildrenScreen() {
                   <ChildAvatar name={child.name} imageUrl={child.image_url} gender={child.gender} size="md" />
                   <View style={{ flex: 1 }}>
                     <Text style={{ fontSize: fontSize.base, fontWeight: '700', color: colors.grey900 }}>{child.name}</Text>
-                    {!!child.age?.name_ar && (
-                      <Text style={{ fontSize: fontSize.sm, color: colors.grey600 }}>
-                        {lang === 'ar' ? child.age.name_ar : child.age.name_en}
-                      </Text>
-                    )}
+                    {(() => {
+                      const ageLabel = child.age && (lang === 'ar' ? (child.age.name_ar || child.age.name_en) : (child.age.name_en || child.age.name_ar))
+                      return ageLabel ? (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                          <Ionicons name="calendar-outline" size={12} color={colors.grey600} />
+                          <Text style={{ fontSize: fontSize.sm, color: colors.grey600 }}>
+                            {ageLabel}
+                          </Text>
+                        </View>
+                      ) : null
+                    })()}
                     {!!child.interests?.length && (
                       <Text style={{ fontSize: fontSize.xs, color: colors.grey600, marginTop: 2 }} numberOfLines={1}>
                         {child.interests.map((interest: any) => lang === 'ar' ? interest.name_ar : interest.name_en).join(' • ')}
@@ -201,35 +239,14 @@ export default function ChildrenScreen() {
                   </View>
                 </Pressable>
 
-                {/* 3-dot menu */}
+                {/* 3-dot menu — opens centralized Modal below */}
                 <Pressable
-                  onPress={() => setMenuChild(menuChild === child.id ? null : child.id)}
+                  onPress={() => setMenuChild(child.id)}
                   style={{ padding: 8 }}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
                   <Ionicons name="ellipsis-vertical" size={20} color={colors.grey400} />
                 </Pressable>
-
-                {/* Dropdown menu */}
-                {menuChild === child.id && (
-                  <View style={{ position: 'absolute', right: 12, top: 44, backgroundColor: colors.white, borderRadius: radius.lg, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 8, zIndex: 100, minWidth: 160, borderWidth: 1, borderColor: colors.grey100 }}>
-                    <Pressable
-                      onPress={() => { setMenuChild(null); router.push(`/children/${child.id}/edit` as any) }}
-                      style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md, backgroundColor: pressed ? colors.grey50 : colors.white, borderRadius: radius.lg })}
-                    >
-                      <Ionicons name="pencil-outline" size={18} color={colors.grey700} />
-                      <Text style={{ fontWeight: '600', color: colors.grey900 }}>{lang === 'ar' ? 'تعديل' : 'Edit'}</Text>
-                    </Pressable>
-                    <View style={{ height: 1, backgroundColor: colors.grey100 }} />
-                    <Pressable
-                      onPress={() => { setMenuChild(null); deleteChild(child.id, child.name) }}
-                      style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md, backgroundColor: pressed ? '#FEF2F2' : colors.white, borderRadius: radius.lg })}
-                    >
-                      <Ionicons name="trash-outline" size={18} color={colors.secondary} />
-                      <Text style={{ fontWeight: '600', color: colors.secondary }}>{lang === 'ar' ? 'حذف' : 'Delete'}</Text>
-                    </Pressable>
-                  </View>
-                )}
               {isLocked && (
                 <View style={{ position: 'absolute', top: 6, right: 6, flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#F97316', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 100, zIndex: 1 }}>
                   <Ionicons name="lock-closed" size={10} color="#fff" />
@@ -242,7 +259,63 @@ export default function ChildrenScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* ─── Child actions Modal — renders above everything (no overlap with cards below) ─── */}
+      <Modal
+        visible={menuChild !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMenuChild(null)}
+      >
+        <Pressable
+          onPress={() => setMenuChild(null)}
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center', padding: spacing.lg }}
+        >
+          <Pressable
+            onPress={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: colors.white,
+              borderRadius: radius.lg,
+              width: 260,
+              overflow: 'hidden',
+              shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.25, shadowRadius: 16, elevation: 16,
+            }}
+          >
+            <Pressable
+              onPress={() => {
+                const cid = menuChild
+                setMenuChild(null)
+                if (cid) router.push(`/children/${cid}/edit` as any)
+              }}
+              style={({ pressed }) => ({
+                flexDirection: 'row', alignItems: 'center', gap: spacing.sm + 2,
+                paddingVertical: spacing.md, paddingHorizontal: spacing.lg,
+                backgroundColor: pressed ? colors.grey50 : colors.white,
+              })}
+            >
+              <Ionicons name="pencil-outline" size={20} color={colors.grey700} />
+              <Text style={{ fontWeight: '700', color: colors.grey900, fontSize: fontSize.base }}>{lang === 'ar' ? 'تعديل' : 'Edit'}</Text>
+            </Pressable>
+            <View style={{ height: 1, backgroundColor: colors.grey100 }} />
+            <Pressable
+              onPress={() => {
+                const cid = menuChild
+                const name = children?.find((c) => c.id === cid)?.name || ''
+                setMenuChild(null)
+                if (cid) deleteChild(cid, name)
+              }}
+              style={({ pressed }) => ({
+                flexDirection: 'row', alignItems: 'center', gap: spacing.sm + 2,
+                paddingVertical: spacing.md, paddingHorizontal: spacing.lg,
+                backgroundColor: pressed ? '#FEF2F2' : colors.white,
+              })}
+            >
+              <Ionicons name="trash-outline" size={20} color={colors.secondary} />
+              <Text style={{ fontWeight: '700', color: colors.secondary, fontSize: fontSize.base }}>{lang === 'ar' ? 'حذف' : 'Delete'}</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
-    </Pressable>
   )
 }

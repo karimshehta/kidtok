@@ -12,16 +12,27 @@ interface Props {
 }
 
 export default function GoogleSignInButton({ onSuccess, mode = 'login' }: Props) {
-  const { t } = useTranslation()
+  const { i18n } = useTranslation()
+  const ar = i18n.language === 'ar'
   const { signIn, loading } = useGoogleSignIn()
 
   const handlePress = async () => {
     const result = await signIn()
     if (result === 'success') {
-      Toast.show({ type: 'success', text1: t('auth.loginSuccess') })
+      Toast.show({
+        type: 'kidReward',
+        text1: ar ? 'أهلًا برجوعك يا بطل! 🌟' : 'Welcome back, hero! 🌟',
+        text2: ar ? 'تم تسجيل الدخول بجوجل.' : 'Signed in with Google.',
+        props: { icon: '🌟', accent: 'blue' },
+      })
       onSuccess?.()
     } else if (result === 'error') {
-      Toast.show({ type: 'error', text1: 'فشل تسجيل الدخول بجوجل' })
+      Toast.show({
+        type: 'kidReward',
+        text1: ar ? 'الدخول بجوجل ماكملش' : 'Google sign-in failed',
+        text2: ar ? 'جرّب مرة ثانية بعد لحظات.' : 'Please try again in a moment.',
+        props: { icon: '🔐', accent: 'purple' },
+      })
     }
     // 'cancelled' → do nothing (user closed the browser)
   }
@@ -56,10 +67,10 @@ export default function GoogleSignInButton({ onSuccess, mode = 'login' }: Props)
       )}
       <Text style={{ fontSize: fontSize.base, fontWeight: '700', color: colors.grey900 }}>
         {loading
-          ? 'جارٍ التحويل...'
+          ? (ar ? 'جارٍ التحويل...' : 'Redirecting...')
           : mode === 'signup'
-          ? 'التسجيل بـ Google'
-          : 'الدخول بـ Google'}
+          ? (ar ? 'التسجيل بـ Google' : 'Sign up with Google')
+          : (ar ? 'الدخول بـ Google' : 'Sign in with Google')}
       </Text>
     </Pressable>
   )

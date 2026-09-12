@@ -1,0 +1,144 @@
+diff --git a/node_modules/@snap/camera-kit-react-native/android/src/main/java/com/snap/camerakit/reactnative/CameraKitContextModule.kt b/node_modules/@snap/camera-kit-react-native/android/src/main/java/com/snap/camerakit/reactnative/CameraKitContextModule.kt
+index 5dcb9a6..29e4b3d 100644
+--- a/node_modules/@snap/camera-kit-react-native/android/src/main/java/com/snap/camerakit/reactnative/CameraKitContextModule.kt
++++ b/node_modules/@snap/camera-kit-react-native/android/src/main/java/com/snap/camerakit/reactnative/CameraKitContextModule.kt
+@@ -4,6 +4,7 @@ import android.graphics.Bitmap
+ import android.graphics.Bitmap.CompressFormat
+ import android.graphics.Rect
+ import android.os.Handler
++import android.view.ViewGroup
+ import com.facebook.react.bridge.Arguments
+ import com.facebook.react.bridge.Promise
+ import com.facebook.react.bridge.ReactApplicationContext
+@@ -15,12 +16,8 @@ import com.snap.camerakit.SafeRenderAreaProcessor
+ import com.snap.camerakit.Session
+ import com.snap.camerakit.Source
+ import com.snap.camerakit.common.Consumer
+-import com.snap.camerakit.configureLenses
+ import com.snap.camerakit.invoke
+ import com.snap.camerakit.lenses.LensesComponent
+-import com.snap.camerakit.lenses.configureCarousel
+-import com.snap.camerakit.lenses.configureHints
+-import com.snap.camerakit.lenses.configureLoadingOverlay
+ import com.snap.camerakit.lenses.newBuilder
+ import com.snap.camerakit.support.camerax.CameraXImageProcessorSource
+ import java.io.Closeable
+@@ -153,12 +150,12 @@ class CameraKitContextModule(reactContext: ReactApplicationContext) : ReactConte
+             attachTo(touchViewContainer.touchViewStub, false)
+             imageProcessorSource(imageProcessorSource)
+             safeRenderAreaProcessorSource(safeRenderAreaProcessor)
+-            // Disable default Camera Kit lenses UI.
+-            configureLenses {
+-                configureLoadingOverlay { enabled = false }
+-                configureCarousel { enabled = false }
+-                configureHints { enabled = false }
+-            }
++            // The React Native wrapper controls lens selection from JS. Older
++            // versions of this package tried to disable Camera Kit's default
++            // lenses UI via configureLenses { configureCarousel/... }, but the
++            // current Android Camera Kit SDK exposes those helpers on a
++            // different builder type. Leaving that block in place breaks EAS
++            // Android builds with unresolved Kotlin references.
+             handleErrorsWith { item ->
+                 eventEmitter.sendError(item)
+             }
+@@ -169,19 +166,26 @@ class CameraKitContextModule(reactContext: ReactApplicationContext) : ReactConte
+ 
+     @ReactMethod
+     fun closeSession(promise: Promise) {
+-        if (currentSession == null) {
+-            promise.resolve(true)
+-            return
+-        }
+-
+         val handler = Handler(reactApplicationContext.applicationContext.mainLooper)
+         handler.post {
+-            imageProcessorSource.stopPreview()
++            try {
++                videoRecording?.close()
++                videoRecording = null
++                imageProcessorSource.stopPreview()
++                currentSession?.close()
++                currentSession = null
++                currentLenses = emptyMap()
++                setSafeRenderArea = null
++
++                val currentTouchViewContainer = touchViewContainer
++                (currentTouchViewContainer.parent as? ViewGroup)?.removeView(currentTouchViewContainer)
++                touchViewContainer = TouchViewContainer(reactApplicationContext.applicationContext)
++
++                promise.resolve(true)
++            } catch (error: Throwable) {
++                promise.reject(error)
++            }
+         }
+-
+-        currentSession?.close()
+-        currentSession = null
+-        promise.resolve(true)
+     }
+ 
+     @ReactMethod
+@@ -283,4 +287,3 @@ class CameraKitContextModule(reactContext: ReactApplicationContext) : ReactConte
+         }
+     }
+ }
+-
+diff --git a/node_modules/@snap/camera-kit-react-native/android/src/main/java/com/snap/camerakit/reactnative/CameraPreview.kt b/node_modules/@snap/camera-kit-react-native/android/src/main/java/com/snap/camerakit/reactnative/CameraPreview.kt
+index 286082a..bdc11d5 100644
+--- a/node_modules/@snap/camera-kit-react-native/android/src/main/java/com/snap/camerakit/reactnative/CameraPreview.kt
++++ b/node_modules/@snap/camera-kit-react-native/android/src/main/java/com/snap/camerakit/reactnative/CameraPreview.kt
+@@ -3,6 +3,7 @@ package com.snap.camerakit.reactnative
+ import android.annotation.SuppressLint
+ import android.graphics.Rect
+ import android.view.TextureView
++import android.view.ViewGroup
+ import android.widget.FrameLayout
+ import com.facebook.react.uimanager.ThemedReactContext
+ import com.snap.camerakit.connectOutput
+@@ -37,21 +38,22 @@ class CameraPreview(reactApplicationContext: ThemedReactContext) :
+     }
+ 
+     override fun onDetachedFromWindow() {
+-        removeView(cameraKitModule.touchViewContainer)
++        val touchContainer = cameraKitModule.touchViewContainer
++        (touchContainer.parent as? ViewGroup)?.removeView(touchContainer)
+         imageProcessorModule.stopPreview()
+-
+-        closeOnDetach.forEach { closeable ->
+-            closeable.close()
+-        }
+-
+-        closeOnDetach.clear()
++        closeOutputs()
+ 
+         super.onDetachedFromWindow()
+     }
+ 
+ 
+     override fun onAttachedToWindow() {
+-        addView(cameraKitModule.touchViewContainer)
++        val touchContainer = cameraKitModule.touchViewContainer
++        closeOutputs()
++        (touchContainer.parent as? ViewGroup)?.removeView(touchContainer)
++        if (touchContainer.parent !== this) {
++            addView(touchContainer)
++        }
+         if (cameraKitModule.currentSession != null) {
+             cameraKitModule.currentSession!!.processor.connectOutput(this.textureView).closeOnDetach()
+             imageProcessorModule.startPreview()
+@@ -60,6 +62,14 @@ class CameraPreview(reactApplicationContext: ThemedReactContext) :
+         super.onAttachedToWindow()
+     }
+ 
++    private fun closeOutputs() {
++        closeOnDetach.forEach { closeable ->
++            closeable.close()
++        }
++
++        closeOnDetach.clear()
++    }
++
+     private fun Closeable.closeOnDetach() {
+         if (isAttachedToWindow) {
+             closeOnDetach.add(this)

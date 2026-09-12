@@ -3,6 +3,7 @@ import { View, Text, TextInput, Pressable, ActivityIndicator, Image } from 'reac
 import KeyboardScreen from '@/components/KeyboardScreen'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
+import { useTranslation } from 'react-i18next'
 import { Ionicons } from '@expo/vector-icons'
 import Toast from 'react-native-toast-message'
 
@@ -12,6 +13,8 @@ import { colors, spacing, fontSize, radius } from '@/lib/theme'
 
 export default function ForgotPassword() {
   const router = useRouter()
+  const { i18n } = useTranslation()
+  const ar = i18n.language === 'ar'
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [sent, setSent] = useState(false)
@@ -52,10 +55,10 @@ export default function ForgotPassword() {
               <Ionicons name="mail" size={48} color={colors.green} />
             </View>
             <Text style={{ fontSize: fontSize.xl, fontWeight: '900', color: colors.grey900, textAlign: 'center' }}>
-              تحقق من بريدك
+              {ar ? 'تحقق من بريدك' : 'Check your email'}
             </Text>
             <Text style={{ fontSize: fontSize.sm, color: colors.grey600, marginTop: spacing.sm, textAlign: 'center' }}>
-              أرسلنا رابط إعادة تعيين كلمة المرور إلى {email}
+              {ar ? `أرسلنا رابط إعادة تعيين كلمة المرور إلى ${email}` : `We sent a password reset link to ${email}`}
             </Text>
             <Pressable
               onPress={() => router.replace('/auth/login')}
@@ -67,20 +70,20 @@ export default function ForgotPassword() {
                 borderRadius: radius.pill,
               }}
             >
-              <Text style={{ color: colors.white, fontWeight: '800' }}>العودة للدخول</Text>
+              <Text style={{ color: colors.white, fontWeight: '800' }}>{ar ? 'العودة للدخول' : 'Back to sign in'}</Text>
             </Pressable>
           </View>
         ) : (
           <>
             <Text style={{ fontSize: fontSize['3xl'], fontWeight: '900', color: colors.grey900, marginBottom: spacing.xs }}>
-              نسيت كلمة المرور؟
+              {ar ? 'نسيت كلمة المرور؟' : 'Forgot password?'}
             </Text>
             <Text style={{ fontSize: fontSize.base, color: colors.grey600, marginBottom: spacing.xl }}>
-              أدخل بريدك وسنرسل لك رابط إعادة التعيين
+              {ar ? 'أدخل بريدك وسنرسل لك رابط إعادة التعيين' : "Enter your email and we'll send you a reset link"}
             </Text>
 
             <Text style={{ fontSize: fontSize.sm, fontWeight: '600', color: colors.grey700, marginBottom: 6 }}>
-              البريد الإلكتروني
+              {ar ? 'البريد الإلكتروني' : 'Email'}
             </Text>
             <View
               style={{
@@ -125,7 +128,7 @@ export default function ForgotPassword() {
                 <ActivityIndicator color={colors.white} />
               ) : (
                 <Text style={{ color: colors.white, fontSize: fontSize.base, fontWeight: '800' }}>
-                  إرسال رابط الإعادة
+                  {ar ? 'إرسال رابط الإعادة' : 'Send reset link'}
                 </Text>
               )}
             </Pressable>

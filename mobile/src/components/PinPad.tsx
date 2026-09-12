@@ -4,6 +4,7 @@
  *   - PIN setup (set for the first time)
  *   - Child mode exit (verify)
  */
+import { useTranslation } from 'react-i18next'
 import { useEffect, useRef, useState } from 'react'
 import { View, Text, Pressable, Animated } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
@@ -21,6 +22,8 @@ interface Props {
 const DIGITS = ['1','2','3','4','5','6','7','8','9','','0','⌫']
 
 export default function PinPad({ title, subtitle, onComplete, onBiometric, error, loading }: Props) {
+  const { i18n } = useTranslation()
+  const ar = i18n.language === 'ar'
   const [pin, setPin] = useState('')
   const shakeAnim = useRef(new Animated.Value(0)).current
 
@@ -120,7 +123,7 @@ export default function PinPad({ title, subtitle, onComplete, onBiometric, error
         >
           <Ionicons name="finger-print" size={28} color={colors.primary} />
           <Text style={{ fontSize: fontSize.sm, color: colors.primary, fontWeight: '700' }}>
-            استخدم بصمة الإصبع
+            {ar ? 'استخدم بصمة الإصبع' : 'Use fingerprint'}
           </Text>
         </Pressable>
       )}

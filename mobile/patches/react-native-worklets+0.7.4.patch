@@ -1,0 +1,53 @@
+diff --git a/node_modules/react-native-worklets/RNWorklets.podspec b/node_modules/react-native-worklets/RNWorklets.podspec
+index d658b49..5e82584 100644
+--- a/node_modules/react-native-worklets/RNWorklets.podspec
++++ b/node_modules/react-native-worklets/RNWorklets.podspec
+@@ -65,6 +65,7 @@ Pod::Spec.new do |s|
+     "HEADER_SEARCH_PATHS" => [
+       '"$(PODS_TARGET_SRCROOT)/ReactCommon"',
+       '"$(PODS_TARGET_SRCROOT)"',
++      '"$(PODS_ROOT)/../../node_modules/react-native"',
+       '"$(PODS_ROOT)/RCT-Folly"',
+       '"$(PODS_ROOT)/boost"',
+       '"$(PODS_ROOT)/boost-for-react-native"',
+diff --git a/node_modules/react-native-worklets/apple/worklets/apple/WorkletsMessageThread.h b/node_modules/react-native-worklets/apple/worklets/apple/WorkletsMessageThread.h
+index 822312c..fa76b20 100644
+--- a/node_modules/react-native-worklets/apple/worklets/apple/WorkletsMessageThread.h
++++ b/node_modules/react-native-worklets/apple/worklets/apple/WorkletsMessageThread.h
+@@ -1,11 +1,35 @@
+ #pragma once
+ 
++#import <atomic>
++#import <memory>
++#import <string>
++
+ #import <Foundation/Foundation.h>
+-#import <React/RCTMessageThread.h>
++#import <React/RCTJavaScriptExecutor.h>
++#import <cxxreact/MessageQueueThread.h>
+ 
+ namespace facebook {
+ namespace react {
+ 
++class RCTMessageThread : public MessageQueueThread, public std::enable_shared_from_this<RCTMessageThread> {
++ public:
++  RCTMessageThread(NSRunLoop *runLoop, RCTJavaScriptCompleteBlock errorBlock);
++  ~RCTMessageThread() override;
++  void runOnQueue(std::function<void()> &&func) override;
++  void runOnQueueSync(std::function<void()> &&func) override;
++  void quitSynchronous() override;
++  void setRunLoop(NSRunLoop *runLoop);
++
++ private:
++  void tryFunc(const std::function<void()> &func);
++  void runAsync(std::function<void()> func);
++  void runSync(std::function<void()> func);
++
++  CFRunLoopRef m_cfRunLoop;
++  RCTJavaScriptCompleteBlock m_errorBlock;
++  std::atomic_bool m_shutdown;
++};
++
+ class WorkletsMessageThread : public RCTMessageThread {
+  public:
+   using RCTMessageThread::RCTMessageThread;

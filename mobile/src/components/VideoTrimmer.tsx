@@ -13,7 +13,7 @@
 import { useRef, useState, useEffect, useCallback, memo } from 'react'
 import {
   View, Text, Pressable, PanResponder, Animated,
-  StyleSheet, ActivityIndicator, Image, StatusBar,
+  StyleSheet, ActivityIndicator, Image, StatusBar, I18nManager,
 } from 'react-native'
 import { useVideoPlayer, VideoView } from 'expo-video'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -24,14 +24,18 @@ try { VideoThumbnails = require('expo-video-thumbnails') } catch {}
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const MAX_DURATION = 30
+const MIN_DURATION = 1
 const THUMB_COUNT  = 12
-const HANDLE_W     = 18
+const HANDLE_W     = 12
 const TIMELINE_H   = 64
-const ACCENT       = '#FCD34D'
+const ACCENT       = '#FF3B6B'   // modern pink (was yellow block)
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
 const fmtTime = (s: number) =>
   `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
+// With tenths, e.g. 0:29.3 — matches the reference timeline labels
+const fmtTimeDec = (s: number) =>
+  `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}.${Math.floor((s % 1) * 10)}`
 
 interface Props {
   uri: string
@@ -92,9 +96,10 @@ const TimelineThumbnails = memo(function TimelineThumbnails({ uri, duration }: {
 // MAIN
 // ════════════════════════════════════════════════════════════════════════════
 export default function VideoTrimmer({ uri, duration, onConfirm, onCancel }: Props) {
+  const ar = I18nManager.isRTL
   const [trackW, setTrackW]         = useState(0)
   const [startSec, setStartSec]     = useState(0)
-  const [endSec, setEndSec]         = useState(Math.min(MAX_DURATION, duration))
+  const [endSec, setEndSec]         = useState(Math.min(10, duration))
   const [currentSec, setCurrentSec] = useState(0)
   const [playing, setPlaying]       = useState(false)
   const [ready, setReady]           = useState(false)
@@ -103,7 +108,7 @@ export default function VideoTrimmer({ uri, duration, onConfirm, onCancel }: Pro
   const trackWRef = useRef(0)
   const durRef    = useRef(duration)
   const startRef  = useRef(0)
-  const endRef    = useRef(Math.min(MAX_DURATION, duration))
+  const endRef    = useRef(Math.min(10, duration))
   const sPxRef    = useRef(0)
   const ePxRef    = useRef(0)
 
@@ -120,7 +125,7 @@ export default function VideoTrimmer({ uri, duration, onConfirm, onCancel }: Pro
   // Init handle positions when track is measured
   useEffect(() => {
     if (trackW <= 0) return
-    const initE = (Math.min(MAX_DURATION, duration) / duration) * trackW
+    const initE = (Math.min(10, duration) / duration) * trackW
     sPxRef.current = 0
     ePxRef.current = initE
     sAnim.setValue(0)
@@ -128,7 +133,10 @@ export default function VideoTrimmer({ uri, duration, onConfirm, onCancel }: Pro
   }, [trackW, duration])
 
   // ── Player ─────────────────────────────────────────────────────────────────
-  const player = useVideoPlayer({ uri }, p => { p.loop = false })
+  const player = useVideoPlayer({ uri }, p => {
+    p.loop = false
+    p.timeUpdateEventInterval = 0.05
+  })
 
   useEffect(() => {
     const t = player.addListener('timeUpdate', e => {
@@ -139,6 +147,8 @@ export default function VideoTrimmer({ uri, duration, onConfirm, onCancel }: Pro
       if (e.currentTime >= endRef.current) {
         player.pause()
         player.currentTime = startRef.current
+        setCurrentSec(startRef.current)
+        playheadAnim.setValue(secToPx(startRef.current))
         setPlaying(false)
       }
     })
@@ -162,6 +172,8 @@ export default function VideoTrimmer({ uri, duration, onConfirm, onCancel }: Pro
       requestAnimationFrame(() => {
         try {
           player.currentTime = startRef.current
+          setCurrentSec(startRef.current)
+          playheadAnim.setValue(secToPx(startRef.current))
           player.play()
           setPlaying(true)
         } catch {}
@@ -182,8 +194,9 @@ export default function VideoTrimmer({ uri, duration, onConfirm, onCancel }: Pro
       const raw = clamp(sPxRef.current + g.dx, 0, max)
       const sec = clamp(pxToSec(raw),
         Math.max(0, endRef.current - MAX_DURATION),
-        endRef.current - 0.5)
+        endRef.current - MIN_DURATION)
       sAnim.setValue(secToPx(sec))
+      playheadAnim.setValue(secToPx(sec))   // ← playhead follows start handle
       startRef.current = sec
       setStartSec(sec)
       try { player.currentTime = sec } catch {}
@@ -193,9 +206,10 @@ export default function VideoTrimmer({ uri, duration, onConfirm, onCancel }: Pro
       const raw = clamp(sPxRef.current + g.dx, 0, max)
       const sec = clamp(pxToSec(raw),
         Math.max(0, endRef.current - MAX_DURATION),
-        endRef.current - 0.5)
+        endRef.current - MIN_DURATION)
       sPxRef.current = secToPx(sec)
       sAnim.setValue(sPxRef.current)
+      playheadAnim.setValue(sPxRef.current)  // ← sync on release
       startRef.current = sec
       setStartSec(sec)
     },
@@ -209,7 +223,7 @@ export default function VideoTrimmer({ uri, duration, onConfirm, onCancel }: Pro
       const min = sPxRef.current + HANDLE_W * 2
       const raw = clamp(ePxRef.current + g.dx, min, trackWRef.current)
       const sec = clamp(pxToSec(raw),
-        startRef.current + 0.5,
+        startRef.current + MIN_DURATION,
         Math.min(durRef.current, startRef.current + MAX_DURATION))
       eAnim.setValue(secToPx(sec))
       endRef.current = sec
@@ -219,7 +233,7 @@ export default function VideoTrimmer({ uri, duration, onConfirm, onCancel }: Pro
       const min = sPxRef.current + HANDLE_W * 2
       const raw = clamp(ePxRef.current + g.dx, min, trackWRef.current)
       const sec = clamp(pxToSec(raw),
-        startRef.current + 0.5,
+        startRef.current + MIN_DURATION,
         Math.min(durRef.current, startRef.current + MAX_DURATION))
       ePxRef.current = secToPx(sec)
       eAnim.setValue(ePxRef.current)
@@ -243,6 +257,7 @@ export default function VideoTrimmer({ uri, duration, onConfirm, onCancel }: Pro
       const newEPx = newSPx + clipPx
       sAnim.setValue(newSPx)
       eAnim.setValue(newEPx)
+      playheadAnim.setValue(newSPx)   // ← playhead tracks selection start
       const newStart = pxToSec(newSPx)
       const newEnd   = pxToSec(newEPx)
       startRef.current = newStart
@@ -260,6 +275,7 @@ export default function VideoTrimmer({ uri, duration, onConfirm, onCancel }: Pro
       ePxRef.current = newEPx
       sAnim.setValue(newSPx)
       eAnim.setValue(newEPx)
+      playheadAnim.setValue(newSPx)   // ← sync on release
       const newStart = pxToSec(newSPx)
       const newEnd   = pxToSec(newEPx)
       startRef.current = newStart
@@ -275,10 +291,12 @@ export default function VideoTrimmer({ uri, duration, onConfirm, onCancel }: Pro
     const sec = clamp(pxToSec(x), startRef.current, endRef.current)
     try { player.currentTime = sec } catch {}
     setCurrentSec(sec)
+    playheadAnim.setValue(secToPx(sec))  // ← sync playhead on tap
   }
 
-  const clipSec = Math.max(0.5, endSec - startSec)
-  const clipRel = Math.max(0, currentSec - startSec)
+  const clipSec = Math.max(MIN_DURATION, endSec - startSec)
+  const previewSec = clamp(currentSec, startSec, endSec)
+  const previewOffsetSec = clamp(previewSec - startSec, 0, clipSec)
   const leftPx  = trackW > 0 ? (startSec / duration) * trackW : 0
   const rightPx = trackW > 0 ? (endSec   / duration) * trackW : 0
 
@@ -291,9 +309,9 @@ export default function VideoTrimmer({ uri, duration, onConfirm, onCancel }: Pro
         <Pressable onPress={onCancel} hitSlop={10}>
           <Ionicons name="close" size={26} color="#fff" />
         </Pressable>
-        <Text style={s.headerTitle}>اقتطاع الفيديو</Text>
+        <Text style={s.headerTitle}>{ar ? 'اقتطاع الفيديو' : 'Trim video'}</Text>
         <Pressable onPress={() => { player?.pause(); onConfirm(startSec, clipSec) }} style={s.headerSave}>
-          <Text style={s.headerSaveText}>تم</Text>
+          <Text style={s.headerSaveText}>{ar ? 'تم' : 'Done'}</Text>
         </Pressable>
       </View>
 
@@ -320,21 +338,21 @@ export default function VideoTrimmer({ uri, duration, onConfirm, onCancel }: Pro
 
       {/* Bottom panel */}
       <View style={s.bottomPanel}>
-        {/* Duration */}
-        <View style={[s.durationRow, { direction: 'ltr' } as any]}>
-          <View style={s.timeBox}>
-            <Text style={s.timeLabel}>{fmtTime(startSec)}</Text>
-            <Text style={s.timeSub}>START</Text>
+        <View style={s.liveRow}>
+          <View style={s.livePill}>
+            <View style={[s.liveDot, playing && s.liveDotActive]} />
+            <Text style={s.liveText}>
+              {fmtTimeDec(previewOffsetSec)}
+              <Text style={s.liveMuted}> / {fmtTimeDec(clipSec)}</Text>
+            </Text>
           </View>
-          <View style={s.clipBadge}>
-            <Ionicons name="cut" size={13} color={ACCENT} />
-            <Text style={s.clipText}>{Math.round(clipSec)}s</Text>
-            <Text style={s.clipMax}>/ {MAX_DURATION}s</Text>
-          </View>
-          <View style={[s.timeBox, { alignItems: 'flex-end' }]}>
-            <Text style={s.timeLabel}>{fmtTime(endSec)}</Text>
-            <Text style={s.timeSub}>END</Text>
-          </View>
+          <Text style={s.liveAbsolute}>{fmtTimeDec(previewSec)}</Text>
+        </View>
+        {/* Top labels — start (left) · selected length (center, pink) · total (right) */}
+        <View style={[s.topLabels, { direction: 'ltr' } as any]}>
+          <Text style={s.edgeLabel}>{fmtTimeDec(startSec)}</Text>
+          <Text style={s.centerLabel}>{fmtTimeDec(clipSec)}</Text>
+          <Text style={s.edgeLabel}>{fmtTimeDec(duration)}</Text>
         </View>
 
         {/* ═══ TIMELINE — z-ordered layers ═══ */}
@@ -356,7 +374,7 @@ export default function VideoTrimmer({ uri, duration, onConfirm, onCancel }: Pro
               <View pointerEvents="none" style={[s.dimmed, { left: HANDLE_W, width: leftPx }]} />
               <View pointerEvents="none" style={[s.dimmed, { right: HANDLE_W, width: trackW - rightPx }]} />
 
-              {/* Layer 4: DRAGGABLE SELECTION BAND */}
+              {/* Layer 4: DRAGGABLE SELECTION BAND (slim borders only, no block) */}
               <Animated.View
                 {...bandPan.panHandlers}
                 style={[
@@ -370,22 +388,19 @@ export default function VideoTrimmer({ uri, duration, onConfirm, onCancel }: Pro
               >
                 <View style={s.selBorderTop} />
                 <View style={s.selBorderBot} />
-                <View style={s.bandGrip}>
-                  <View style={s.bandGripDot} />
-                  <View style={s.bandGripDot} />
-                  <View style={s.bandGripDot} />
-                </View>
               </Animated.View>
 
-              {/* Layer 5: Playhead */}
-              {playing && (
+              {/* Layer 5: Playhead (always visible — shows current preview position) */}
+              {ready && (
                 <Animated.View
                   pointerEvents="none"
                   style={[
                     s.playhead,
                     { left: HANDLE_W, transform: [{ translateX: playheadAnim }] },
                   ]}
-                />
+                >
+                  <View style={s.playheadCap} />
+                </Animated.View>
               )}
 
               {/* Layer 6 (top): Resize handles */}
@@ -393,38 +408,42 @@ export default function VideoTrimmer({ uri, duration, onConfirm, onCancel }: Pro
                 {...startPan.panHandlers}
                 style={[s.handle, s.handleL, { transform: [{ translateX: sAnim }] }]}
               >
-                <Ionicons name="chevron-back" size={14} color="#0a0a0a" />
+                <Ionicons name="chevron-back" size={15} color="#fff" />
               </Animated.View>
 
               <Animated.View
                 {...endPan.panHandlers}
                 style={[s.handle, s.handleR, { transform: [{ translateX: eAnim }] }]}
               >
-                <Ionicons name="chevron-forward" size={14} color="#0a0a0a" />
+                <Ionicons name="chevron-forward" size={15} color="#fff" />
               </Animated.View>
             </>
           )}
         </View>
 
-        {/* Play controls */}
-        <View style={s.controls}>
-          <Pressable onPress={togglePlay} style={s.playToggle}>
-            <Ionicons
-              name={playing ? 'pause' : 'play'}
-              size={20}
-              color="#0a0a0a"
-              style={{ marginLeft: playing ? 0 : 2 }}
-            />
-          </Pressable>
-          <Text style={s.controlsText}>
-            {fmtTime(clipRel)}
-            <Text style={{ color: '#52525b' }}>  /  {fmtTime(clipSec)}</Text>
+        {/* Selected duration — center, real-time */}
+        <View style={s.selectedRow}>
+          <Text style={s.selectedText}>
+            {ar ? 'المحدد: ' : 'Selected: '}
+            <Text style={s.selectedValue}>{fmtTimeDec(clipSec)}</Text>
+            <Text style={s.selectedMax}>{ar ? '  /  الأقصى 0:30' : '  /  Max 0:30'}</Text>
           </Text>
         </View>
 
-        <Text style={s.hint}>
-          اسحب الشريط الأصفر لتحريك التحديد، أو اسحب الأطراف للتعديل
-        </Text>
+        {/* Bottom controls — cancel · play · done */}
+        <View style={[s.bottomControls, { direction: 'ltr' } as any]}>
+          <Pressable onPress={onCancel} style={s.sideBtn}>
+            <Text style={s.sideBtnText}>{ar ? 'إلغاء' : 'Cancel'}</Text>
+          </Pressable>
+
+          <Pressable onPress={togglePlay} style={s.bigPlay}>
+            <Ionicons name={playing ? 'pause' : 'play'} size={26} color="#fff" style={{ marginLeft: playing ? 0 : 3 }} />
+          </Pressable>
+
+          <Pressable onPress={() => { player?.pause(); onConfirm(startSec, clipSec) }} style={s.sideBtn}>
+            <Text style={s.sideBtnText}>{ar ? 'تم' : 'Done'}</Text>
+          </Pressable>
+        </View>
       </View>
     </SafeAreaView>
   )
@@ -452,13 +471,22 @@ const s = StyleSheet.create({
 
   bottomPanel: { backgroundColor: '#0a0a0a', paddingTop: 12, paddingBottom: 8, paddingHorizontal: 16 },
 
-  durationRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, paddingHorizontal: 4 },
-  timeBox:   { minWidth: 56 },
-  timeLabel: { color: '#fff', fontSize: 15, fontWeight: '700', fontVariant: ['tabular-nums'] },
-  timeSub:   { color: '#6b7280', fontSize: 9, fontWeight: '700', letterSpacing: 1, marginTop: 1 },
-  clipBadge: { flexDirection: 'row', alignItems: 'baseline', gap: 4, backgroundColor: 'rgba(252,211,77,0.12)', paddingHorizontal: 14, paddingVertical: 6, borderRadius: 100, borderWidth: 1, borderColor: 'rgba(252,211,77,0.3)' },
-  clipText:  { color: ACCENT, fontSize: 16, fontWeight: '900' },
-  clipMax:   { color: '#a16207', fontSize: 11, fontWeight: '600' },
+  liveRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, paddingHorizontal: 2 },
+  livePill: {
+    flexDirection: 'row', alignItems: 'center', gap: 7,
+    backgroundColor: 'rgba(255,255,255,0.09)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)',
+    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999,
+  },
+  liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#6b7280' },
+  liveDotActive: { backgroundColor: '#fff' },
+  liveText: { color: '#fff', fontSize: 14, fontWeight: '900', fontVariant: ['tabular-nums'] },
+  liveMuted: { color: '#9ca3af', fontSize: 12, fontWeight: '800' },
+  liveAbsolute: { color: '#d1d5db', fontSize: 13, fontWeight: '800', fontVariant: ['tabular-nums'] },
+
+  topLabels: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, paddingHorizontal: 2 },
+  edgeLabel: { color: '#9ca3af', fontSize: 12, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  centerLabel: { color: ACCENT, fontSize: 14, fontWeight: '900', fontVariant: ['tabular-nums'] },
 
   timelineOuter: { height: TIMELINE_H, position: 'relative', backgroundColor: '#18181b', borderRadius: 12, overflow: 'hidden' },
   thumbsContainer: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 },
@@ -467,22 +495,27 @@ const s = StyleSheet.create({
   thumbImg:   { width: '100%', height: '100%', resizeMode: 'cover' },
   thumbPlaceholder: { width: '100%', height: '100%', backgroundColor: '#27272a' },
 
-  dimmed: { position: 'absolute', top: 0, bottom: 0, backgroundColor: 'rgba(10,10,10,0.75)' },
+  dimmed: { position: 'absolute', top: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)' },
 
   // Selection band — translateX moves the whole selection
   selectionBand: { position: 'absolute', top: 0, bottom: 0 },
-  selBorderTop:  { position: 'absolute', top: 0, left: 0, right: 0, height: 3, backgroundColor: ACCENT },
-  selBorderBot:  { position: 'absolute', bottom: 0, left: 0, right: 0, height: 3, backgroundColor: ACCENT },
-  bandGrip: {
-    position: 'absolute', top: '50%', left: '50%',
-    marginTop: -8, marginLeft: -10,
-    flexDirection: 'row', gap: 3,
+  selBorderTop:  { position: 'absolute', top: 0, left: 0, right: 0, height: 2, backgroundColor: ACCENT },
+  selBorderBot:  { position: 'absolute', bottom: 0, left: 0, right: 0, height: 2, backgroundColor: ACCENT },
+
+  playhead: {
+    position: 'absolute', top: 0, bottom: 0, width: 3, borderRadius: 2,
+    backgroundColor: '#fff',
+    shadowColor: '#000', shadowOpacity: 0.45, shadowRadius: 4, shadowOffset: { width: 0, height: 1 },
+    elevation: 6,
   },
-  bandGripDot: { width: 3, height: 16, backgroundColor: 'rgba(252,211,77,0.85)', borderRadius: 2 },
+  playheadCap: {
+    position: 'absolute', top: 3, left: -4,
+    width: 11, height: 11, borderRadius: 6,
+    backgroundColor: '#fff',
+    borderWidth: 1, borderColor: 'rgba(0,0,0,0.25)',
+  },
 
-  playhead: { position: 'absolute', top: 0, bottom: 0, width: 2, backgroundColor: '#fff' },
-
-  // Handles — absolute-positioned, translateX moves them
+  // Handles — slim modern pink, rounded outer edge, white grip line inside
   handle: {
     position: 'absolute', top: -2, bottom: -2, width: HANDLE_W,
     backgroundColor: ACCENT,
@@ -491,9 +524,15 @@ const s = StyleSheet.create({
   handleL: { left: 0, borderTopLeftRadius: 6, borderBottomLeftRadius: 6 },
   handleR: { left: 0, borderTopRightRadius: 6, borderBottomRightRadius: 6 },
 
-  controls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, marginTop: 16 },
-  playToggle: { width: 36, height: 36, borderRadius: 18, backgroundColor: ACCENT, alignItems: 'center', justifyContent: 'center' },
-  controlsText: { color: '#fff', fontSize: 13, fontVariant: ['tabular-nums'], fontWeight: '600' },
+  // Selected duration line (center, real-time)
+  selectedRow:   { alignItems: 'center', marginTop: 14 },
+  selectedText:  { color: '#9ca3af', fontSize: 13, fontWeight: '600' },
+  selectedValue: { color: ACCENT, fontSize: 17, fontWeight: '900', fontVariant: ['tabular-nums'] },
+  selectedMax:   { color: '#6b7280', fontSize: 12, fontWeight: '600' },
 
-  hint: { textAlign: 'center', color: '#52525b', fontSize: 11, marginTop: 12 },
+  // Bottom controls — cancel · play · done
+  bottomControls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 16, paddingHorizontal: 8 },
+  sideBtn:     { paddingHorizontal: 22, paddingVertical: 11, borderRadius: 100, backgroundColor: '#1f1f23', minWidth: 96, alignItems: 'center' },
+  sideBtnText: { color: '#fff', fontSize: 15, fontWeight: '800' },
+  bigPlay:     { width: 60, height: 60, borderRadius: 30, backgroundColor: ACCENT, alignItems: 'center', justifyContent: 'center' },
 })

@@ -58,7 +58,15 @@ export function useToggleVideoInteraction() {
     },
     onSuccess: (_d, vars) => {
       qc.invalidateQueries({ queryKey: ['my-interaction', vars.videoId] })
-      qc.invalidateQueries({ queryKey: ['feed'] })
+      // NOTE: we deliberately do NOT invalidate ['feed'] here. The feed's
+      // For You query reshuffles suggested videos via Math.random() on
+      // every refetch, so triggering a refetch from inside a like/dislike
+      // would visibly "scroll" the user to a different video — they'd
+      // double-tap to like, and the feed would jump because the new
+      // random order pushed their current item to a different index.
+      // The local optimistic state on VideoItem already updated the count;
+      // server-side the DB row is correct; the feed will naturally pick up
+      // the new counts on the next organic refetch.
     },
   })
 }
@@ -155,7 +163,7 @@ export function useComments(videoId: string) {
   })
 }
 
-/** Delete own comment, or any comment when current user is admin */
+/** Soft-delete a comment. Owners can delete their own comments; admins can delete any comment. */
 export function useDeleteComment() {
   const qc = useQueryClient()
   return useMutation({
@@ -165,12 +173,11 @@ export function useDeleteComment() {
     },
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ['comments', vars.videoId] })
-      qc.invalidateQueries({ queryKey: ['feed'] })
     },
   })
 }
 
-/** Report a comment to moderation */
+/** Report a comment to moderation. */
 export function useReportComment() {
   return useMutation({
     mutationFn: async ({

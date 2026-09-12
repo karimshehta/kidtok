@@ -7,6 +7,7 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
+      "environment": "development",
       "ios": {
         "simulator": false
       },
@@ -14,6 +15,7 @@
     },
     "preview": {
       "distribution": "internal",
+      "environment": "preview",
       "channel": "preview",
       "android": {
         "buildType": "apk"
@@ -21,14 +23,29 @@
     },
     "production": {
       "autoIncrement": true,
+      "environment": "production",
       "channel": "production"
+    },
+    "production-snap-staging": {
+      "extends": "production",
+      "environment": "preview",
+      "channel": "production",
+      "env": {
+        "EXPO_PUBLIC_SNAP_CAMERA_KIT_FORCE_STAGING": "true"
+      }
     }
   },
   "submit": {
     "production": {
+      "ios": {
+        "ascAppId": "6753696049"
+      },
       "android": {
         "track": "production"
       }
+    },
+    "production-snap-staging": {
+      "extends": "production"
     }
   }
 }

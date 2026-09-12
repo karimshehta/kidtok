@@ -2,7 +2,7 @@
   "expo": {
     "name": "KidTok",
     "slug": "kidtok",
-    "version": "1.0.0",
+    "version": "2.0.7",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "kidtok",
@@ -14,8 +14,9 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.kidtok.app",
-      "buildNumber": "1",
+      "bundleIdentifier": "com.kidtok.kidtok",
+      "buildNumber": "62",
+      "usesAppleSignIn": true,
       "associatedDomains": [
         "applinks:kidtok.vercel.app",
         "webcredentials:kidtok.vercel.app"
@@ -34,10 +35,10 @@
         ],
         "NSCameraUsageDescription": "يستخدم التطبيق الكاميرا لتسجيل الفيديوهات.",
         "NSMicrophoneUsageDescription": "يستخدم التطبيق الميكروفون لتسجيل الصوت مع الفيديو.",
+        "NSLocationWhenInUseUsageDescription": "يستخدم KidTok موقعك التقريبي أثناء استخدام التطبيق لتخصيص المحتوى الآمن حسب بلدك وتحسين تجربة الطفل. لا يتم تتبع موقعك في الخلفية.",
         "NSPhotoLibraryUsageDescription": "يحتاج التطبيق للوصول إلى الصور لاختيار الفيديوهات وتغيير الصورة الشخصية.",
         "NSPhotoLibraryAddUsageDescription": "يحتاج التطبيق إلى الإذن لحفظ الفيديوهات في مكتبة الصور.",
         "NSFaceIDUsageDescription": "يستخدم التطبيق Face ID للتحقق عند الخروج من وضع الطفل.",
-        "NSUserTrackingUsageDescription": "يستخدم التطبيق بياناتك لعرض إعلانات مناسبة لك ولدعم خدمة KidTok.",
         "UIBackgroundModes": [
           "remote-notification",
           "fetch"
@@ -59,7 +60,7 @@
         "backgroundColor": "#FFFFFF"
       },
       "package": "com.kidtok.app",
-      "versionCode": 1,
+      "versionCode": 40,
       "intentFilters": [
         {
           "action": "VIEW",
@@ -108,7 +109,8 @@
         "android.permission.VIBRATE",
         "android.permission.INTERNET",
         "android.permission.ACCESS_NETWORK_STATE",
-        "com.google.android.gms.permission.AD_ID"
+        "com.google.android.gms.permission.AD_ID",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
       ],
       "googleServicesFile": "./google-services.json",
       "softwareKeyboardLayoutMode": "resize"
@@ -121,6 +123,7 @@
       "expo-router",
       "expo-font",
       "expo-localization",
+      "expo-apple-authentication",
       [
         "expo-camera",
         {
@@ -147,48 +150,52 @@
         }
       ],
       [
-        "expo-av",
-        {
-          "microphonePermission": "يستخدم التطبيق الميكروفون لتسجيل الصوت مع الفيديو."
-        }
-      ],
-      [
         "react-native-google-mobile-ads",
         {
-          "androidAppId": "ca-app-pub-9534911590158193~7323459115",
+          "androidAppId": "ca-app-pub-9534911590158193~7470202921",
           "iosAppId": "ca-app-pub-9534911590158193~4621290062",
-          "userTrackingUsageDescription": "يستخدم التطبيق بياناتك لعرض إعلانات مناسبة لك.",
           "skAdNetworkItems": []
         }
       ],
+      "expo-iap",
       [
         "expo-build-properties",
         {
           "android": {
             "newArchEnabled": false,
-            "kotlinVersion": "1.9.25"
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36,
+            "buildToolsVersion": "36.0.0",
+            "useLegacyPackaging": false
           },
           "ios": {
-            "newArchEnabled": false
+            "newArchEnabled": false,
+            "deploymentTarget": "15.5"
           }
         }
       ],
+      "./plugins/withAndroid16KbSupport",
+      "./plugins/withSnapCameraKit",
+      "./plugins/withKidTokVideoTools",
+      "react-native-compressor",
       "expo-video",
-      "react-native-compressor"
+      "expo-audio",
+      "expo-web-browser",
+      "expo-asset"
     ],
+    "runtimeVersion": "1.0.0",
+    "owner": "karimshehta",
     "updates": {
       "url": "https://u.expo.dev/fb2d9f4c-1ee3-4e3f-953b-6373f1665c6d",
       "fallbackToCacheTimeout": 0
     },
-    "runtimeVersion": "1.0.0",
-    "owner": "karimshehta",
     "extra": {
       "SUPABASE_URL": "https://ngjpmfldzoijtfyxopjw.supabase.co",
       "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5nanBtZmxkem9panRmeXhvcGp3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg1MzQzNjMsImV4cCI6MjA5NDExMDM2M30.St75N5VZR-eeWi8HvhelcAY144c6u6yJdGdzCyt44gA",
+      "router": {},
       "eas": {
         "projectId": "fb2d9f4c-1ee3-4e3f-953b-6373f1665c6d"
-      },
-      "router": {}
+      }
     },
     "experiments": {
       "typedRoutes": true

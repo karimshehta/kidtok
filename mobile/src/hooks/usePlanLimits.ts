@@ -7,6 +7,7 @@ export interface PlanLimits {
   max_children: number
   max_playlists: number
   max_videos_per_playlist: number
+  max_creator_uploads_per_30_days?: number
   has_ads: boolean
   has_insights: boolean
   has_games: boolean
@@ -15,9 +16,10 @@ export interface PlanLimits {
 
 const FREE_DEFAULTS: PlanLimits = {
   plan_code: 'free',
-  max_children: 2,
+  max_children: 1,
   max_playlists: 3,
   max_videos_per_playlist: 20,
+  max_creator_uploads_per_30_days: 30,
   has_ads: true,
   has_insights: false,
   has_games: false,

@@ -9,10 +9,12 @@ import Toast from 'react-native-toast-message'
 
 import { colors, spacing, radius, fontSize } from '@/lib/theme'
 import GoogleSignInButton from '@/components/GoogleSignInButton'
+import AppleSignInButton from '@/components/AppleSignInButton'
 import { useAuth } from '@/stores/auth'
 
 export default function Login() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const ar = i18n.language === 'ar'
   const router = useRouter()
   const signIn = useAuth((s) => s.signIn)
 
@@ -26,10 +28,20 @@ export default function Login() {
     setLoading(true)
     try {
       await signIn(email.trim(), password)
-      Toast.show({ type: 'success', text1: t('auth.loginSuccess') })
+      Toast.show({
+        type: 'kidReward',
+        text1: ar ? 'أهلًا برجوعك يا بطل! 🌟' : 'Welcome back, hero! 🌟',
+        text2: ar ? 'يلا نشوف جديد كيدتوك.' : "Let's explore KidTok.",
+        props: { icon: '🌟', accent: 'blue' },
+      })
       router.replace('/(tabs)/feed')
     } catch (err) {
-      Toast.show({ type: 'error', text1: (err as Error).message || t('auth.invalidCredentials') })
+      Toast.show({
+        type: 'kidReward',
+        text1: ar ? 'الدخول ماكملش' : 'Sign-in did not finish',
+        text2: (err as Error).message || t('auth.invalidCredentials'),
+        props: { icon: '🔐', accent: 'purple' },
+      })
     } finally {
       setLoading(false)
     }
@@ -106,11 +118,16 @@ export default function Login() {
         {/* Divider */}
         <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: spacing.lg, gap: spacing.sm }}>
           <View style={{ flex: 1, height: 1, backgroundColor: colors.grey100 }} />
-          <Text style={{ color: colors.grey400, fontSize: fontSize.xs, fontWeight: '600' }}>أو</Text>
+          <Text style={{ color: colors.grey400, fontSize: fontSize.xs, fontWeight: '600' }}>{ar ? 'أو' : 'or'}</Text>
           <View style={{ flex: 1, height: 1, backgroundColor: colors.grey100 }} />
         </View>
 
         <GoogleSignInButton mode="login" onSuccess={() => router.replace('/(tabs)/feed')} />
+
+        {/* Apple Sign In — iOS only. The component returns null on
+            Android so we don't even need a Platform check here. */}
+        <View style={{ height: spacing.sm }} />
+        <AppleSignInButton mode="login" onSuccess={() => router.replace('/(tabs)/feed')} />
 
         {/* Bottom link */}
         <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: spacing.xl, gap: spacing.xs }}>

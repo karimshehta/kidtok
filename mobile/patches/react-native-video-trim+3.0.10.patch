@@ -1,0 +1,394 @@
+diff --git a/node_modules/react-native-video-trim/android/build.gradle b/node_modules/react-native-video-trim/android/build.gradle
+index 96ffaae..bf5b010 100644
+--- a/node_modules/react-native-video-trim/android/build.gradle
++++ b/node_modules/react-native-video-trim/android/build.gradle
+@@ -94,7 +94,7 @@ dependencies {
+   //noinspection GradleDynamicVersion
+   implementation "com.facebook.react:react-native:+"
+   implementation 'androidx.recyclerview:recyclerview:1.3.1'
+-  implementation 'io.github.maitrungduc1410:ffmpeg-kit-min:6.0.0'
++  compileOnly 'io.github.maitrungduc1410:ffmpeg-kit-min:6.0.0'
+ }
+ 
+ if (isNewArchitectureEnabled()) {
+diff --git a/node_modules/react-native-video-trim/android/src/main/java/com/videotrim/VideoTrimModule.java b/node_modules/react-native-video-trim/android/src/main/java/com/videotrim/VideoTrimModule.java
+index 9e207fa..f311556 100644
+--- a/node_modules/react-native-video-trim/android/src/main/java/com/videotrim/VideoTrimModule.java
++++ b/node_modules/react-native-video-trim/android/src/main/java/com/videotrim/VideoTrimModule.java
+@@ -528,6 +528,89 @@ public class VideoTrimModule extends ReactContextBaseJavaModule implements Video
+     }
+   }
+ 
++  @ReactMethod
++  public void trim(String filePath, ReadableMap options, Promise promise) {
++    if (filePath == null || filePath.trim().isEmpty()) {
++      promise.reject("E_VIDEO_TRIM_INVALID_FILE", "File path cannot be empty!");
++      return;
++    }
++
++    if (options == null || !options.hasKey("startTime") || !options.hasKey("endTime")) {
++      promise.reject("E_VIDEO_TRIM_INVALID_RANGE", "startTime and endTime are required!");
++      return;
++    }
++
++    long startMs = Math.max(0L, Math.round(options.getDouble("startTime")));
++    long endMs = Math.max(startMs + 1L, Math.round(options.getDouble("endTime")));
++    String ext = options.hasKey("outputExt") ? options.getString("outputExt") : "mp4";
++    if (ext == null || ext.trim().isEmpty()) {
++      ext = "mp4";
++    }
++    ext = ext.replace(".", "");
++
++    String outputPath = new File(
++      getReactApplicationContext().getFilesDir(),
++      VideoTrimmerUtil.FILE_PREFIX + "_" + System.currentTimeMillis() + "." + ext
++    ).getAbsolutePath();
++    final boolean[] settled = {false};
++
++    VideoTrimmerUtil.trim(
++      filePath,
++      outputPath,
++      (int) Math.max(1L, endMs - startMs),
++      startMs,
++      endMs,
++      new VideoTrimListener() {
++        private void resolveOnce(String value) {
++          if (settled[0]) return;
++          settled[0] = true;
++          promise.resolve(value);
++        }
++
++        private void rejectOnce(String code, String message) {
++          if (settled[0]) return;
++          settled[0] = true;
++          promise.reject(code, message);
++        }
++
++        @Override
++        public void onLoad(int duration) {}
++
++        @Override
++        public void onTrimmingProgress(int percentage) {}
++
++        @Override
++        public void onFinishTrim(String url, long startMs, long endMs, int videoDuration) {
++          resolveOnce(url);
++        }
++
++        @Override
++        public void onCancelTrim() {
++          rejectOnce("E_VIDEO_TRIM_CANCELLED", "Video trimming was cancelled");
++        }
++
++        @Override
++        public void onError(String errorMessage, ErrorCode errorCode) {
++          rejectOnce(errorCode.name(), errorMessage);
++        }
++
++        @Override
++        public void onCancel() {
++          rejectOnce("E_VIDEO_TRIM_CANCELLED", "Video trimming was cancelled");
++        }
++
++        @Override
++        public void onSave() {}
++
++        @Override
++        public void onLog(WritableMap log) {}
++
++        @Override
++        public void onStatistics(WritableMap statistics) {}
++      }
++    );
++  }
++
+   @ReactMethod
+   private void listFiles(Promise promise) {
+     String[] files = StorageUtil.listFiles(getReactApplicationContext());
+diff --git a/node_modules/react-native-video-trim/ios/VideoTrim.mm b/node_modules/react-native-video-trim/ios/VideoTrim.mm
+index 6f2c038..b976345 100644
+--- a/node_modules/react-native-video-trim/ios/VideoTrim.mm
++++ b/node_modules/react-native-video-trim/ios/VideoTrim.mm
+@@ -4,6 +4,9 @@
+ @interface RCT_EXTERN_MODULE(VideoTrim, RCTEventEmitter)
+ 
+ RCT_EXTERN_METHOD(showEditor:(NSString*)uri withConfig:(NSDictionary *)config)
++RCT_EXTERN_METHOD(trim:(NSString*)uri withOptions:(NSDictionary *)options
++                  withResolver:(RCTPromiseResolveBlock)resolve
++                  withRejecter:(RCTPromiseRejectBlock)reject)
+ RCT_EXTERN_METHOD(listFiles:(RCTPromiseResolveBlock)resolve
+                   withRejecter:(RCTPromiseRejectBlock)reject)
+ RCT_EXTERN_METHOD(cleanFiles:(RCTPromiseResolveBlock)resolve
+diff --git a/node_modules/react-native-video-trim/ios/VideoTrim.swift b/node_modules/react-native-video-trim/ios/VideoTrim.swift
+index b84d595..f94e6f2 100644
+--- a/node_modules/react-native-video-trim/ios/VideoTrim.swift
++++ b/node_modules/react-native-video-trim/ios/VideoTrim.swift
+@@ -269,6 +269,101 @@ class VideoTrim: RCTEventEmitter, AssetLoaderDelegate, UIDocumentPickerDelegate
+ 
+   }
+ 
++  @objc(trim:withOptions:withResolver:withRejecter:)
++  func trim(
++    uri: String, options: NSDictionary,
++    resolve: @escaping RCTPromiseResolveBlock,
++    reject: @escaping RCTPromiseRejectBlock
++  ) {
++    guard let startValue = options["startTime"] as? NSNumber,
++      let endValue = options["endTime"] as? NSNumber
++    else {
++      reject("E_VIDEO_TRIM_INVALID_RANGE", "startTime and endTime are required", nil)
++      return
++    }
++
++    let startMs = max(0, startValue.doubleValue)
++    let endMs = max(startMs + 1, endValue.doubleValue)
++    let ext =
++      ((options["outputExt"] as? String) ?? "mp4")
++      .replacingOccurrences(of: ".", with: "")
++
++    let inputURL: URL
++    if let parsedURL = URL(string: uri), parsedURL.scheme != nil {
++      inputURL = parsedURL
++    } else {
++      inputURL = URL(fileURLWithPath: uri)
++    }
++
++    let documentsDirectory = FileManager.default.urls(
++      for: .documentDirectory, in: .userDomainMask
++    ).first!
++    let timestamp = Int(Date().timeIntervalSince1970 * 1000)
++    let outputURL = documentsDirectory.appendingPathComponent(
++      "\(FILE_PREFIX)_\(timestamp).\(ext)")
++
++    let formatter = DateFormatter()
++    formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ"
++    formatter.timeZone = TimeZone(identifier: "UTC")
++    let dateTime = formatter.string(from: Date())
++
++    let cmds = [
++      "-ss",
++      "\(startMs.rounded())ms",
++      "-to",
++      "\(endMs.rounded())ms",
++      "-i",
++      inputURL.absoluteString,
++      "-c",
++      "copy",
++      "-metadata",
++      "creation_time=\(dateTime)",
++      outputURL.absoluteString,
++    ]
++
++    FFmpegKit.execute(
++      withArgumentsAsync: cmds,
++      withCompleteCallback: { session in
++        let returnCode = session?.getReturnCode()
++
++        if ReturnCode.isSuccess(returnCode) {
++          resolve(outputURL.absoluteString)
++        } else if ReturnCode.isCancel(returnCode) {
++          reject("E_VIDEO_TRIM_CANCELLED", "Video trimming was cancelled", nil)
++        } else {
++          let state = String(describing: session?.getState())
++          let failStack = session?.getFailStackTrace() ?? ""
++          reject(
++            "E_VIDEO_TRIM_FAILED",
++            "Command failed with state \(state) and rc \(String(describing: returnCode)). \(failStack)",
++            nil)
++        }
++      },
++      withLogCallback: { log in
++        guard let log = log else { return }
++        let eventPayload: [String: Any] = [
++          "level": log.getLevel(),
++          "message": log.getMessage() ?? "",
++          "sessionId": log.getSessionId(),
++        ]
++        self.emitEventToJS("onLog", eventData: eventPayload)
++      },
++      withStatisticsCallback: { statistics in
++        guard let statistics = statistics else { return }
++        let eventPayload: [String: Any] = [
++          "sessionId": statistics.getSessionId(),
++          "videoFrameNumber": statistics.getVideoFrameNumber(),
++          "videoFps": statistics.getVideoFps(),
++          "videoQuality": statistics.getVideoQuality(),
++          "size": statistics.getSize(),
++          "time": statistics.getTime(),
++          "bitrate": statistics.getBitrate(),
++          "speed": statistics.getSpeed(),
++        ]
++        self.emitEventToJS("onStatistics", eventData: eventPayload)
++      })
++  }
++
+   private func copyFileToDocumentDir(uri: String) -> URL? {
+     if let videoURL = URL(string: uri) {
+       // Save the video to the document directory
+diff --git a/node_modules/react-native-video-trim/lib/commonjs/index.js b/node_modules/react-native-video-trim/lib/commonjs/index.js
+index 4a2cc51..3e0355f 100644
+--- a/node_modules/react-native-video-trim/lib/commonjs/index.js
++++ b/node_modules/react-native-video-trim/lib/commonjs/index.js
+@@ -9,6 +9,7 @@ exports.deleteFile = deleteFile;
+ exports.isValidFile = isValidFile;
+ exports.listFiles = listFiles;
+ exports.showEditor = showEditor;
++exports.trim = trim;
+ var _reactNative = require("react-native");
+ const LINKING_ERROR = `The package 'react-native-video-trim' doesn't seem to be linked. Make sure: \n\n` + _reactNative.Platform.select({
+   ios: "- You have run 'pod install'\n",
+@@ -38,6 +39,27 @@ function showEditor(filePath) {
+   });
+ }
+ 
++/**
++ * Trim a video without opening the native editor.
++ *
++ * @returns {Promise<string>} A **Promise** which resolves to the output file path
++ */
++function trim(filePath, config) {
++  if (!(filePath !== null && filePath !== void 0 && filePath.trim().length)) {
++    throw new Error('File path cannot be empty!');
++  }
++  if (!Number.isFinite(config === null || config === void 0 ? void 0 : config.startTime) || !Number.isFinite(config === null || config === void 0 ? void 0 : config.endTime)) {
++    throw new Error('startTime and endTime are required!');
++  }
++  if (config.endTime <= config.startTime) {
++    throw new Error('endTime must be greater than startTime!');
++  }
++  return VideoTrim.trim(filePath, {
++    ...config,
++    outputExt: config.outputExt || 'mp4'
++  });
++}
++
+ /**
+  * Clean output files generated at all time
+  *
+diff --git a/node_modules/react-native-video-trim/lib/module/index.js b/node_modules/react-native-video-trim/lib/module/index.js
+index 48143e2..5977c42 100644
+--- a/node_modules/react-native-video-trim/lib/module/index.js
++++ b/node_modules/react-native-video-trim/lib/module/index.js
+@@ -27,6 +27,27 @@ export function showEditor(filePath) {
+   });
+ }
+ 
++/**
++ * Trim a video without opening the native editor.
++ *
++ * @returns {Promise<string>} A **Promise** which resolves to the output file path
++ */
++export function trim(filePath, config) {
++  if (!(filePath !== null && filePath !== void 0 && filePath.trim().length)) {
++    throw new Error('File path cannot be empty!');
++  }
++  if (!Number.isFinite(config === null || config === void 0 ? void 0 : config.startTime) || !Number.isFinite(config === null || config === void 0 ? void 0 : config.endTime)) {
++    throw new Error('startTime and endTime are required!');
++  }
++  if (config.endTime <= config.startTime) {
++    throw new Error('endTime must be greater than startTime!');
++  }
++  return VideoTrim.trim(filePath, {
++    ...config,
++    outputExt: config.outputExt || 'mp4'
++  });
++}
++
+ /**
+  * Clean output files generated at all time
+  *
+diff --git a/node_modules/react-native-video-trim/lib/typescript/index.d.ts b/node_modules/react-native-video-trim/lib/typescript/index.d.ts
+index 2ef4b60..2a57a1e 100644
+--- a/node_modules/react-native-video-trim/lib/typescript/index.d.ts
++++ b/node_modules/react-native-video-trim/lib/typescript/index.d.ts
+@@ -226,6 +226,21 @@ export interface EditorConfig {
+      */
+     progressUpdateInterval?: number;
+ }
++export interface TrimConfig {
++    /**
++     * Trim start time in milliseconds.
++     */
++    startTime: number;
++    /**
++     * Trim end time in milliseconds.
++     */
++    endTime: number;
++    /**
++     * Output file extension.
++     * @default "mp4"
++     */
++    outputExt?: string;
++}
+ /**
+  * Delete a file
+  *
+@@ -234,6 +249,12 @@ export interface EditorConfig {
+  * @returns {void} A **Promise** which resolves `void`
+  */
+ export declare function showEditor(filePath: string, config?: EditorConfig): void;
++/**
++ * Trim a video without opening the native editor.
++ *
++ * @returns {Promise<string>} A **Promise** which resolves to the output file path
++ */
++export declare function trim(filePath: string, config: TrimConfig): Promise<string>;
+ /**
+  * Clean output files generated at all time
+  *
+diff --git a/node_modules/react-native-video-trim/src/index.tsx b/node_modules/react-native-video-trim/src/index.tsx
+index 6c7c6e5..2dca416 100644
+--- a/node_modules/react-native-video-trim/src/index.tsx
++++ b/node_modules/react-native-video-trim/src/index.tsx
+@@ -250,6 +250,22 @@ export interface EditorConfig {
+   progressUpdateInterval?: number;
+ }
+ 
++export interface TrimConfig {
++  /**
++   * Trim start time in milliseconds.
++   */
++  startTime: number;
++  /**
++   * Trim end time in milliseconds.
++   */
++  endTime: number;
++  /**
++   * Output file extension.
++   * @default "mp4"
++   */
++  outputExt?: string;
++}
++
+ /**
+  * Delete a file
+  *
+@@ -263,6 +279,28 @@ export function showEditor(filePath: string, config: EditorConfig = {}): void {
+   VideoTrim.showEditor(filePath, { ...config, headerTextColor: color });
+ }
+ 
++/**
++ * Trim a video without opening the native editor.
++ *
++ * @returns {Promise<string>} A **Promise** which resolves to the output file path
++ */
++export function trim(filePath: string, config: TrimConfig): Promise<string> {
++  if (!filePath?.trim().length) {
++    throw new Error('File path cannot be empty!');
++  }
++  if (!Number.isFinite(config?.startTime) || !Number.isFinite(config?.endTime)) {
++    throw new Error('startTime and endTime are required!');
++  }
++  if (config.endTime <= config.startTime) {
++    throw new Error('endTime must be greater than startTime!');
++  }
++
++  return VideoTrim.trim(filePath, {
++    ...config,
++    outputExt: config.outputExt || 'mp4',
++  });
++}
++
+ /**
+  * Clean output files generated at all time
+  *

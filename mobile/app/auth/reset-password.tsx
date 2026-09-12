@@ -3,6 +3,7 @@ import { View, Text, TextInput, Pressable, ScrollView, ActivityIndicator } from 
 import KeyboardScreen from '@/components/KeyboardScreen'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter, useLocalSearchParams } from 'expo-router'
+import { useTranslation } from 'react-i18next'
 import { Ionicons } from '@expo/vector-icons'
 import Toast from 'react-native-toast-message'
 
@@ -11,6 +12,8 @@ import { colors, spacing, fontSize, radius } from '@/lib/theme'
 
 export default function ResetPassword() {
   const router = useRouter()
+  const { i18n } = useTranslation()
+  const ar = i18n.language === 'ar'
   const params = useLocalSearchParams<{ access_token?: string; refresh_token?: string }>()
 
   const [password, setPassword] = useState('')
@@ -39,18 +42,18 @@ export default function ResetPassword() {
 
   const handleSubmit = async () => {
     if (password.length < 6) {
-      Toast.show({ type: 'error', text1: 'كلمة المرور يجب أن تكون 6 أحرف على الأقل' })
+      Toast.show({ type: 'error', text1: ar ? 'كلمة المرور يجب أن تكون 6 أحرف على الأقل' : 'Password must be at least 6 characters' })
       return
     }
     if (password !== confirm) {
-      Toast.show({ type: 'error', text1: 'كلمات المرور غير متطابقة' })
+      Toast.show({ type: 'error', text1: ar ? 'كلمات المرور غير متطابقة' : 'Passwords do not match' })
       return
     }
     setLoading(true)
     try {
       const { error } = await supabase.auth.updateUser({ password })
       if (error) throw error
-      Toast.show({ type: 'success', text1: 'تم تغيير كلمة المرور بنجاح' })
+      Toast.show({ type: 'success', text1: ar ? 'تم تغيير كلمة المرور بنجاح' : 'Password changed successfully' })
       router.replace('/(tabs)/feed')
     } catch (err) {
       Toast.show({ type: 'error', text1: (err as Error).message })
@@ -75,15 +78,15 @@ export default function ResetPassword() {
         </Pressable>
 
         <Text style={{ fontSize: fontSize['3xl'], fontWeight: '900', color: colors.grey900, marginBottom: spacing.xs }}>
-          كلمة مرور جديدة
+          {ar ? 'كلمة مرور جديدة' : 'New password'}
         </Text>
         <Text style={{ fontSize: fontSize.base, color: colors.grey600, marginBottom: spacing.xl }}>
-          أدخل كلمة المرور الجديدة لحسابك
+          {ar ? 'أدخل كلمة المرور الجديدة لحسابك' : 'Enter the new password for your account'}
         </Text>
 
         {/* Password */}
         <Field
-          label="كلمة المرور الجديدة"
+          label={ar ? 'كلمة المرور الجديدة' : 'New password'}
           value={password}
           onChangeText={setPassword}
           secure={!showPw}
@@ -97,7 +100,7 @@ export default function ResetPassword() {
 
         {/* Confirm */}
         <Field
-          label="تأكيد كلمة المرور"
+          label={ar ? 'تأكيد كلمة المرور' : 'Confirm password'}
           value={confirm}
           onChangeText={setConfirm}
           secure={!showPw}
@@ -119,7 +122,7 @@ export default function ResetPassword() {
             <ActivityIndicator color={colors.white} />
           ) : (
             <Text style={{ color: colors.white, fontSize: fontSize.base, fontWeight: '800' }}>
-              تغيير كلمة المرور
+              {ar ? 'تغيير كلمة المرور' : 'Change password'}
             </Text>
           )}
         </Pressable>

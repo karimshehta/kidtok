@@ -39,7 +39,9 @@ export const colors = {
   grey50:  '#F5F7F9',  // = neutral200
   grey100: '#EBEEF2',  // = neutral300
   grey200: '#CCD4DF',  // = neutral400
+  grey300: '#9BA8BC',
   grey400: '#7e8da6',
+  grey500: '#738399',
   grey600: '#6D8195',  // = neutral700
   grey700: '#667085',  // = grey
   grey900: '#181B20',  // = neutral900

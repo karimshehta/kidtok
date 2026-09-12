@@ -3,6 +3,7 @@ import { View, Text, TextInput, ScrollView, Pressable, ActivityIndicator, Image 
 import KeyboardScreen from '@/components/KeyboardScreen'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter, useLocalSearchParams } from 'expo-router'
+import { useTranslation } from 'react-i18next'
 import { Ionicons } from '@expo/vector-icons'
 import { useQueryClient } from '@tanstack/react-query'
 import Toast from 'react-native-toast-message'
@@ -25,6 +26,8 @@ interface YTResult {
 
 export default function AddVideoScreen() {
   const router = useRouter()
+  const { i18n } = useTranslation()
+  const ar = i18n.language === 'ar'
   const userId = useAuth((s) => s.user?.id)
   const { id: playlistId } = useLocalSearchParams<{ id: string }>()
   const qc = useQueryClient()
@@ -46,7 +49,7 @@ export default function AddVideoScreen() {
       if (error) throw error
       setResults((data?.results || data?.videos || []) as YTResult[])
     } catch (err) {
-      Toast.show({ type: 'error', text1: 'فشل البحث', text2: (err as Error).message })
+      Toast.show({ type: 'error', text1: ar ? 'فشل البحث' : 'Search failed', text2: (err as Error).message })
     } finally {
       setSearching(false)
     }
@@ -107,7 +110,7 @@ export default function AddVideoScreen() {
       // Fix 2: invalidate playlist count on parent screen
       await qc.invalidateQueries({ queryKey: ['playlist-videos', playlistId] })
       await qc.invalidateQueries({ queryKey: ['playlists'] })
-      Toast.show({ type: 'success', text1: 'تم إضافة الفيديو ✓' })
+      Toast.show({ type: 'success', text1: ar ? 'تم إضافة الفيديو ✓' : 'Video added ✓' })
     } catch (err) {
       Toast.show({ type: 'error', text1: (err as Error).message })
     } finally {
@@ -122,7 +125,7 @@ export default function AddVideoScreen() {
           <Ionicons name="arrow-back" size={28} color={colors.grey900} />
         </Pressable>
         <Text style={{ fontSize: fontSize.xl, fontWeight: '900', color: colors.grey900 }}>
-          إضافة فيديو
+          {ar ? 'إضافة فيديو' : 'Add video'}
         </Text>
       </View>
 
@@ -143,7 +146,7 @@ export default function AddVideoScreen() {
           <TextInput
             value={query}
             onChangeText={setQuery}
-            placeholder="ابحث في YouTube..."
+            placeholder={ar ? 'ابحث في YouTube...' : 'Search YouTube...'}
             placeholderTextColor={colors.grey400}
             returnKeyType="search"
             onSubmitEditing={search}
@@ -168,10 +171,10 @@ export default function AddVideoScreen() {
           <View style={{ alignItems: 'center', marginTop: spacing.xxl }}>
             <Ionicons name="logo-youtube" size={64} color={colors.grey200} />
             <Text style={{ color: colors.grey700, marginTop: spacing.md, fontWeight: '700' }}>
-              ابحث عن فيديو لإضافته
+              {ar ? 'ابحث عن فيديو لإضافته' : 'Search for a video to add'}
             </Text>
             <Text style={{ color: colors.grey600, fontSize: fontSize.sm, marginTop: 4, textAlign: 'center' }}>
-              النتائج آمنة ومناسبة للأطفال فقط
+              {ar ? 'النتائج آمنة ومناسبة للأطفال فقط' : 'Results are kid-safe only'}
             </Text>
           </View>
         ) : (
@@ -239,12 +242,12 @@ export default function AddVideoScreen() {
                         ) : isAdded ? (
                           <>
                             <Ionicons name="checkmark" size={14} color={colors.white} />
-                            <Text style={{ color: colors.white, fontSize: 12, fontWeight: '700' }}>تمت الإضافة</Text>
+                            <Text style={{ color: colors.white, fontSize: 12, fontWeight: '700' }}>{ar ? 'تمت الإضافة' : 'Added'}</Text>
                           </>
                         ) : (
                           <>
                             <Ionicons name="add" size={14} color={colors.white} />
-                            <Text style={{ color: colors.white, fontSize: 12, fontWeight: '700' }}>إضافة</Text>
+                            <Text style={{ color: colors.white, fontSize: 12, fontWeight: '700' }}>{ar ? 'إضافة' : 'Add'}</Text>
                           </>
                         )}
                       </Pressable>

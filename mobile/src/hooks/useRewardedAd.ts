@@ -18,7 +18,7 @@ export interface UseRewardedAdReturn {
   ready:   boolean
   loading: boolean
   error:   string | null
-  show:    (onRewarded: () => void) => Promise<void>
+  show:    (onRewarded: () => void | Promise<void>) => Promise<void>
   reload:  () => void
 }
 
@@ -49,10 +49,19 @@ function useRewardedSettings() {
   })
 }
 
+// ─── Google test IDs — always work in __DEV__ builds without device registration
+const TEST_REWARDED_ANDROID = 'ca-app-pub-3940256099942544/5224354917'
+const TEST_REWARDED_IOS     = 'ca-app-pub-3940256099942544/1712485313'
+
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 export function useRewardedAd(): UseRewardedAdReturn {
   const { data: settings } = useRewardedSettings()
-  const adUnitId  = Platform.OS === 'android' ? settings?.androidUnitId : settings?.iosUnitId
+
+  // ✅ Always use admin IDs from Supabase — no test fallback
+  const rewardedEnabled = settings?.enabled !== false
+  const adUnitId = rewardedEnabled
+    ? (Platform.OS === 'android' ? settings?.androidUnitId : settings?.iosUnitId)
+    : ''
   const adModule  = useRef(getAdModule()).current
   const adRef     = useRef<any>(null)
   const unsubsRef = useRef<(() => void)[]>([])
@@ -60,6 +69,9 @@ export function useRewardedAd(): UseRewardedAdReturn {
   const [loaded,  setLoaded]  = useState(false)
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState<string | null>(null)
+  const loadedRef = useRef(false)
+
+  useEffect(() => { loadedRef.current = loaded }, [loaded])
 
   const cleanup = useCallback(() => {
     unsubsRef.current.forEach((fn) => { try { fn() } catch {} })
@@ -67,14 +79,19 @@ export function useRewardedAd(): UseRewardedAdReturn {
   }, [])
 
   const load = useCallback(() => {
-    if (!adModule || !adUnitId) return
+    if (!adModule || !adUnitId) {
+      setLoaded(false)
+      setLoading(false)
+      setError(!adModule ? 'AdMob module is unavailable in this build' : 'Rewarded ad unit id is missing')
+      return
+    }
     cleanup()
     setLoaded(false)
     setLoading(true)
     setError(null)
 
     try {
-      const { RewardedAd, RewardedAdEventType } = adModule
+      const { RewardedAd, RewardedAdEventType, AdEventType } = adModule
       const ad = RewardedAd.createForAdRequest(adUnitId)
       adRef.current = ad
 
@@ -83,7 +100,14 @@ export function useRewardedAd(): UseRewardedAdReturn {
           setLoaded(true)
           setLoading(false)
         }),
-        ad.addAdEventListener(RewardedAdEventType.ERROR, (err: Error) => {
+        ad.addAdEventListener(AdEventType.ERROR, (err: Error) => {
+          if (__DEV__) {
+            console.warn('[rewarded-ad] load failed', {
+              platform: Platform.OS,
+              unitId: adUnitId ? `${adUnitId.slice(0, 18)}...` : 'missing',
+              message: err?.message || String(err),
+            })
+          }
           setLoaded(false)
           setLoading(false)
           setError(err?.message || 'Ad failed to load')
@@ -105,15 +129,33 @@ export function useRewardedAd(): UseRewardedAdReturn {
   }, [adUnitId])
 
   // Show ad and trigger reward callback
-  const show = useCallback(async (onRewarded: () => void): Promise<void> => {
-    // Fallback: no ad available → grant reward directly
-    if (!adModule || !adRef.current || !loaded) {
-      await onRewarded()
-      return
+  // NOTE: reward is ONLY granted if the user actually watched the ad to completion.
+  // If no ad is available, we throw — the caller decides what to do (show error,
+  // wait, etc.) instead of silently rewarding without an ad view.
+  const show = useCallback(async (onRewarded: () => void | Promise<void>): Promise<void> => {
+    if (!rewardedEnabled) throw new Error('AD_DISABLED')
+    if (!adModule) throw new Error('AD_NOT_READY')
+    if (!adUnitId) throw new Error('AD_UNIT_MISSING')
+
+    if (!adRef.current || !loaded) {
+      load()
+      await new Promise<void>((resolve, reject) => {
+        const started = Date.now()
+        const timer = setInterval(() => {
+          if (loadedRef.current) {
+            clearInterval(timer)
+            resolve()
+          } else if (Date.now() - started > 8000) {
+            clearInterval(timer)
+            reject(new Error('AD_NOT_READY'))
+          }
+        }, 250)
+      })
+      if (!adRef.current) throw new Error('AD_NOT_READY')
     }
 
-    return new Promise<void>((resolve) => {
-      const { RewardedAdEventType } = adModule
+    return new Promise<void>((resolve, reject) => {
+      const { RewardedAdEventType, AdEventType } = adModule
       let earned = false
 
       const unsubEarned = adRef.current.addAdEventListener(
@@ -121,12 +163,21 @@ export function useRewardedAd(): UseRewardedAdReturn {
         () => { earned = true }
       )
       const unsubClosed = adRef.current.addAdEventListener(
-        RewardedAdEventType.CLOSED,
+        AdEventType.CLOSED,
         async () => {
           unsubEarned()
           unsubClosed()
-          if (earned) await onRewarded()
-          resolve()
+          if (earned) {
+            try {
+              await onRewarded()
+              resolve()
+            } catch (rewardError) {
+              reject(rewardError)
+            }
+          } else {
+            // User closed before earning — no reward
+            reject(new Error('AD_DISMISSED'))
+          }
           // Preload next ad
           setTimeout(() => load(), 1000)
         }
@@ -137,12 +188,11 @@ export function useRewardedAd(): UseRewardedAdReturn {
       } catch {
         unsubEarned()
         unsubClosed()
-        // Show failed → grant reward anyway
-        onRewarded().then(resolve)
         load()
+        reject(new Error('AD_SHOW_FAILED'))
       }
     })
-  }, [loaded, adModule, load])
+  }, [adUnitId, loaded, adModule, load, rewardedEnabled])
 
   return { ready: loaded, loading, error, show, reload: load }
 }
