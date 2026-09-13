@@ -40,6 +40,13 @@ grant execute on function public.cleanup_stale_uploading_videos(interval, int) t
 
 create extension if not exists pg_cron with schema extensions;
 
+do $$
+begin
+  if exists (select 1 from cron.job where jobname = 'cleanup-stale-uploading-videos') then
+    perform cron.unschedule('cleanup-stale-uploading-videos');
+  end if;
+end $$;
+
 -- Keep the table clean without waiting for an admin/manual action.
 select cron.schedule(
   'cleanup-stale-uploading-videos',
