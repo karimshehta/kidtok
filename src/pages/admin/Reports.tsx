@@ -7,7 +7,6 @@ import {
   Flag,
   MessageSquareWarning,
   CheckCircle2,
-  XCircle,
   Trash2,
   Play,
   Loader2,
@@ -16,6 +15,7 @@ import {
 import AdminLayout from '@/components/AdminLayout'
 import VideoPlayer from '@/components/VideoPlayer'
 import { supabase } from '@/lib/supabase'
+import { useAdminDeleteVideo } from '@/hooks/useCreator'
 
 type ReportStatus = 'pending' | 'reviewed' | 'dismissed' | 'action_taken'
 
@@ -33,6 +33,8 @@ type VideoReportRow = {
     id: string
     title: string | null
     cloudflare_uid: string | null
+    hls_url: string | null
+    r2_public_url: string | null
     thumbnail_url: string | null
     creator_id: string
     status: string
@@ -40,7 +42,9 @@ type VideoReportRow = {
   video: {
     id: string
     title: string | null
+    cloudflare_uid: string | null
     hls_url: string | null
+    r2_public_url: string | null
     thumbnail_url: string | null
     creator_id: string | null
   } | null
@@ -105,8 +109,8 @@ export default function AdminReports() {
         .from('video_reports')
         .select(`
           id, reporter_id, creator_video_id, video_id, reason, notes, status, created_at,
-          creator_video:creator_videos!creator_video_id (id, title, cloudflare_uid, thumbnail_url, creator_id, status),
-          video:videos!video_id (id, title, hls_url, thumbnail_url, creator_id)
+          creator_video:creator_videos!creator_video_id (id, title, cloudflare_uid, hls_url, r2_public_url, thumbnail_url, creator_id, status),
+          video:videos!video_id (id, title, cloudflare_uid, hls_url, r2_public_url, thumbnail_url, creator_id)
         `)
         .eq('status', statusFilter)
         .order('created_at', { ascending: false })
@@ -156,54 +160,42 @@ export default function AdminReports() {
 
   const invalidateVideoReports = () => qc.invalidateQueries({ queryKey: ['admin-video-reports'] })
   const invalidateCommentReports = () => qc.invalidateQueries({ queryKey: ['admin-comment-reports'] })
+  const invalidateAllReports = () => {
+    invalidateVideoReports()
+    invalidateCommentReports()
+  }
 
-  const updateVideoStatusMut = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: ReportStatus }) => {
+  const deleteCreatorVideoMut = useAdminDeleteVideo()
+
+  const deleteCatalogVideoMut = useMutation({
+    mutationFn: async (videoId: string) => {
       const { error } = await supabase
-        .from('video_reports')
-        .update({ status, reviewed_at: new Date().toISOString() })
-        .eq('id', id)
+        .from('videos')
+        .delete()
+        .eq('id', videoId)
       if (error) throw error
     },
     onSuccess: invalidateVideoReports,
   })
 
-  const takeVideoActionMut = useMutation({
-    mutationFn: async (report: VideoReportRow) => {
-      if (report.creator_video) {
+  const cleanReportsMut = useMutation({
+    mutationFn: async ({ reportKind, status }: { reportKind: ReportKind; status: StatusFilter }) => {
+      if (reportKind === 'videos') {
         const { error } = await supabase
-          .from('creator_videos')
-          .update({ status: 'rejected', rejection_reason: `Report: ${report.reason}` })
-          .eq('id', report.creator_video.id)
+          .from('video_reports')
+          .delete()
+          .eq('status', status)
         if (error) throw error
+        return
       }
 
-      if (report.video_id) {
-        const { error } = await supabase
-          .from('videos')
-          .update({ is_active: false })
-          .eq('id', report.video_id)
-        if (error) throw error
-      }
-
-      const { error } = await supabase
-        .from('video_reports')
-        .update({ status: 'action_taken', reviewed_at: new Date().toISOString() })
-        .eq('id', report.id)
-      if (error) throw error
-    },
-    onSuccess: invalidateVideoReports,
-  })
-
-  const updateCommentReportMut = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: ReportStatus }) => {
       const { error } = await supabase
         .from('video_comment_reports')
-        .update({ status, reviewed_at: new Date().toISOString() })
-        .eq('id', id)
+        .delete()
+        .eq('status', status)
       if (error) throw error
     },
-    onSuccess: invalidateCommentReports,
+    onSuccess: invalidateAllReports,
   })
 
   const deleteCommentMut = useMutation({
@@ -222,29 +214,34 @@ export default function AdminReports() {
     onSuccess: invalidateCommentReports,
   })
 
-  const handleVideoDismiss = async (id: string) => {
+  const handleDeleteVideo = async (report: VideoReportRow) => {
+    const title = report.creator_video?.title || report.video?.title || 'this video'
+    if (!confirm(`Delete "${title}" permanently and close its reports?`)) return
     try {
-      await updateVideoStatusMut.mutateAsync({ id, status: 'dismissed' })
-      toast.success('Report dismissed')
+      if (report.creator_video?.id) {
+        await deleteCreatorVideoMut.mutateAsync(report.creator_video.id)
+      } else if (report.video_id) {
+        await deleteCatalogVideoMut.mutateAsync(report.video_id)
+      } else {
+        throw new Error('No video is attached to this report')
+      }
+      invalidateVideoReports()
+      toast.success('Video deleted & reports closed')
     } catch (err) {
       toast.error((err as Error).message)
     }
   }
 
-  const handleVideoAction = async (report: VideoReportRow) => {
-    if (!confirm('Reject/hide the video and resolve this report?')) return
-    try {
-      await takeVideoActionMut.mutateAsync(report)
-      toast.success('Video hidden & report closed')
-    } catch (err) {
-      toast.error((err as Error).message)
+  const handleCleanReports = async () => {
+    if (reports.length === 0) {
+      toast('No reports to clean')
+      return
     }
-  }
-
-  const handleCommentDismiss = async (id: string) => {
+    const label = `${statusFilter.replace('_', ' ')} ${kind === 'videos' ? 'video' : 'comment'} reports`
+    if (!confirm(`Clean all ${label}?\n\nThis only clears report records. Use Delete on a card to remove the reported content itself.`)) return
     try {
-      await updateCommentReportMut.mutateAsync({ id, status: 'dismissed' })
-      toast.success('Comment report dismissed')
+      await cleanReportsMut.mutateAsync({ reportKind: kind, status: statusFilter })
+      toast.success('Reports cleaned')
     } catch (err) {
       toast.error((err as Error).message)
     }
@@ -268,14 +265,25 @@ export default function AdminReports() {
   return (
     <AdminLayout>
       <div className="max-w-6xl">
-        <header className="mb-6">
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Flag className="w-7 h-7 text-primary" />
-            {t('admin.nav.reports') || 'User reports'}
-          </h1>
-          <p className="text-sm text-neutral-500 mt-1">
-            Review video reports and comment reports from one moderation queue.
-          </p>
+        <header className="mb-6 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold flex items-center gap-2">
+              <Flag className="w-7 h-7 text-primary" />
+              {t('admin.nav.reports') || 'User reports'}
+            </h1>
+            <p className="text-sm text-neutral-500 mt-1">
+              Review video reports and comment reports from one moderation queue.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleCleanReports}
+            disabled={cleanReportsMut.isPending || reports.length === 0}
+            className="px-4 py-2 rounded-xl text-sm font-bold bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 disabled:opacity-50 inline-flex items-center justify-center gap-2"
+          >
+            {cleanReportsMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+            Clean reports
+          </button>
         </header>
 
         <div className="flex flex-wrap gap-2 mb-4">
@@ -331,9 +339,8 @@ export default function AdminReports() {
                 key={report.id}
                 report={report}
                 onPlay={setPlaying}
-                onDismiss={handleVideoDismiss}
-                onAction={handleVideoAction}
-                busy={updateVideoStatusMut.isPending || takeVideoActionMut.isPending}
+                onDelete={handleDeleteVideo}
+                busy={deleteCreatorVideoMut.isPending || deleteCatalogVideoMut.isPending}
               />
             ))}
           </div>
@@ -343,9 +350,8 @@ export default function AdminReports() {
               <CommentReportCard
                 key={report.id}
                 report={report}
-                onDismiss={handleCommentDismiss}
                 onDelete={handleDeleteComment}
-                busy={updateCommentReportMut.isPending || deleteCommentMut.isPending}
+                busy={deleteCommentMut.isPending}
               />
             ))}
           </div>
@@ -354,8 +360,8 @@ export default function AdminReports() {
         <VideoPlayer
           open={!!playing}
           onClose={() => setPlaying(null)}
-          hlsUrl={playing?.video?.hls_url || null}
-          cloudflareUid={playing?.creator_video?.cloudflare_uid || null}
+          hlsUrl={playing?.creator_video?.hls_url || playing?.creator_video?.r2_public_url || playing?.video?.hls_url || playing?.video?.r2_public_url || null}
+          cloudflareUid={playing?.creator_video?.cloudflare_uid || playing?.video?.cloudflare_uid || null}
           title={playing?.creator_video?.title || playing?.video?.title || null}
         />
       </div>
@@ -392,20 +398,25 @@ function KindButton({
 function VideoReportCard({
   report,
   onPlay,
-  onDismiss,
-  onAction,
+  onDelete,
   busy,
 }: {
   report: VideoReportRow
   onPlay: (report: VideoReportRow) => void
-  onDismiss: (id: string) => void
-  onAction: (report: VideoReportRow) => void
+  onDelete: (report: VideoReportRow) => void
   busy: boolean
 }) {
   const thumb = report.creator_video?.thumbnail_url || report.video?.thumbnail_url
   const title = report.creator_video?.title || report.video?.title || '(no title)'
   const reporter = report.reporter?.name || report.reporter?.username || report.reporter_id.slice(0, 8)
-  const canPlay = !!(report.video?.hls_url || report.creator_video?.cloudflare_uid)
+  const canPlay = !!(
+    report.creator_video?.cloudflare_uid ||
+    report.creator_video?.hls_url ||
+    report.creator_video?.r2_public_url ||
+    report.video?.cloudflare_uid ||
+    report.video?.hls_url ||
+    report.video?.r2_public_url
+  )
 
   return (
     <div className="card flex gap-4 items-start">
@@ -450,9 +461,8 @@ function VideoReportCard({
       <ModerationActions
         status={report.status}
         busy={busy}
-        primaryLabel="Reject/hide video"
-        onPrimary={() => onAction(report)}
-        onDismiss={() => onDismiss(report.id)}
+        primaryLabel="Delete video"
+        onPrimary={() => onDelete(report)}
       />
     </div>
   )
@@ -460,12 +470,10 @@ function VideoReportCard({
 
 function CommentReportCard({
   report,
-  onDismiss,
   onDelete,
   busy,
 }: {
   report: CommentReportRow
-  onDismiss: (id: string) => void
   onDelete: (report: CommentReportRow) => void
   busy: boolean
 }) {
@@ -518,7 +526,6 @@ function CommentReportCard({
         busy={busy || !!commentDeleted}
         primaryLabel={commentDeleted ? 'Deleted' : 'Delete comment'}
         onPrimary={() => onDelete(report)}
-        onDismiss={() => onDismiss(report.id)}
       />
     </div>
   )
@@ -529,13 +536,11 @@ function ModerationActions({
   busy,
   primaryLabel,
   onPrimary,
-  onDismiss,
 }: {
   status: ReportStatus
   busy: boolean
   primaryLabel: string
   onPrimary: () => void
-  onDismiss: () => void
 }) {
   if (status !== 'pending') {
     return (
@@ -555,14 +560,6 @@ function ModerationActions({
       >
         <Trash2 className="w-4 h-4" />
         {primaryLabel}
-      </button>
-      <button
-        onClick={onDismiss}
-        disabled={busy}
-        className="px-3 py-2 text-sm font-semibold rounded-lg bg-neutral-100 hover:bg-neutral-200 text-neutral-700 flex items-center gap-1.5 disabled:opacity-50"
-      >
-        <XCircle className="w-4 h-4" />
-        Dismiss
       </button>
     </div>
   )

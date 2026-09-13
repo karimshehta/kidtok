@@ -73,6 +73,7 @@ export default function AdminModeration() {
         open={!!playing}
         onClose={() => setPlaying(null)}
         cloudflareUid={playing?.cloudflare_uid || null}
+        hlsUrl={playing?.hls_url || playing?.r2_public_url || null}
         title={playing?.title}
       />
     </AdminLayout>
@@ -129,8 +130,8 @@ function PendingReviewTab({ onPlay }: { onPlay: (v: CreatorVideo) => void }) {
         <div key={v.id} className="card flex flex-col sm:flex-row gap-4 p-4">
           <button
             type="button"
-            onClick={() => v.cloudflare_uid && onPlay(v)}
-            disabled={!v.cloudflare_uid}
+            onClick={() => canPlayCreatorVideo(v) && onPlay(v)}
+            disabled={!canPlayCreatorVideo(v)}
             className="relative w-full sm:w-48 aspect-video bg-neutral-300 rounded-lg overflow-hidden flex-shrink-0 group"
           >
             {v.thumbnail_url ? (
@@ -140,7 +141,7 @@ function PendingReviewTab({ onPlay }: { onPlay: (v: CreatorVideo) => void }) {
                 <Clock className="w-8 h-8" />
               </div>
             )}
-            {v.cloudflare_uid && (
+            {canPlayCreatorVideo(v) && (
               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                 <div className="w-10 h-10 rounded-full bg-white/90 flex items-center justify-center">
                   <Play className="w-5 h-5 text-primary ms-0.5" fill="currentColor" />
@@ -234,7 +235,7 @@ function AllVideosTab({ onPlay }: { onPlay: (v: AdminCreatorVideoRow) => void })
   const handleDelete = async (v: AdminCreatorVideoRow) => {
     const ok = confirm(
       `Delete "${v.title}" permanently?\n\n` +
-      `This removes it from the app AND from Cloudflare Stream.\n` +
+      `This removes it from the app AND from its storage asset (R2/Cloudflare).\n` +
       `The creator (${v.creator?.name || v.creator?.username || v.creator_id?.slice(0, 8)}) will not be notified.`
     )
     if (!ok) return
@@ -277,8 +278,8 @@ function AllVideosTab({ onPlay }: { onPlay: (v: AdminCreatorVideoRow) => void })
             <div key={v.id} className="card flex gap-3 items-start p-3">
               <button
                 type="button"
-                onClick={() => v.cloudflare_uid && onPlay(v)}
-                disabled={!v.cloudflare_uid}
+                onClick={() => canPlayCreatorVideo(v) && onPlay(v)}
+                disabled={!canPlayCreatorVideo(v)}
                 className="relative w-32 aspect-video bg-neutral-300 rounded-lg overflow-hidden flex-shrink-0 group"
               >
                 {v.thumbnail_url ? (
@@ -286,7 +287,7 @@ function AllVideosTab({ onPlay }: { onPlay: (v: AdminCreatorVideoRow) => void })
                 ) : (
                   <div className="flex items-center justify-center h-full text-neutral-700"><Play className="w-6 h-6" /></div>
                 )}
-                {v.cloudflare_uid && (
+                {canPlayCreatorVideo(v) && (
                   <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                     <Play className="w-5 h-5 text-white" />
                   </div>
@@ -323,6 +324,10 @@ function AllVideosTab({ onPlay }: { onPlay: (v: AdminCreatorVideoRow) => void })
       )}
     </div>
   )
+}
+
+function canPlayCreatorVideo(v: Pick<CreatorVideo, 'cloudflare_uid' | 'hls_url' | 'r2_public_url'>) {
+  return !!(v.cloudflare_uid || v.hls_url || v.r2_public_url)
 }
 
 function statusColor(s: string) {

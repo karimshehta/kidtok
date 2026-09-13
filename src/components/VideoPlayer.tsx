@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import Hls from 'hls.js'
 import { getYouTubeEmbedUrl } from '@/lib/youtube'
 
 interface Props {
@@ -31,6 +32,27 @@ export default function VideoPlayer({
 }: Props) {
   const { t } = useTranslation()
   const [hasError, setHasError] = useState(false)
+  const videoRef = useRef<HTMLVideoElement | null>(null)
+
+  // Pick the right player source.
+  let iframeSrc: string | null = null
+  let directVideoSrc: string | null = null
+  const allowList = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share'
+
+  if (cloudflareUid) {
+    // Cloudflare Stream iframe embed handles HLS automatically.
+    iframeSrc = `https://iframe.cloudflarestream.com/${cloudflareUid}?controls=true&muted=false&preload=metadata`
+  } else if (hlsUrl) {
+    const m = hlsUrl.match(/cloudflarestream\.com\/([^/]+)/)
+    if (m) {
+      iframeSrc = `https://iframe.cloudflarestream.com/${m[1]}?controls=true&muted=false&preload=metadata`
+    } else {
+      // R2 uploads store a public MP4 URL in hls_url/r2_public_url.
+      directVideoSrc = hlsUrl
+    }
+  } else if (youtubeId) {
+    iframeSrc = `https://www.youtube-nocookie.com/embed/${youtubeId}?autoplay=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`
+  }
 
   useEffect(() => {
     if (!open) return
@@ -46,27 +68,33 @@ export default function VideoPlayer({
     }
   }, [open, onClose])
 
-  if (!open) return null
+  useEffect(() => {
+    if (!open || !directVideoSrc || !videoRef.current) return
 
-  // Pick the right embed source
-  let embedSrc: string | null = null
-  let allowList = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share'
+    const video = videoRef.current
+    setHasError(false)
 
-  if (cloudflareUid) {
-    // Cloudflare Stream iframe embed handles HLS automatically.
-    // The customer code is part of the HLS URL pattern but the iframe URL is at videodelivery.net (works without customer-code too).
-    embedSrc = `https://iframe.cloudflarestream.com/${cloudflareUid}?controls=true&muted=false&preload=metadata`
-  } else if (hlsUrl) {
-    // Extract the UID from the HLS URL pattern: https://customer-xxx.cloudflarestream.com/{uid}/manifest/video.m3u8
-    const m = hlsUrl.match(/cloudflarestream\.com\/([^/]+)/)
-    if (m) {
-      embedSrc = `https://iframe.cloudflarestream.com/${m[1]}?controls=true&muted=false&preload=metadata`
+    if (directVideoSrc.includes('.m3u8') && !video.canPlayType('application/vnd.apple.mpegurl')) {
+      if (!Hls.isSupported()) {
+        setHasError(true)
+        return
+      }
+      const hls = new Hls()
+      hls.loadSource(directVideoSrc)
+      hls.attachMedia(video)
+      return () => hls.destroy()
     }
-  } else if (youtubeId) {
-    embedSrc = `https://www.youtube-nocookie.com/embed/${youtubeId}?autoplay=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`
-  }
 
-  if (!embedSrc) return null
+    video.src = directVideoSrc
+    return () => {
+      video.pause()
+      video.removeAttribute('src')
+      video.load()
+    }
+  }, [open, directVideoSrc])
+
+  if (!open) return null
+  if (!iframeSrc && !directVideoSrc) return null
 
   return (
     <div className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4" onClick={onClose}>
@@ -95,17 +123,29 @@ export default function VideoPlayer({
               {youtubeId && <p className="text-sm text-neutral-300">{t('videos.safeEmbedOnly')}</p>}
             </div>
           ) : (
-            <iframe
-              key={embedSrc}
-              src={embedSrc}
-              title={title || 'Video player'}
-              className="absolute inset-0 w-full h-full"
-              frameBorder={0}
-              allow={allowList}
-              referrerPolicy="strict-origin-when-cross-origin"
-              allowFullScreen
-              onError={() => setHasError(true)}
-            />
+            iframeSrc ? (
+              <iframe
+                key={iframeSrc}
+                src={iframeSrc}
+                title={title || 'Video player'}
+                className="absolute inset-0 w-full h-full"
+                frameBorder={0}
+                allow={allowList}
+                referrerPolicy="strict-origin-when-cross-origin"
+                allowFullScreen
+                onError={() => setHasError(true)}
+              />
+            ) : (
+              <video
+                key={directVideoSrc || 'direct-video'}
+                ref={videoRef}
+                className="absolute inset-0 w-full h-full"
+                controls
+                autoPlay
+                playsInline
+                onError={() => setHasError(true)}
+              />
+            )
           )}
         </div>
       </div>

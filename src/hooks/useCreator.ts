@@ -14,7 +14,11 @@ export type CreatorVideoStatus =
 export interface CreatorVideo {
   id: string
   creator_id: string
+  storage_provider: string | null
   cloudflare_uid: string | null
+  r2_bucket: string | null
+  r2_key: string | null
+  r2_public_url: string | null
   hls_url: string | null
   thumbnail_url: string | null
   preview_url: string | null
