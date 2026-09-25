@@ -32,6 +32,9 @@ export default function AdminAds() {
       settings.forEach((s: any) => {
         init[s.key] = s.value ?? ''
       })
+      // Kept separate from the existing web AdSense frequency setting.
+      init['mobile_native_ad_frequency'] =
+        settings.find((s: any) => s.key === 'mobile_native_ad_frequency')?.value || '4'
       setForm(init)
     }
   }, [settings, form])
@@ -223,6 +226,17 @@ export default function AdminAds() {
               form={form}
               set={set}
             />
+            <div className="rounded-xl border border-cyan-200 bg-cyan-50 p-3">
+              <Field
+                label="Mobile Native Ad frequency"
+                hint="Show one AdMob Native ad after every N real videos in mobile feeds. Set 0 to disable."
+                value={form['mobile_native_ad_frequency'] || '4'}
+                onChange={(v) => set('mobile_native_ad_frequency', v)}
+                type="number"
+                min={0}
+                max={50}
+              />
+            </div>
             <Field
               label="Rewarded ad skip (minutes)"
               hint="Minutes of ad-free time after user watches a rewarded ad (mobile only)"
