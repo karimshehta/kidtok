@@ -134,13 +134,26 @@ export function useUpdateSettings() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (patches: Record<string, string>) => {
-      // Upsert all changed keys in parallel
-      const ops = Object.entries(patches).map(([key, value]) =>
-        supabase
+      // Update existing settings and create the mobile-native setting on first save.
+      // The native frequency is public runtime configuration, not a secret.
+      const now = new Date().toISOString()
+      const ops = Object.entries(patches).map(([key, value]) => {
+        if (key === 'mobile_native_ad_frequency') {
+          return supabase
+            .from('app_settings')
+            .upsert({
+              key,
+              value,
+              description: 'Show one native AdMob feed ad after every N real mobile videos (0 = disabled)',
+              is_public: true,
+              updated_at: now,
+            }, { onConflict: 'key' })
+        }
+        return supabase
           .from('app_settings')
-          .update({ value, updated_at: new Date().toISOString() })
+          .update({ value, updated_at: now })
           .eq('key', key)
-      )
+      })
       const results = await Promise.all(ops)
       const firstError = results.find((r) => r.error)?.error
       if (firstError) throw firstError
